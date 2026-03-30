@@ -32,6 +32,48 @@ const AssistantPage = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  const generateResponse = (text: string) => {
+    const lowerInput = text.toLowerCase();
+    
+    // Emergency / Danger
+    if (/(help|danger|sos|urgent|attack|scared|unsafe)/i.test(lowerInput)) {
+      const emergencyResponses = [
+        "Your safety is the priority! Please find a safe space immediately. Do you want me to activate the emergency SOS now?",
+        "I'm here with you. Please share your live location with a trusted contact immediately and move to a well-lit, populated area. Tap the SOS button if you feel in immediate danger.",
+        "Stay calm but act quickly. Call your local emergency number or use the SOS button on this app to alert your contacts. Try to get to a public place."
+      ];
+      return emergencyResponses[Math.floor(Math.random() * emergencyResponses.length)];
+    }
+
+    // Stalking / Followed
+    if (/(follow|following|trailing|behind me|staring)/i.test(lowerInput)) {
+      const followResponses = [
+        "If you think someone is following you, do not go home. Walk toward a crowded place, a cafe, or a police station. Consider calling a friend to stay on the line with you.",
+        "That sounds scary. Try changing your pace or crossing the street to see if they mimic you. Head to a well-lit, busy area and do not hesitate to ask for help from security or staff nearby.",
+        "Please stay alert. Keep your phone accessible, share your location, and avoid isolated streets. If they continue following you, activate the SOS feature."
+      ];
+      return followResponses[Math.floor(Math.random() * followResponses.length)];
+    }
+
+    // Cyber / Online Harassment
+    if (/(online|cyber|message|text|hack|fake|social media|instagram|whatsapp|harassment)/i.test(lowerInput)) {
+      const cyberResponses = [
+        "For online harassment, the first step is to block and report the user on the platform. Do not delete the messages yet—take screenshots as evidence.",
+        "Cyber safety is important. Do not engage with the person. Document the conversation, block the account, and consider reporting it to cybercrime authorities if it escalates.",
+        "Keep your personal information private. You can use the Sakhi app to anonymously report cyber bullying. Would you like me to guide you to the reporting section?"
+      ];
+      return cyberResponses[Math.floor(Math.random() * cyberResponses.length)];
+    }
+
+    // Default Fallback
+    const defaultResponses = [
+      "I'm here to listen. Can you tell me a bit more about what's going on so I can give you the best advice?",
+      "Thank you for sharing that with me. Your safety and well-being matters. How can I best support you right now?",
+      "I understand. Whether you need safety tips, want to file a report, or just need someone to talk to, I'm here."
+    ];
+    return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
+  };
+
   const sendMessage = (text: string) => {
     if (!text.trim()) return;
     const userMsg: Message = { id: Date.now().toString(), role: "user", content: text };
@@ -42,7 +84,7 @@ const AssistantPage = () => {
       const reply: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: "I understand your concern. Your safety is my priority. Here are some steps you can take right away:\n\n1. Share your live location with a trusted contact\n2. Stay in well-lit, populated areas\n3. Keep your phone charged and accessible\n\nWould you like me to activate the SOS feature or help with anything else?",
+        content: generateResponse(text),
       };
       setMessages((prev) => [...prev, reply]);
     }, 1200);

@@ -1,12 +1,12 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, AlertTriangle, MessageCircle, FileWarning, MapPin } from "lucide-react";
+import { Home, AlertTriangle, MessageCircle, FileWarning, Archive, Map } from "lucide-react";
 
 const navItems = [
-  { icon: Home, label: "Home", path: "/home" },
-  { icon: AlertTriangle, label: "SOS", path: "/sos" },
+  { icon: Home,          label: "Home",      path: "/home" },
+  { icon: AlertTriangle, label: "SOS",       path: "/sos" },
   { icon: MessageCircle, label: "Assistant", path: "/assistant" },
-  { icon: FileWarning, label: "Report", path: "/report" },
-  { icon: MapPin, label: "Map", path: "/risk-map" },
+  { icon: FileWarning,   label: "Report",    path: "/report" },
+  { icon: Map,           label: "Map",       path: "/risk-map" },
 ];
 
 const BottomNav = () => {
@@ -17,7 +17,8 @@ const BottomNav = () => {
     <div className="fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-lg border-t border-border px-2 pb-[env(safe-area-inset-bottom)]">
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
         {navItems.map((item) => {
-          const active = location.pathname === item.path;
+          const active = location.pathname === item.path ||
+            (item.path === "/report" && location.pathname.startsWith("/report-review"));
           return (
             <button
               key={item.path}
@@ -26,7 +27,15 @@ const BottomNav = () => {
                 active ? "text-primary" : "text-muted-foreground"
               }`}
             >
-              <item.icon className={`w-5 h-5 ${item.label === "SOS" && active ? "text-sos" : ""}`} />
+              <item.icon
+                className={`w-5 h-5 ${
+                  item.label === "SOS" && active
+                    ? "text-sos"
+                    : item.label === "Locker" && active
+                    ? "text-safe"
+                    : ""
+                }`}
+              />
               <span className="text-[10px] font-medium">{item.label}</span>
             </button>
           );
