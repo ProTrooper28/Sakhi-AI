@@ -48,7 +48,7 @@ const HomePage = () => {
     <div className="min-h-screen pb-24" style={{ backgroundColor: "hsl(var(--background))" }}>
 
       {/* Header */}
-      <div className="px-5 pt-8 pb-5 flex items-center justify-between border-b border-border/40">
+      <div className="px-5 pt-8 pb-5 flex items-center justify-between border-b border-border/40 bg-gradient-subtle">
         <div>
           <p className="section-label mb-1">Sakhi Safety System</p>
           <h1
@@ -59,10 +59,22 @@ const HomePage = () => {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <span className="badge-active">
+          <span className="badge-active bg-card/80 backdrop-blur">
             <span className="dot-active" />
             System Active
           </span>
+        </div>
+      </div>
+
+      {/* Safety Ticker */}
+      <div className="ticker-wrap">
+        <div className="ticker-content">
+          Women Helpline: <span>1091</span> &nbsp;&nbsp;|&nbsp;&nbsp; 
+          Emergency: <span>112</span> &nbsp;&nbsp;|&nbsp;&nbsp; 
+          Stay Alert • Stay Safe • Sakhi AI Active Protection &nbsp;&nbsp;|&nbsp;&nbsp; 
+          Women Helpline: <span>1091</span> &nbsp;&nbsp;|&nbsp;&nbsp; 
+          Emergency: <span>112</span> &nbsp;&nbsp;|&nbsp;&nbsp; 
+          Stay Alert • Stay Safe • Sakhi AI Active Protection
         </div>
       </div>
 
@@ -72,9 +84,8 @@ const HomePage = () => {
         <button
           id="home-sos-banner"
           onClick={() => navigate("/sos")}
-          className="w-full text-left relative overflow-hidden border border-red-600/40 status-line-sos"
+          className="w-full text-left relative overflow-hidden border border-red-600/40 status-line-sos bg-gradient-sos shadow-lg"
           style={{
-            backgroundColor: "hsl(var(--sos) / 0.08)",
             borderRadius: "4px",
             padding: "1.25rem 1.25rem 1.25rem 1.5rem",
           }}
@@ -127,9 +138,8 @@ const HomePage = () => {
                 key={action.label}
                 id={`action-${action.label.toLowerCase().replace(/\s+/g, "-")}`}
                 onClick={() => navigate(action.path)}
-                className="text-left border hover:border-current/40 transition-all"
+                className={`text-left border hover:border-current/40 transition-all ${action.danger ? 'bg-gradient-sos/50' : 'bg-gradient-subtle shadow-sm'}`}
                 style={{
-                  backgroundColor: action.danger ? "hsl(var(--sos) / 0.07)" : "hsl(var(--card))",
                   borderColor: action.danger ? "hsl(var(--sos) / 0.35)" : "hsl(var(--border))",
                   borderRadius: "4px",
                   padding: "1rem",
