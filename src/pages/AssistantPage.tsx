@@ -6,27 +6,54 @@ import { Mic, ArrowUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ─── Intent → Action Mapping ─────────────────────────────────────────────────
-const intentMap: { keywords: string[]; route: string; feedback: string; triggerSOS?: boolean }[] = [
+const intentMap: { keywords: string[]; route?: string; feedback: string[]; triggerSOS?: boolean }[] = [
   {
-    keywords: ["help", "help me", "emergency", "sos", "attack", "scared", "save me", "danger", "dangerous", "unsafe", "someone is following me", "i am in danger", "following me", "in danger", "threat"],
+    keywords: ["hello", "hi", "hey", "start", "wake up"],
+    feedback: [
+      "Hi, I'm Sakhi. I'm here to keep you safe. Tell me what's happening.",
+      "Hello, you can talk to me anytime if you feel unsafe."
+    ]
+  },
+  {
+    keywords: ["how are you", "what are you doing", "status", "are you there"],
+    feedback: [
+      "I'm always here and ready to help you stay safe.",
+      "I'm active and monitoring. How can I assist you?"
+    ]
+  },
+  {
+    keywords: ["help", "help me", "emergency", "sos", "attack", "scared", "save me", "danger", "dangerous", "unsafe", "someone is following me", "following me", "stalker", "i feel unsafe", "in danger", "threat"],
     route: "/sos",
-    feedback: "High risk detected. Activating emergency protocol immediately.",
+    feedback: [
+      "This sounds serious. I'm activating safety measures now.",
+      "Stay calm. I'm sending alerts and sharing your location.",
+      "I’m with you. Triggering emergency response."
+    ],
     triggerSOS: true,
   },
   {
     keywords: ["report", "harassment", "cyber", "incident", "complaint", "file"],
     route: "/report",
-    feedback: "I understand. Bringing up the incident report form.",
+    feedback: [
+      "You can report the incident safely. Opening reporting section.",
+      "I hear you. Let me bring up the incident report form so we can document this."
+    ]
   },
   {
     keywords: ["location", "map", "route", "area", "zone", "heatmap", "where"],
     route: "/risk-map",
-    feedback: "Locating nearby safe zones. Opening live map.",
+    feedback: [
+      "Let me show you safer routes nearby.",
+      "I'm analyzing risk zones. Opening the live map."
+    ]
   },
   {
     keywords: ["evidence", "locker", "proof", "recording", "stored", "files"],
     route: "/evidence-locker",
-    feedback: "Accessing your secured evidence locker.",
+    feedback: [
+      "Accessing your secured evidence locker now.",
+      "Bringing up your recording and proof vault."
+    ]
   },
 ];
 
@@ -58,7 +85,7 @@ const AssistantPage = () => {
     {
       id: "init",
       role: "assistant",
-      content: "Hello. I'm your Smart Safety Assistant. Describe what you need or your current situation, and I'll jump into action."
+      content: "Hello. I'm Sakhi. Describe what you need or your current situation, and I'll jump into action."
     }
   ]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -79,7 +106,8 @@ const AssistantPage = () => {
     
     // 2. Add assistant "Analyzing..." state
     const analyzingId = "analyzing_" + Date.now();
-    const analyzingMsg: Message = { id: analyzingId, role: "assistant", content: "Analyzing situation...", isStatus: true };
+    const analyzingStates = ["Sakhi is analyzing...", "Assessing risk level..."];
+    const analyzingMsg: Message = { id: analyzingId, role: "assistant", content: analyzingStates[Math.floor(Math.random() * 2)], isStatus: true };
     
     setMessages(prev => [...prev, userMsg, analyzingMsg]);
     setInput("");
@@ -89,10 +117,15 @@ const AssistantPage = () => {
 
     // 3. Update assistant response after short delay
     setTimeout(() => {
+      let finalFeedback = "I'm here to help. Try saying 'I need help', 'report an incident', or 'show map'.";
+      if (intent) {
+         finalFeedback = intent.feedback[Math.floor(Math.random() * intent.feedback.length)];
+      }
+
       setMessages(prev => 
         prev.map(msg => 
           msg.id === analyzingId 
-            ? { ...msg, content: intent ? intent.feedback : "I'm here to help. Try saying 'I need help', 'report an incident', or 'show map'.", isStatus: false }
+            ? { ...msg, content: finalFeedback, isStatus: false }
             : msg
         )
       );
@@ -104,9 +137,11 @@ const AssistantPage = () => {
           if (intent.triggerSOS) {
             triggerSOS();
           }
-          navigate(intent.route);
+          if (intent.route) {
+            navigate(intent.route);
+          }
         }
-      }, 1000);
+      }, 1500);
     }, 800);
   };
 
@@ -121,9 +156,9 @@ const AssistantPage = () => {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-foreground/90 leading-tight">
-               Smart Safety Assistant
+               Sakhi AI
             </h1>
-            <p className="text-[11px] font-medium text-safe mt-0.5">Online & processing intents</p>
+            <p className="text-[11px] font-medium text-safe mt-0.5">Online & listening</p>
           </div>
         </div>
       </div>
@@ -186,7 +221,7 @@ const AssistantPage = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") dispatch(input); }}
-                placeholder="Describe what's happening..."
+                placeholder="Talk to Sakhi..."
                 autoComplete="off"
                 disabled={isProcessing}
                 className="input-soft pl-4 pr-20 focus:ring-2 focus:ring-primary/20 
@@ -213,7 +248,7 @@ const AssistantPage = () => {
               </div>
           </div>
           <p className="text-[10px] font-medium text-center text-muted-foreground/60 tracking-wide mt-3 px-2">
-              Emergency phrases bypass conversation logic.
+              Sakhi processes phrases to automatically trigger features.
           </p>
         </div>
       </div>
