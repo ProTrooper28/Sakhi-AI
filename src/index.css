@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    --font-sans:    'Inter', system-ui, sans-serif;
+    --font-sans: 'Inter', system-ui, sans-serif;
     --font-heading: 'Poppins', system-ui, sans-serif;
 
     /* Force dark emergency system palette */
@@ -97,16 +97,31 @@
     @apply antialiased;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-heading);
   }
 
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: hsl(var(--background)); }
-  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 2px; }
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 2px;
+  }
 }
 
 @layer utilities {
+
   /* ── Glass panel ── */
   .glass {
     background-color: hsl(var(--card) / 0.85);
@@ -162,9 +177,17 @@
   }
 
   @keyframes sos-ring {
-    0%   { box-shadow: 0 0 0 0   hsl(var(--sos) / 0.5); }
-    60%  { box-shadow: 0 0 0 12px hsl(var(--sos) / 0); }
-    100% { box-shadow: 0 0 0 0   hsl(var(--sos) / 0); }
+    0% {
+      box-shadow: 0 0 0 0 hsl(var(--sos) / 0.5);
+    }
+
+    60% {
+      box-shadow: 0 0 0 12px hsl(var(--sos) / 0);
+    }
+
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--sos) / 0);
+    }
   }
 
   /* ── Border status indicators ── */
@@ -180,8 +203,15 @@
   }
 
   @keyframes border-blink {
-    0%, 100% { border-color: hsl(var(--sos)); }
-    50%       { border-color: hsl(var(--sos) / 0.15); }
+
+    0%,
+    100% {
+      border-color: hsl(var(--sos));
+    }
+
+    50% {
+      border-color: hsl(var(--sos) / 0.15);
+    }
   }
 
   /* ── Primary action button ── */
@@ -200,8 +230,13 @@
     transition: background-color 0.15s, transform 0.1s;
   }
 
-  .btn-primary:hover  { background-color: hsl(0 72% 44%); }
-  .btn-primary:active { transform: scale(0.98); }
+  .btn-primary:hover {
+    background-color: hsl(0 72% 44%);
+  }
+
+  .btn-primary:active {
+    transform: scale(0.98);
+  }
 
   .btn-secondary {
     width: 100%;
@@ -226,7 +261,8 @@
   /* ── Dot indicators ── */
   .dot-active {
     display: inline-block;
-    width: 7px; height: 7px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background-color: hsl(var(--safe));
     animation: dot-pulse 2.2s ease-in-out infinite;
@@ -235,7 +271,8 @@
 
   .dot-sos {
     display: inline-block;
-    width: 7px; height: 7px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background-color: hsl(var(--sos));
     animation: dot-pulse 0.8s ease-in-out infinite;
@@ -243,8 +280,17 @@
   }
 
   @keyframes dot-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50%       { opacity: 0.4; transform: scale(0.8); }
+
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    50% {
+      opacity: 0.4;
+      transform: scale(0.8);
+    }
   }
 
   /* ── Rounded card ── */
