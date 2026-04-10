@@ -142,9 +142,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     // Add SOS recording to evidence
     setEvidenceLocker((prev) => [
       {
-        id: `ev_sos_${Date.now()}`,
+        id: `ev_sos_vid_${Date.now()}`,
         type: "sos-recording",
-        name: `SOS_Recording_${new Date().toLocaleTimeString().replace(/:/g, "-")}.webm`,
+        name: `SOS_Video_${new Date().toLocaleTimeString().replace(/:/g, "-")}.mp4`,
+        fileType: "video/mp4",
+        timestamp: new Date().toISOString(),
+        location: next.location,
+      },
+      {
+        id: `ev_sos_aud_${Date.now() + 1}`,
+        type: "sos-recording",
+        name: `SOS_Audio_${new Date().toLocaleTimeString().replace(/:/g, "-")}.webm`,
         fileType: "audio/webm",
         timestamp: new Date().toISOString(),
         location: next.location,
