@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mic, WifiOff, EyeOff, Phone, MapPin, Video, MicOff, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Mic, WifiOff, EyeOff, Phone, MapPin, Video, MicOff, CheckCircle2, AlertTriangle, Radio } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { useApp } from "@/context/AppContext";
 import { toast } from "@/components/ui/use-toast";
@@ -11,21 +11,16 @@ const modes = [
   { id: "silent", icon: EyeOff, label: "SILENT" },
 ] as const;
 
-type Emotion = "calm" | "neutral" | "stress" | "panic";
-
-const detectEmotion = (): Emotion => {
-  const r = Math.random();
-  if (r < 0.35) return "calm";
-  if (r < 0.65) return "neutral";
-  if (r < 0.90) return "stress";
-  return "panic";
-};
-
 const PROTOCOL_STEPS = [
   { label: "Alert sent to emergency contacts", delay: 700 },
   { label: "Live location shared — Rohini, Delhi", delay: 1500 },
   { label: "Emergency recording started", delay: 2300 },
 ];
+
+const EMERGENCY_KEYWORDS = ["help", "bachao", "save me", "danger"];
+
+// Safe access to SpeechRecognition
+const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 const SOSPage = () => {
   const { sosState, triggerSOS, cancelSOS } = useApp();
@@ -34,14 +29,13 @@ const SOSPage = () => {
   // Protocol steps revealed sequentially
   const [visibleSteps, setVisibleSteps] = useState<number>(0);
 
-  // Emotion detection state
-  const [recording, setRecording] = useState(false);
-  const [detectedEmotion, setDetectedEmotion] = useState<Emotion | null>(null);
-  const [panicCountdown, setPanicCountdown] = useState<number | null>(null);
-  const [showEmotionPanel, setShowEmotionPanel] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Speech Detection State
+  const [listening, setListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [showVoicePanel, setShowVoicePanel] = useState(false);
+  const [keywordDetected, setKeywordDetected] = useState<string | null>(null);
+  
+  const recognitionRef = useRef<any>(null);
   const stepsTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // When SOS becomes active → reveal steps one-by-one
@@ -55,55 +49,86 @@ const SOSPage = () => {
     } else {
       setVisibleSteps(0);
       stepsTimersRef.current.forEach(clearTimeout);
+      setKeywordDetected(null);
     }
     return () => stepsTimersRef.current.forEach(clearTimeout);
   }, [sosState.active]);
 
-  const startEmotionDetection = async () => {
-    if (recording) return;
-    setDetectedEmotion(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = recorder;
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
-      recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setTimeout(() => {
-          const emotion = detectEmotion();
-          setDetectedEmotion(emotion);
-          setRecording(false);
-          if (emotion === "panic") {
-            let count = 3;
-            setPanicCountdown(count);
-            countdownRef.current = setInterval(() => {
-              count -= 1;
-              if (count <= 0) {
-                clearInterval(countdownRef.current!);
-                setPanicCountdown(null);
-                triggerSOS();
-              } else {
-                setPanicCountdown(count);
-              }
-            }, 1000);
-            toast({ title: "Panic Detected", description: "SOS activates in 3s. Tap Cancel to abort.", variant: "destructive" });
-          }
-        }, 600);
-      };
-      recorder.start();
-      setRecording(true);
-      setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 3000);
-    } catch {
-      toast({ title: "Microphone access denied", description: "Allow microphone access to use voice emotion detection.", variant: "destructive" });
+  // Clean up speech recognition on unmount
+  useEffect(() => {
+     return () => {
+         if (recognitionRef.current) {
+             recognitionRef.current.stop();
+         }
+     }
+  }, []);
+
+  const startVoiceDetection = () => {
+    if (listening) return;
+    setTranscript("");
+    setKeywordDetected(null);
+
+    if (!SpeechRecognition) {
+       toast({ title: "Unsupported Browser", description: "Your browser does not support native speech recognition. Please use Google Chrome or Edge.", variant: "destructive" });
+       return;
     }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-IN"; // English-India for better mix of Hindi words
+
+    recognition.onstart = () => {
+       setListening(true);
+    };
+
+    recognition.onresult = (event: any) => {
+        let currentTranscript = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            currentTranscript += event.results[i][0].transcript;
+        }
+        
+        setTranscript(currentTranscript);
+        
+        const textToLower = currentTranscript.toLowerCase();
+        
+        // Scan for keywords
+        const found = EMERGENCY_KEYWORDS.find(kw => textToLower.includes(kw));
+        
+        if (found && !sosState.active) {
+            setKeywordDetected(found);
+            recognition.stop();
+            
+            // Auto trigger SOS shortly after keyword detection
+            setTimeout(() => {
+                triggerSOS();
+                setListening(false);
+            }, 1000);
+        }
+    };
+
+    recognition.onerror = (event: any) => {
+       console.error("Speech Recognition Error", event.error);
+       setListening(false);
+       if (event.error !== "no-speech") {
+          toast({ title: "Microphone Error", description: "Failed to access microphone. Please ensure permissions are granted.", variant: "destructive" });
+       }
+    };
+
+    recognition.onend = () => {
+       setListening(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
   };
 
-  const cancelPanic = () => {
-    if (countdownRef.current) clearInterval(countdownRef.current);
-    setPanicCountdown(null);
-    setDetectedEmotion(null);
-  };
+  const stopVoiceDetection = () => {
+     if (recognitionRef.current) {
+         recognitionRef.current.stop();
+     }
+     setListening(false);
+  }
 
   // ── ACTIVE FULL-SCREEN STATE ────────────────────────────────────────────────
   if (sosState.active) {
@@ -113,7 +138,7 @@ const SOSPage = () => {
 
     return (
       <div
-        className="fixed inset-0 flex flex-col z-50"
+        className="fixed inset-0 flex flex-col z-50 overflow-y-auto"
         style={{
           backgroundColor: "hsl(0 30% 5%)",
           boxShadow: "inset 0 0 0 2px hsl(var(--sos) / 0.4), inset 0 0 80px hsl(var(--sos) / 0.08)",
@@ -154,7 +179,7 @@ const SOSPage = () => {
             <p
               className="text-6xl font-black tracking-widest leading-none"
               style={{
-                fontFamily: "var(--font-mono)",
+                fontFamily: "var(--font-heading)",
                 color: "hsl(var(--sos))",
                 letterSpacing: "0.1em",
               }}
@@ -162,12 +187,12 @@ const SOSPage = () => {
               SOS
             </p>
             <p
-              className="text-xl font-black tracking-wide mt-1"
-              style={{ fontFamily: "var(--font-mono)", color: "hsl(var(--sos) / 0.8)", letterSpacing: "0.06em" }}
+              className="text-xl font-bold tracking-wide mt-1"
+              style={{ fontFamily: "var(--font-heading)", color: "hsl(var(--sos) / 0.8)", letterSpacing: "0.06em" }}
             >
               ACTIVATED
             </p>
-            <p className="text-xs mt-2 font-mono" style={{ color: "hsl(var(--foreground) / 0.45)" }}>
+            <p className="text-xs mt-2 font-medium" style={{ color: "hsl(var(--foreground) / 0.45)" }}>
               Emergency protocol initiated
             </p>
           </motion.div>
@@ -197,7 +222,7 @@ const SOSPage = () => {
                         className="w-4 h-4 flex-shrink-0"
                         style={{ color: "hsl(var(--safe))" }}
                       />
-                      <p className="text-xs font-mono" style={{ color: "hsl(var(--foreground) / 0.85)" }}>
+                      <p className="text-xs font-semibold" style={{ color: "hsl(var(--foreground) / 0.85)" }}>
                         {step.label}
                       </p>
                     </motion.div>
@@ -222,10 +247,10 @@ const SOSPage = () => {
             <div className="flex items-start gap-2">
               <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "hsl(var(--sos))" }} />
               <div>
-                <p className="text-sm font-mono font-bold" style={{ color: "hsl(var(--foreground))" }}>
+                <p className="text-sm font-semibold" style={{ color: "hsl(var(--foreground))" }}>
                   {sosState.location}
                 </p>
-                <p className="text-[10px] font-mono mt-0.5" style={{ color: "hsl(var(--foreground) / 0.4)" }}>
+                <p className="text-[10px] mt-0.5" style={{ color: "hsl(var(--foreground) / 0.4)" }}>
                   {sosState.coords.lat.toFixed(4)}°N, {sosState.coords.lng.toFixed(4)}°E
                 </p>
               </div>
@@ -250,7 +275,7 @@ const SOSPage = () => {
               >
                 <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: color }} />
                 <Icon className="w-3.5 h-3.5" style={{ color }} />
-                <p className="text-xs font-mono" style={{ color: "hsl(var(--foreground) / 0.8)" }}>{text}</p>
+                <p className="text-xs font-medium" style={{ color: "hsl(var(--foreground) / 0.8)" }}>{text}</p>
               </div>
             ))}
           </div>
@@ -261,7 +286,7 @@ const SOSPage = () => {
           <button
             id="sos-cancel-btn"
             onClick={cancelSOS}
-            className="w-full py-4 font-mono text-sm font-bold tracking-wider transition-all"
+            className="w-full py-4 text-sm font-bold tracking-wider transition-all uppercase"
             style={{
               backgroundColor: "transparent",
               border: "1px solid hsl(var(--sos) / 0.5)",
@@ -275,7 +300,7 @@ const SOSPage = () => {
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
             }}
           >
-            CANCEL EMERGENCY
+            Cancel Emergency
           </button>
         </div>
       </div>
@@ -289,56 +314,51 @@ const SOSPage = () => {
       {/* Header */}
       <div className="px-5 pt-8 pb-5 border-b border-border/40">
         <p className="section-label mb-1">Emergency System</p>
-        <h1 className="text-2xl font-black tracking-wide" style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.06em" }}>
-          SOS
+        <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: "var(--font-heading)", letterSpacing: "0.02em" }}>
+          Active Threats
         </h1>
       </div>
 
       {/* SOS Ready State */}
       <div
-        className="mx-5 mt-5 py-10 flex flex-col items-center justify-center"
-        style={{
-          backgroundColor: "hsl(var(--muted))",
-          border: "1px solid hsl(var(--border))",
-          borderRadius: "4px",
-        }}
+        className="mx-5 mt-5 py-10 flex flex-col items-center justify-center transition-all bg-card border border-border rounded-xl shadow-sm"
       >
         <p
           className="text-5xl font-black tracking-widest"
-          style={{ fontFamily: "var(--font-mono)", color: "hsl(var(--muted-foreground))", letterSpacing: "0.15em" }}
+          style={{ fontFamily: "var(--font-heading)", color: "hsl(var(--foreground))", letterSpacing: "0.1em" }}
         >
-          SOS READY
+          SOS
         </p>
-        <p className="text-xs mt-3 font-mono" style={{ color: "hsl(var(--muted-foreground) / 0.7)" }}>
+        <p className="text-xs mt-2 font-medium" style={{ color: "hsl(var(--muted-foreground) / 0.8)" }}>
           System standby — tap below to activate
         </p>
       </div>
 
-      <div className="px-5 mt-4 space-y-3">
+      <div className="px-5 mt-6 space-y-4">
 
         {/* Activate Button */}
-        <button id="sos-activate-btn" onClick={triggerSOS} className="btn-primary sos-pulse">
-          ACTIVATE SOS
+        <button id="sos-activate-btn" onClick={triggerSOS} className="w-full py-4 bg-sos text-white font-bold text-lg rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-3 relative overflow-hidden">
+             {/* Pulse effect wrapper */}
+             <div className="absolute inset-0 bg-white/20 sos-pulse mix-blend-overlay pointer-events-none" />
+             ACTIVATE SOS
         </button>
 
         {/* Mode Selector */}
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           {modes.map((mode) => {
             const active = activeMode === mode.id;
             return (
               <button
                 key={mode.id}
-                id={`sos-mode-${mode.id}`}
                 onClick={() => setActiveMode(mode.id)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 font-mono text-[10px] font-semibold tracking-wider transition-all"
+                className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold tracking-wider transition-all border border-border rounded-lg bg-card"
                 style={{
                   backgroundColor: active ? "hsl(var(--foreground) / 0.05)" : "transparent",
-                  border: `1px solid ${active ? "hsl(var(--foreground) / 0.3)" : "hsl(var(--border))"}`,
-                  borderRadius: "4px",
+                  borderColor: active ? "hsl(var(--foreground) / 0.3)" : "hsl(var(--border))",
                   color: active ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
                 }}
               >
-                <mode.icon className="w-3.5 h-3.5" />
+                <mode.icon className="w-4 h-4" />
                 {mode.label}
               </button>
             );
@@ -350,46 +370,41 @@ const SOSPage = () => {
           href="/guardian"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-between px-4 py-3 transition-all"
-          style={{
-            border: "1px solid hsl(var(--border))",
-            borderRadius: "4px",
-            backgroundColor: "transparent",
-            textDecoration: "none",
-          }}
+          className="flex items-center gap-3 px-4 py-3 border border-border rounded-lg"
         >
-          <div>
-            <p className="text-xs font-mono font-semibold tracking-wider" style={{ color: "hsl(var(--foreground) / 0.7)" }}>
-              DEVICE 2 — GUARDIAN VIEW
+          <div className="p-2 rounded-full bg-muted">
+             <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <div className="flex-1">
+            <p className="text-xs font-semibold" style={{ color: "hsl(var(--foreground) / 0.9)" }}>
+              DEVICE 2 — GUARDIAN
             </p>
-            <p className="text-[10px] font-mono mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
-              Open in another tab to simulate dual-device
+            <p className="text-[11px] mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
+              Open in another window to test dual-device connection.
             </p>
           </div>
-          <AlertTriangle className="w-3.5 h-3.5" style={{ color: "hsl(var(--muted-foreground))" }} />
         </a>
 
-        {/* Voice Emotion Panel */}
+        {/* Voice Keyword Panel */}
         {activeMode === "voice" && (
-          <div style={{ border: "1px solid hsl(var(--border))", borderRadius: "4px", overflow: "hidden" }}>
+          <div className="border border-border rounded-lg overflow-hidden bg-card transition-all">
             <button
-              onClick={() => setShowEmotionPanel((v) => !v)}
+              onClick={() => setShowVoicePanel((v) => !v)}
               className="w-full flex items-center justify-between px-4 py-3"
-              style={{ backgroundColor: "hsl(var(--card))" }}
             >
               <div className="flex items-center gap-2">
-                <Mic className="w-3.5 h-3.5" style={{ color: "hsl(var(--muted-foreground))" }} />
-                <span className="section-label" style={{ color: "hsl(var(--foreground) / 0.7)" }}>
-                  Voice Emotion Detection
+                <Radio className="w-4 h-4 text-muted-foreground" />
+                <span className="font-semibold text-sm text-foreground/80">
+                  Keyword Detection
                 </span>
               </div>
-              <span className="text-[10px] font-mono" style={{ color: "hsl(var(--muted-foreground))" }}>
-                {showEmotionPanel ? "HIDE" : "SHOW"}
+              <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                {showVoicePanel ? "HIDE" : "SHOW"}
               </span>
             </button>
 
             <AnimatePresence>
-              {showEmotionPanel && (
+              {showVoicePanel && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
@@ -397,61 +412,41 @@ const SOSPage = () => {
                   transition={{ duration: 0.2 }}
                   style={{ overflow: "hidden" }}
                 >
-                  <div className="px-4 pb-4 pt-2 space-y-3" style={{ borderTop: "1px solid hsl(var(--border))", backgroundColor: "hsl(var(--muted))" }}>
-                    <p className="text-[10px] font-mono" style={{ color: "hsl(var(--muted-foreground))" }}>
-                      Records 3 seconds of voice — AI detects emotional state
+                  <div className="px-4 pb-4 pt-2 space-y-4 border-t border-border bg-muted/30">
+                    <p className="text-xs text-muted-foreground font-medium">
+                      Actively listens for emergency phrases to automatically trigger SOS. Try saying <b>"Help"</b>, <b>"Danger"</b>, or <b>"Bachao"</b>.
                     </p>
+                    
                     <button
-                      id="emotion-detect-btn"
-                      onClick={startEmotionDetection}
-                      disabled={recording}
-                      className="flex items-center gap-2 px-4 py-2 font-mono text-xs font-semibold tracking-wider transition-all"
+                      onClick={listening ? stopVoiceDetection : startVoiceDetection}
+                      className="flex w-full items-center justify-center gap-2 px-4 py-3 text-xs font-bold transition-all rounded-lg"
                       style={{
-                        backgroundColor: recording ? "hsl(var(--sos) / 0.1)" : "hsl(var(--card))",
-                        border: `1px solid ${recording ? "hsl(var(--sos) / 0.5)" : "hsl(var(--border))"}`,
-                        borderRadius: "4px",
-                        color: recording ? "hsl(var(--sos))" : "hsl(var(--foreground))",
+                        backgroundColor: listening ? "hsl(var(--sos) / 0.1)" : "hsl(var(--primary))",
+                        color: listening ? "hsl(var(--sos))" : "white",
+                        border: listening ? "1px solid hsl(var(--sos) / 0.3)" : "none"
                       }}
                     >
-                      {recording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-                      {recording ? "LISTENING..." : "START DETECTION"}
+                      {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                      {listening ? "STOP DETECTION" : "START DETECTING"}
                     </button>
 
-                    {detectedEmotion && !panicCountdown && (
-                      <div className="flex gap-1.5">
-                        {(["calm", "neutral", "stress", "panic"] as Emotion[]).map((e) => {
-                          const active = detectedEmotion === e;
-                          const colors: Record<Emotion, string> = {
-                            calm: "hsl(var(--safe))", neutral: "hsl(215 50% 60%)",
-                            stress: "hsl(var(--warning))", panic: "hsl(var(--sos))",
-                          };
-                          return (
-                            <div
-                              key={e}
-                              className="flex-1 text-center py-1.5 font-mono text-[9px] font-semibold uppercase tracking-wider"
-                              style={{
-                                backgroundColor: active ? `${colors[e]}20` : "transparent",
-                                border: `1px solid ${active ? colors[e] : "hsl(var(--border))"}`,
-                                borderRadius: "2px",
-                                color: active ? colors[e] : "hsl(var(--muted-foreground))",
-                              }}
-                            >
-                              {e}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {panicCountdown !== null && (
-                      <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: "hsl(var(--sos) / 0.1)", border: "1px solid hsl(var(--sos) / 0.4)", borderRadius: "4px" }}>
-                        <p className="text-xs font-mono font-bold" style={{ color: "hsl(var(--sos))" }}>
-                          SOS activating in {panicCountdown}s
-                        </p>
-                        <button onClick={cancelPanic} className="text-[10px] font-mono font-bold px-3 py-1" style={{ backgroundColor: "hsl(var(--sos))", color: "white", borderRadius: "2px" }}>
-                          CANCEL
-                        </button>
-                      </div>
+                    {listening && (
+                        <div className="px-3 py-3 rounded bg-black/40 border border-border min-h-[60px] flex flex-col justify-end">
+                            {keywordDetected ? (
+                                <motion.p 
+                                    initial={{ scale: 0.9, opacity: 0 }} 
+                                    animate={{ scale: 1, opacity: 1 }} 
+                                    className="text-center font-bold text-sos tracking-wider text-sm p-1 rounded"
+                                >
+                                    "{keywordDetected}" DETECTED — TRIGGERING SOS
+                                </motion.p>
+                             ) : (
+                                <p className="text-xs text-safe italic text-center w-full flex items-center justify-center gap-2">
+                                     <span className="w-2 h-2 rounded-full bg-safe animate-pulse" />
+                                     Listening... {transcript ? `"${transcript}"` : ""}
+                                </p>
+                             )}
+                        </div>
                     )}
                   </div>
                 </motion.div>

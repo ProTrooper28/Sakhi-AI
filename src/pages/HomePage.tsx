@@ -1,4 +1,4 @@
-import { Shield, AlertTriangle, MapPin, Lock, FileWarning, ChevronRight } from "lucide-react";
+import { Shield, AlertTriangle, MapPin, Lock, FileWarning, ChevronRight, Watch } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
 
@@ -25,6 +25,12 @@ const quickActions = [
     label: "Evidence Locker",
     sublabel: "Secured Storage",
     path: "/evidence-locker",
+    danger: false,
+  },
+  {
+    label: "Wearables",
+    sublabel: "Watch Integrations",
+    path: "/wearable",
     danger: false,
   },
 ];

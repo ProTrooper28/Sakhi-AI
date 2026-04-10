@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   MapPin, Navigation, Eye, EyeOff,
-  AlertTriangle, Clock, CheckCircle2, Siren, HeartPulse,
+  AlertTriangle, Clock, CheckCircle2, Siren, HeartPulse, Search, Map as MapIcon
 } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { toast } from "@/components/ui/use-toast";
 
 // Fix default marker icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -42,11 +43,13 @@ const HOSPITALS = [
   { lat: 28.6250, lng: 77.2100, name: "AIIMS Delhi" },
   { lat: 28.7010, lng: 77.0890, name: "Sanjay Gandhi Memorial Hospital" },
 ];
-const SAFE_ROUTE_POINTS: [number, number][] = [
-  [28.6139, 77.2090], [28.6300, 77.2000], [28.6480, 77.1900],
-  [28.6700, 77.1750], [28.6860, 77.1600], [28.7000, 77.1450],
-  [28.7190, 77.1390],
+// Base origin for demo
+const ORIGIN_POINT: [number, number] = [28.7120, 77.1140]; // Somewhere in Rohini
+// Mock calculated route points when a user enters a destination
+const CALCULATED_ROUTE_POINTS: [number, number][] = [
+  ORIGIN_POINT, [28.7200, 77.1000], [28.7300, 77.0900], [28.7380, 77.0800], [28.7450, 77.0700]
 ];
+
 const RISK_ZONES = [
   { name: "ROHINI SECTORS 3-11",  risk: "high"   as const, desc: "12 reports — Avoid after 9 PM" },
   { name: "BAWANA-NARELA ROAD",   risk: "high"   as const, desc: "8 reports — Isolated stretch" },
@@ -65,12 +68,6 @@ function makeCircleIcon(color: string) {
   });
 }
 
-const RISK_STYLE = {
-  high:   { text: "hsl(0 72% 58%)",   border: "hsl(0 72% 52% / 0.3)",   dot: "hsl(0 72% 58%)" },
-  medium: { text: "hsl(38 90% 52%)",  border: "hsl(38 90% 52% / 0.3)",  dot: "hsl(38 90% 52%)" },
-  low:    { text: "hsl(142 60% 44%)", border: "hsl(142 60% 44% / 0.3)", dot: "hsl(142 60% 44%)" },
-};
-
 const RiskMapPage = () => {
   const mapRef       = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -83,12 +80,17 @@ const RiskMapPage = () => {
   const [showMarkers, setShowMarkers] = useState(true);
   const [activeTab,   setActiveTab]   = useState<"map" | "zones">("map");
 
+  // Routing State
+  const [destination, setDestination] = useState("");
+  const [routeCalculated, setRouteCalculated] = useState(false);
+  const [isRouting, setIsRouting] = useState(false);
+
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
 
     const map = L.map(containerRef.current, {
-      center: [28.7041, 77.1025],
-      zoom: 12,
+      center: ORIGIN_POINT,
+      zoom: 13,
       zoomControl: false,
     });
 
@@ -123,12 +125,8 @@ const RiskMapPage = () => {
     );
     markersRef.current = markerGroup;
 
-    // Route
-    const routeGroup = L.layerGroup();
-    L.polyline(SAFE_ROUTE_POINTS, { color: "#22d3ee", weight: 4, dashArray: "10, 8" }).addTo(routeGroup);
-    L.marker(SAFE_ROUTE_POINTS[0], { icon: makeCircleIcon("#22d3ee") }).bindPopup("<b>Origin (Mock)</b>").addTo(routeGroup);
-    L.marker(SAFE_ROUTE_POINTS[SAFE_ROUTE_POINTS.length - 1], { icon: makeCircleIcon("#a855f7") }).bindPopup("<b>Destination (Mock)</b>").addTo(routeGroup);
-    routeLayerRef.current = routeGroup;
+    // We leave routeGroup empty initially
+    routeLayerRef.current = L.layerGroup();
 
     mapRef.current = map;
     return () => { map.remove(); mapRef.current = null; };
@@ -141,28 +139,61 @@ const RiskMapPage = () => {
   }, [showHeatmap]);
 
   useEffect(() => {
-    if (!routeLayerRef.current || !mapRef.current) return;
-    if (showRoute) mapRef.current.addLayer(routeLayerRef.current);
-    else mapRef.current.removeLayer(routeLayerRef.current);
-  }, [showRoute]);
-
-  useEffect(() => {
     if (!markersRef.current || !mapRef.current) return;
     if (showMarkers) mapRef.current.addLayer(markersRef.current);
     else mapRef.current.removeLayer(markersRef.current);
   }, [showMarkers]);
+
+  // Handle Route Calculation Mock
+  const handleCalculateRoute = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!destination.trim() || !mapRef.current || !routeLayerRef.current) return;
+      
+      setIsRouting(true);
+      
+      setTimeout(() => {
+          setIsRouting(false);
+          setRouteCalculated(true);
+          setShowRoute(true);
+          
+          // Clear old route
+          routeLayerRef.current!.clearLayers();
+          
+          // Draw "Red/Unsafe" highlighted route line passing through high risk
+          L.polyline(CALCULATED_ROUTE_POINTS, { color: "#dc2626", weight: 5, dashArray: "12, 8" }).addTo(routeLayerRef.current!);
+          L.polyline(CALCULATED_ROUTE_POINTS, { color: "rgba(220,38,38,0.2)", weight: 15 }).addTo(routeLayerRef.current!);
+          
+          L.marker(CALCULATED_ROUTE_POINTS[0], { icon: makeCircleIcon("#22d3ee") }).bindPopup("<b>Origin: Rohini</b>").addTo(routeLayerRef.current!);
+          L.marker(CALCULATED_ROUTE_POINTS[CALCULATED_ROUTE_POINTS.length - 1], { icon: makeCircleIcon("#a855f7") }).bindPopup(`<b>Destination: ${destination}</b>`).addTo(routeLayerRef.current!);
+          
+          mapRef.current!.addLayer(routeLayerRef.current!);
+          mapRef.current!.fitBounds(L.polyline(CALCULATED_ROUTE_POINTS).getBounds(), { padding: [30, 30] });
+
+      }, 1000);
+  };
+
+  useEffect(() => {
+    if (!routeLayerRef.current || !mapRef.current) return;
+    if (showRoute) {
+        if (!mapRef.current.hasLayer(routeLayerRef.current)) {
+           mapRef.current.addLayer(routeLayerRef.current);
+        }
+    } else {
+        mapRef.current.removeLayer(routeLayerRef.current);
+    }
+  }, [showRoute]);
 
   return (
     <div className="min-h-screen pb-24 flex flex-col" style={{ backgroundColor: "hsl(var(--background))" }}>
 
       {/* Header */}
       <div className="px-5 pt-8 pb-5 border-b border-border/40">
-        <p className="section-label mb-1">Situational Awareness</p>
-        <h1
-          className="text-2xl font-black tracking-wide"
-          style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.06em" }}
-        >
-          LIVE THREAT MAP
+        <div className="flex items-center gap-2 mb-1">
+            <MapIcon className="w-4 h-4 text-primary" />
+            <p className="section-label mb-0 text-primary">Situational Awareness</p>
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground font-heading">
+          Live Risk Map
         </h1>
       </div>
 
@@ -171,13 +202,11 @@ const RiskMapPage = () => {
         {(["map", "zones"] as const).map((t) => (
           <button
             key={t}
-            id={`map-tab-${t}`}
             onClick={() => setActiveTab(t)}
-            className="flex-1 py-2 font-mono text-[10px] font-bold tracking-widest uppercase transition-all"
+            className="flex-1 py-2 font-semibold text-xs tracking-wider uppercase transition-all rounded-md"
             style={{
               backgroundColor: activeTab === t ? "hsl(var(--foreground) / 0.05)" : "transparent",
               border: `1px solid ${activeTab === t ? "hsl(var(--foreground) / 0.25)" : "hsl(var(--border))"}`,
-              borderRadius: "4px",
               color: activeTab === t ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
             }}
           >
@@ -193,41 +222,58 @@ const RiskMapPage = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col flex-1 px-5 gap-3"
+            className="flex flex-col flex-1 px-5 gap-4"
           >
+            {/* Nav Input Bar */}
+            <form onSubmit={handleCalculateRoute} className="flex gap-2">
+                <div className="relative flex-1">
+                   <div className="absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-cyan-400" />
+                   <input 
+                      value={destination}
+                      onChange={(e) => setDestination(e.target.value)}
+                      placeholder="Where to? (Origin: Rohini)"
+                      className="input-soft pl-8 py-3 w-full border-border/80 text-[13px]"
+                      disabled={isRouting}
+                   />
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={isRouting || !destination.trim()}
+                  className="px-4 bg-primary text-white font-bold rounded-xl active:scale-95 transition-transform disabled:opacity-50"
+                >
+                    {isRouting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : <Search className="w-4 h-4" />}
+                </button>
+            </form>
+
             {/* Map */}
             <div
               className="relative overflow-hidden"
               style={{
                 height: "320px",
                 border: "1px solid hsl(var(--border))",
-                borderRadius: "4px",
+                borderRadius: "12px",
               }}
             >
               <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
 
               {/* Legend */}
               <div
-                className="absolute bottom-3 left-3 z-[9999] flex flex-col gap-1.5 px-3 py-2.5"
+                className="absolute bottom-3 left-3 z-[9999] flex flex-col gap-1.5 px-3 py-2.5 rounded-lg border border-white/10"
                 style={{
                   backgroundColor: "rgba(5,8,20,0.88)",
                   backdropFilter: "blur(8px)",
-                  borderRadius: "4px",
-                  border: "1px solid rgba(255,255,255,0.08)",
                 }}
               >
-                <p className="section-label mb-0.5">LEGEND</p>
+                <p className="text-[9px] font-bold tracking-wider text-muted-foreground uppercase mb-0.5">LEGEND</p>
                 {[
                   { color: "#dc2626", label: "HIGH RISK"   },
                   { color: "#ea580c", label: "MEDIUM RISK" },
                   { color: "#10b981", label: "SAFE ZONE"   },
                   { color: "#3b82f6", label: "POLICE STN"  },
-                  { color: "#10b981", label: "HOSPITAL"    },
-                  { color: "#22d3ee", label: "SAFE ROUTE"  },
                 ].map(({ color, label }) => (
                   <div key={label} className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                    <span className="text-[9px] font-mono font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>
+                    <span className="text-[9px] font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>
                       {label}
                     </span>
                   </div>
@@ -244,108 +290,69 @@ const RiskMapPage = () => {
               ].map(({ label, state, set }) => (
                 <button
                   key={label}
-                  id={`toggle-${label.toLowerCase()}`}
                   onClick={() => set((v) => !v)}
-                  className="flex items-center justify-between px-3 py-2.5 transition-all"
+                  disabled={label === "ROUTE" && !routeCalculated}
+                  className="flex items-center justify-between px-3 py-2.5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                   style={{
                     backgroundColor: state ? "hsl(var(--card))" : "transparent",
                     border: `1px solid ${state ? "hsl(var(--foreground) / 0.2)" : "hsl(var(--border))"}`,
-                    borderRadius: "4px",
+                    borderRadius: "8px",
                   }}
                 >
                   <span
-                    className="text-[9px] font-mono font-bold tracking-wider"
+                    className="text-[10px] font-bold tracking-wider uppercase"
                     style={{ color: state ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))" }}
                   >
                     {label}
                   </span>
                   {state ? (
-                    <Eye className="w-3 h-3" style={{ color: "hsl(var(--safe))" }} />
+                    <Eye className="w-3.5 h-3.5" style={{ color: "hsl(var(--safe))" }} />
                   ) : (
-                    <EyeOff className="w-3 h-3" style={{ color: "hsl(var(--muted-foreground))" }} />
+                    <EyeOff className="w-3.5 h-3.5" style={{ color: "hsl(var(--muted-foreground))" }} />
                   )}
                 </button>
               ))}
             </div>
 
-            {/* Route Info */}
+            {/* Warning Alert When Route Calculated */}
             <AnimatePresence>
-              {showRoute && (
+              {showRoute && routeCalculated && (
                 <motion.div
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 6 }}
-                  className="px-4 py-3 flex flex-col gap-2"
-                  style={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(215 60% 50% / 0.25)",
-                    borderRadius: "4px",
-                  }}
+                  className="px-4 py-4 flex flex-col gap-3 bg-card border border-sos/50 rounded-xl relative overflow-hidden"
                 >
+                  <div className="absolute inset-0 bg-sos/5 mix-blend-overlay pointer-events-none" />
+                  
                   <div className="flex items-center gap-2">
-                    <Navigation className="w-3.5 h-3.5" style={{ color: "hsl(215 60% 60%)" }} />
-                    <p className="text-xs font-mono font-bold" style={{ color: "hsl(215 60% 60%)" }}>
-                      SAFE ROUTE ACTIVE
+                    <AlertTriangle className="w-4 h-4 text-sos animate-pulse" />
+                    <p className="text-sm font-bold text-sos">
+                      UNSAFE ROUTE DETECTED
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div
-                      className="px-3 py-2"
-                      style={{ backgroundColor: "hsl(var(--muted))", borderRadius: "2px" }}
-                    >
-                      <p className="text-[9px] font-mono font-bold" style={{ color: "hsl(var(--muted-foreground))" }}>
-                        FROM
-                      </p>
-                      <p className="text-xs font-mono" style={{ color: "hsl(var(--foreground))" }}>
-                        Connaught Place
-                      </p>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="px-3 py-2 bg-background border border-border rounded">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">ORIGIN</p>
+                      <p className="text-xs font-semibold text-foreground">Rohini (Demo)</p>
                     </div>
-                    <div
-                      className="px-3 py-2"
-                      style={{ backgroundColor: "hsl(var(--muted))", borderRadius: "2px" }}
-                    >
-                      <p className="text-[9px] font-mono font-bold" style={{ color: "hsl(var(--muted-foreground))" }}>
-                        TO
-                      </p>
-                      <p className="text-xs font-mono" style={{ color: "hsl(var(--foreground))" }}>
-                        Civil Lines
-                      </p>
+                    <div className="px-3 py-2 bg-background border border-border rounded">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1">DESTINATION</p>
+                      <p className="text-xs font-semibold text-foreground truncate">{destination}</p>
                     </div>
                   </div>
-                  <p className="text-[10px] font-mono" style={{ color: "hsl(var(--safe))" }}>
-                    Avoids all high-risk zones — 4.2 km
+                  
+                  <p className="text-[11px] font-medium text-foreground/80 leading-relaxed bg-sos/10 px-3 py-2 rounded border border-sos/20">
+                    <strong className="text-sos">Warning:</strong> Your route actively intersects with <b>Rohini Sectors 3-11</b>, currently marked as a High-Risk Zone after 9 PM. Proceed with caution or generate an alternate route.
                   </p>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Zone Stats */}
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: "HIGH RISK", count: HIGH_RISK_POINTS.length,   color: "hsl(0 72% 58%)",    Icon: AlertTriangle },
-                { label: "MEDIUM",    count: MEDIUM_RISK_POINTS.length,  color: "hsl(38 90% 52%)",   Icon: Clock },
-                { label: "SAFE",      count: LOW_RISK_POINTS.length,     color: "hsl(142 60% 44%)",  Icon: CheckCircle2 },
-              ].map(({ label, count, color, Icon }) => (
-                <div
-                  key={label}
-                  className="text-center py-3"
-                  style={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <Icon className="w-4 h-4 mx-auto mb-1.5" style={{ color }} />
-                  <p className="text-xl font-black font-mono" style={{ color }}>{count}</p>
-                  <p className="text-[8px] font-mono font-bold tracking-wider" style={{ color: "hsl(var(--muted-foreground))" }}>
-                    {label}
-                  </p>
-                </div>
-              ))}
-            </div>
           </motion.div>
         ) : (
-          /* Risk Zones List */
+          /* Risk Zones List - Kept mainly same but font updated */
           <motion.div
             key="zones"
             initial={{ opacity: 0, x: 16 }}
@@ -353,9 +360,9 @@ const RiskMapPage = () => {
             exit={{ opacity: 0, x: 16 }}
             className="px-5 space-y-5"
           >
-            <div className="space-y-px">
+            <div className="space-y-3">
               {RISK_ZONES.map((z, i) => {
-                const s = RISK_STYLE[z.risk];
+                const s = z.risk === "high" ? "hsl(0 72% 58%)" : z.risk === "medium" ? "hsl(38 90% 52%)" : "hsl(142 60% 44%)";
                 const Icon = z.risk === "high" ? AlertTriangle : z.risk === "medium" ? Clock : CheckCircle2;
                 return (
                   <motion.div
@@ -363,39 +370,21 @@ const RiskMapPage = () => {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="flex items-start gap-4 px-4 py-3.5"
-                    style={{
-                      backgroundColor: "hsl(var(--card))",
-                      borderBottom: i < RISK_ZONES.length - 1 ? "1px solid hsl(var(--border) / 0.4)" : undefined,
-                      borderRadius:
-                        i === 0
-                          ? "4px 4px 0 0"
-                          : i === RISK_ZONES.length - 1
-                          ? "0 0 4px 4px"
-                          : undefined,
-                      borderLeft: `2px solid ${s.text}`,
-                    }}
+                    className="flex items-start gap-4 px-4 py-3.5 bg-card border border-border rounded-xl"
+                    style={{ borderLeft: `3px solid ${s}` }}
                   >
-                    <Icon className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: s.text }} />
+                    <Icon className="w-5 h-5 mt-0.5 flex-shrink-0" style={{ color: s }} />
                     <div className="flex-1">
-                      <p
-                        className="text-xs font-mono font-bold tracking-wide"
-                        style={{ color: "hsl(var(--foreground))" }}
-                      >
+                      <p className="text-sm font-bold tracking-wide text-foreground">
                         {z.name}
                       </p>
-                      <p className="text-[10px] mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
+                      <p className="text-xs font-medium mt-1 text-muted-foreground">
                         {z.desc}
                       </p>
                     </div>
                     <span
-                      className="text-[8px] font-mono font-black tracking-widest px-2 py-0.5 uppercase"
-                      style={{
-                        color: s.text,
-                        border: `1px solid ${s.border}`,
-                        borderRadius: "2px",
-                        flexShrink: 0,
-                      }}
+                      className="text-[9px] font-bold tracking-widest px-2 py-1 uppercase rounded-md border"
+                      style={{ color: s, borderColor: s, flexShrink: 0 }}
                     >
                       {z.risk}
                     </span>
@@ -406,49 +395,27 @@ const RiskMapPage = () => {
 
             {/* Nearby Safe Points */}
             <div>
-              <p className="section-label mb-2">Nearby Safe Points</p>
-              <div className="space-y-px">
+              <p className="section-label mb-3">Nearby Safe Points</p>
+              <div className="space-y-2">
                 {[
                   ...POLICE_STATIONS.slice(0, 2).map((p) => ({ ...p, type: "police" })),
                   ...HOSPITALS.slice(0, 2).map((h) => ({ ...h, type: "hospital" })),
                 ].map((pt, i, arr) => (
                   <div
                     key={pt.name}
-                    className="flex items-center gap-3 px-4 py-2.5"
-                    style={{
-                      backgroundColor: "hsl(var(--card))",
-                      borderBottom: i < arr.length - 1 ? "1px solid hsl(var(--border) / 0.4)" : undefined,
-                      borderRadius:
-                        i === 0
-                          ? "4px 4px 0 0"
-                          : i === arr.length - 1
-                          ? "0 0 4px 4px"
-                          : undefined,
-                    }}
+                    className="flex items-center gap-3 px-4 py-3 bg-card border border-border rounded-lg"
                   >
                     {pt.type === "police" ? (
-                      <Siren className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(215 60% 60%)" }} />
+                      <Siren className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(215 60% 60%)" }} />
                     ) : (
-                      <HeartPulse className="w-3.5 h-3.5 flex-shrink-0" style={{ color: "hsl(142 60% 44%)" }} />
+                      <HeartPulse className="w-4 h-4 flex-shrink-0" style={{ color: "hsl(142 60% 44%)" }} />
                     )}
-                    <p className="text-xs font-mono" style={{ color: "hsl(var(--foreground) / 0.8)" }}>
+                    <p className="text-xs font-semibold text-foreground/90">
                       {pt.name}
                     </p>
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div
-              className="px-4 py-3 mb-4"
-              style={{
-                backgroundColor: "hsl(var(--muted))",
-                borderRadius: "4px",
-              }}
-            >
-              <p className="text-[10px] font-mono text-center" style={{ color: "hsl(var(--muted-foreground))" }}>
-                Risk data derived from mock FIR records and community reports — demo only
-              </p>
             </div>
           </motion.div>
         )}
