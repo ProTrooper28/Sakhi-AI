@@ -14,7 +14,7 @@ const modes = [
 const PROTOCOL_STEPS = [
   { label: "Alert sent to emergency contacts", delay: 700 },
   { label: "Live location shared — Rohini, Delhi", delay: 1500 },
-  { label: "Emergency recording started", delay: 2300 },
+  { label: "Emergency recording active", delay: 2300 },
 ];
 
 const EMERGENCY_KEYWORDS = ["help", "bachao", "save me", "danger"];
@@ -23,11 +23,18 @@ const EMERGENCY_KEYWORDS = ["help", "bachao", "save me", "danger"];
 const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 const SOSPage = () => {
-  const { sosState, triggerSOS, cancelSOS } = useApp();
+  const { sosState, triggerSOS, cancelSOS, addEvidence } = useApp();
   const [activeMode, setActiveMode] = useState<string>("voice");
 
   // Protocol steps revealed sequentially
   const [visibleSteps, setVisibleSteps] = useState<number>(0);
+
+  // Native MediaRecorder State
+  const [isMediaRecording, setIsMediaRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaChunksRef = useRef<Blob[]>([]);
 
   // Speech Detection State
   const [listening, setListening] = useState(false);
@@ -37,6 +44,83 @@ const SOSPage = () => {
   
   const recognitionRef = useRef<any>(null);
   const stepsTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Format MM:SS
+  const formatDuration = (secs: number) => {
+     const m = Math.floor(secs / 60);
+     const s = secs % 60;
+     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
+  // ── Native Media Capture Logic ──
+  const stopNativeRecording = () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+      }
+      if (mediaStreamRef.current) {
+          mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (durationTimerRef.current) clearInterval(durationTimerRef.current);
+      
+      setIsMediaRecording(false);
+      setRecordingDuration(0);
+  };
+
+  useEffect(() => {
+     if (sosState.active) {
+         // Start Native Evidence Recording
+         const startRecording = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                mediaStreamRef.current = stream;
+                
+                const recorder = new MediaRecorder(stream);
+                mediaChunksRef.current = [];
+                
+                recorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) mediaChunksRef.current.push(e.data);
+                };
+
+                recorder.onstop = () => {
+                    if (mediaChunksRef.current.length > 0) {
+                        const blob = new Blob(mediaChunksRef.current, { type: "video/webm" });
+                        const url = URL.createObjectURL(blob);
+                        
+                        // Push genuine blob URL to the Evidence Locker
+                        addEvidence({
+                            type: "sos-recording",
+                            name: `SOS_Evidence_${new Date().toLocaleTimeString().replace(/:/g, "-")}.webm`,
+                            fileType: "video/webm",
+                            fileUrl: url,
+                            timestamp: new Date().toISOString(),
+                            location: sosState.location,
+                        });
+                    }
+                };
+
+                mediaRecorderRef.current = recorder;
+                recorder.start();
+                setIsMediaRecording(true);
+                
+                durationTimerRef.current = setInterval(() => {
+                    setRecordingDuration(d => d + 1);
+                }, 1000);
+
+            } catch (err) {
+                console.error("Media permission denied or not available", err);
+                toast({ title: "Hardware Access Required", description: "Camera/Mic access is required to capture evidence.", variant: "destructive" });
+            }
+         };
+         
+         startRecording();
+     } else {
+         // Stop Native Recording and spawn chunk to Evidence Locker
+         stopNativeRecording();
+     }
+     
+     return stopNativeRecording;
+  }, [sosState.active, addEvidence, sosState.location]);
 
   // When SOS becomes active → reveal steps one-by-one
   useEffect(() => {
@@ -259,8 +343,22 @@ const SOSPage = () => {
 
           {/* What's active */}
           <div className="space-y-1.5">
+             <div
+                className="flex items-center justify-between px-4 py-2.5"
+                style={{
+                  backgroundColor: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--sos) / 0.5)",
+                  borderRadius: "4px",
+                }}
+              >
+                  <div className="flex items-center gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "hsl(var(--sos))" }} />
+                    <Video className="w-3.5 h-3.5 text-sos" />
+                    <p className="text-xs font-medium" style={{ color: "hsl(var(--foreground) / 0.8)" }}>Recording audio & video</p>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-sos">{formatDuration(recordingDuration)}</span>
+              </div>
             {[
-              { Icon: Video, color: "hsl(var(--sos))", text: "Recording audio & video" },
               { Icon: MapPin, color: "hsl(var(--warning))", text: "Broadcasting live location" },
               { Icon: Phone, color: "hsl(var(--safe))", text: "Alerting emergency contacts" },
             ].map(({ Icon, color, text }) => (
@@ -286,21 +384,16 @@ const SOSPage = () => {
           <button
             id="sos-cancel-btn"
             onClick={cancelSOS}
-            className="w-full py-4 text-sm font-bold tracking-wider transition-all uppercase"
+            className="w-full py-4 text-sm font-bold tracking-wider transition-all uppercase flex flex-col gap-1 items-center justify-center relative overflow-hidden group"
             style={{
-              backgroundColor: "transparent",
+              backgroundColor: "hsl(var(--sos) / 0.1)",
               border: "1px solid hsl(var(--sos) / 0.5)",
               borderRadius: "4px",
               color: "hsl(var(--sos))",
             }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "hsl(var(--sos) / 0.08)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
-            }}
           >
-            Cancel Emergency
+            <span>Cancel Emergency</span>
+            <span className="text-[9px] font-mono opacity-60">Will save recording to storage</span>
           </button>
         </div>
       </div>

@@ -199,26 +199,30 @@ export default function EvidenceLockerPage() {
                     className="flex flex-col overflow-hidden bg-card border border-border rounded-xl shadow-sm"
                   >
                      {/* Media Preview Header Box */}
-                     <div className="relative h-32 w-full flex items-center justify-center bg-[#111] overflow-hidden border-b border-border">
-                        {item.fileUrl && item.fileType?.startsWith("image/") ? (
-                           <img src={item.fileUrl} alt={item.name} className="w-full h-full object-cover opacity-80 mix-blend-screen" />
-                        ) : isSOS ? (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <div className="absolute top-2 right-3 flex items-center gap-1.5">
-                                    <div className="w-2 h-2 rounded-full bg-sos animate-pulse" />
-                                    <span className="text-[10px] font-mono text-sos uppercase font-bold">REC</span>
-                                </div>
-                                <Video className="w-8 h-8 text-white/50 mb-2" />
-                                <div className="w-2/3 h-1 bg-white/10 rounded overflow-hidden">
-                                    <div className="w-1/3 h-full bg-white/40 rounded" />
-                                </div>
+                     <div className="relative h-48 w-full flex items-center justify-center bg-[#111] overflow-hidden border-b border-border group">
+                        {isSOS || item.fileType?.startsWith("video/") ? (
+                            <video 
+                               src={item.fileUrl || "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"} 
+                               controls 
+                               className="w-full h-full object-contain bg-black"
+                            />
+                        ) : item.fileType?.startsWith("audio/") ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-zinc-900 relative">
+                                <FileAudio className="w-10 h-10 text-muted-foreground/50 mb-4" />
+                                <audio 
+                                    controls 
+                                    src={item.fileUrl || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"} 
+                                    className="w-full max-w-[260px] h-10" 
+                                />
                             </div>
+                        ) : item.fileUrl && item.fileType?.startsWith("image/") ? (
+                           <img src={item.fileUrl} alt={item.name} className="w-full h-full object-cover opacity-80 mix-blend-screen" />
                         ) : (
                             <Icon className="w-10 h-10 text-muted-foreground/40" />
                         )}
                         
-                        {/* Overlay Tag */}
-                        <div className={`absolute bottom-2 left-2 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider font-mono uppercase ${isSOS ? 'bg-sos text-white' : 'bg-muted-foreground/80 text-white'}`}>
+                        {/* Overlay Tag (Moved top-left to avoid player controls) */}
+                        <div className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider font-mono uppercase z-10 shadow-md ${isSOS ? 'bg-sos text-white' : 'bg-muted-foreground/80 text-white'}`}>
                             {typeLabel[item.type]}
                         </div>
                      </div>
