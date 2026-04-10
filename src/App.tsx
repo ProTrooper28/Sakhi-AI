@@ -12,6 +12,7 @@ import ReportPage from "./pages/ReportPage";
 import ReportReviewPage from "./pages/ReportReviewPage";
 import EvidenceLockerPage from "./pages/EvidenceLockerPage";
 import RiskMapPage from "./pages/RiskMapPage";
+import GuardianPage from "./pages/GuardianPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/report-review/:id" element={<ReportReviewPage />} />
             <Route path="/evidence-locker" element={<EvidenceLockerPage />} />
             <Route path="/risk-map" element={<RiskMapPage />} />
+            <Route path="/guardian" element={<GuardianPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

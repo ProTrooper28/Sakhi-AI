@@ -1,23 +1,16 @@
 import { useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Upload, Camera, FileText, Shield, AlertTriangle,
-  Eye, EyeOff, ArrowRight, X, Image, Film, FileAudio, File,
+  Upload, X, Image, Film, FileAudio, File,
+  Eye, EyeOff, ChevronRight,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import BottomNav from "@/components/BottomNav";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
 import type { EvidenceItem } from "@/context/AppContext";
 
 type ReportType = "cyber" | "general" | null;
-
-type UploadedFile = {
-  file: File;
-  previewUrl?: string;
-  id: string;
-};
+type UploadedFile = { file: File; previewUrl?: string; id: string };
 
 const getFileIcon = (type: string) => {
   if (type.startsWith("image/")) return Image;
@@ -46,8 +39,7 @@ const ReportPage = () => {
   const handleFilePick = () => fileInputRef.current?.click();
 
   const processFiles = (files: FileList | File[]) => {
-    const arr = Array.from(files);
-    arr.forEach((file) => {
+    Array.from(files).forEach((file) => {
       const id = `f_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
       setUploadedFiles((prev) => [...prev, { file, previewUrl, id }]);
@@ -76,9 +68,8 @@ const ReportPage = () => {
   const handleSubmit = async () => {
     if (!description.trim() || !reportType) return;
     setSubmitting(true);
-    await new Promise((r) => setTimeout(r, 800)); // simulate async
+    await new Promise((r) => setTimeout(r, 800));
 
-    // Get location
     let location: string | undefined;
     try {
       const pos = await new Promise<GeolocationPosition>((res, rej) =>
@@ -99,129 +90,218 @@ const ReportPage = () => {
       location,
     }));
 
-    const id = addReport({
-      reportType,
-      description,
-      anonymous,
-      location,
-      evidence,
-      status: "pending",
-    });
-
+    const id = addReport({ reportType, description, anonymous, location, evidence, status: "pending" });
     setSubmitting(false);
     navigate(`/report-review/${id}`);
   };
 
+  // ── Type Selection Screen ──────────────────────────────────────────────────
   if (!reportType) {
     return (
-      <div className="min-h-screen bg-background pb-24">
-        <div className="px-5 pt-6 pb-4">
-          <h1 className="text-xl font-bold">Anonymous Reporting</h1>
-          <p className="text-sm text-muted-foreground">Your identity stays protected</p>
+      <div className="min-h-screen pb-24" style={{ backgroundColor: "hsl(var(--background))" }}>
+        <div className="px-5 pt-8 pb-5 border-b border-border/40">
+          <p className="section-label mb-1">Incident Filing</p>
+          <h1
+            className="text-2xl font-black tracking-wide"
+            style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.06em" }}
+          >
+            REPORT
+          </h1>
         </div>
-        <div className="px-5 space-y-4">
-          <motion.button
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            onClick={() => setReportType("cyber")}
-            className="w-full glass rounded-2xl p-5 text-left flex items-center gap-4 hover:border-primary/30 transition-colors"
-          >
-            <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
-              <Camera className="w-6 h-6 text-accent" />
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold">Cyber Incident</p>
-              <p className="text-xs text-muted-foreground">Upload screenshots, AI summarizes & suggests action</p>
-            </div>
-            <ArrowRight className="w-5 h-5 text-muted-foreground" />
-          </motion.button>
 
-          <motion.button
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            onClick={() => setReportType("general")}
-            className="w-full glass rounded-2xl p-5 text-left flex items-center gap-4 hover:border-primary/30 transition-colors"
+        <div className="px-5 pt-5 space-y-2">
+          <p className="section-label mb-3">Select incident type</p>
+
+          {/* Cyber Incident */}
+          <button
+            id="report-type-cyber"
+            onClick={() => setReportType("cyber")}
+            className="w-full flex items-center justify-between px-5 py-5 transition-all"
+            style={{
+              backgroundColor: "hsl(var(--card))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "4px",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "hsl(var(--foreground) / 0.3)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "hsl(var(--border))";
+            }}
           >
-            <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
-              <FileText className="w-6 h-6 text-warning" />
+            <div className="text-left">
+              <p
+                className="text-sm font-bold tracking-wide font-mono"
+                style={{ color: "hsl(var(--foreground))" }}
+              >
+                CYBER INCIDENT
+              </p>
+              <p className="text-xs mt-1" style={{ color: "hsl(var(--muted-foreground))" }}>
+                Online harassment, threats, hacking, impersonation
+              </p>
             </div>
-            <div className="flex-1">
-              <p className="font-semibold">General Report</p>
-              <p className="text-xs text-muted-foreground">Report with or without evidence</p>
+            <ChevronRight className="w-4 h-4" style={{ color: "hsl(var(--muted-foreground))" }} />
+          </button>
+
+          {/* General Report */}
+          <button
+            id="report-type-general"
+            onClick={() => setReportType("general")}
+            className="w-full flex items-center justify-between px-5 py-5 transition-all"
+            style={{
+              backgroundColor: "hsl(var(--card))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "4px",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "hsl(var(--foreground) / 0.3)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "hsl(var(--border))";
+            }}
+          >
+            <div className="text-left">
+              <p
+                className="text-sm font-bold tracking-wide font-mono"
+                style={{ color: "hsl(var(--foreground))" }}
+              >
+                GENERAL REPORT
+              </p>
+              <p className="text-xs mt-1" style={{ color: "hsl(var(--muted-foreground))" }}>
+                Physical incident, stalking, public threat
+              </p>
             </div>
-            <ArrowRight className="w-5 h-5 text-muted-foreground" />
-          </motion.button>
+            <ChevronRight className="w-4 h-4" style={{ color: "hsl(var(--muted-foreground))" }} />
+          </button>
 
           {/* Evidence Locker shortcut */}
-          <motion.button
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
+          <button
+            id="report-evidence-shortcut"
             onClick={() => navigate("/evidence-locker")}
-            className="w-full glass rounded-2xl p-5 text-left flex items-center gap-4 hover:border-safe/30 transition-colors"
+            className="w-full flex items-center justify-between px-5 py-4 mt-4 transition-all"
+            style={{
+              backgroundColor: "transparent",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "4px",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "hsl(var(--foreground) / 0.25)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "hsl(var(--border))";
+            }}
           >
-            <div className="w-12 h-12 rounded-xl bg-safe/10 flex items-center justify-center">
-              <Shield className="w-6 h-6 text-safe" />
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold">Evidence Locker</p>
-              <p className="text-xs text-muted-foreground">View stored recordings & media</p>
-            </div>
-            <ArrowRight className="w-5 h-5 text-muted-foreground" />
-          </motion.button>
+            <p className="text-xs font-mono font-semibold tracking-wider" style={{ color: "hsl(var(--muted-foreground))" }}>
+              VIEW EVIDENCE LOCKER
+            </p>
+            <ChevronRight className="w-3.5 h-3.5" style={{ color: "hsl(var(--muted-foreground))" }} />
+          </button>
         </div>
+
         <BottomNav />
       </div>
     );
   }
 
+  // ── Report Form ────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <div className="px-5 pt-6 pb-4">
-        <button onClick={() => setReportType(null)} className="text-sm text-primary mb-2">← Back</button>
-        <h1 className="text-xl font-bold">
-          {reportType === "cyber" ? "Cyber Incident Report" : "General Report"}
+    <div className="min-h-screen pb-24" style={{ backgroundColor: "hsl(var(--background))" }}>
+      <div className="px-5 pt-8 pb-5 border-b border-border/40">
+        <button
+          onClick={() => setReportType(null)}
+          className="text-xs font-mono mb-3 transition-colors"
+          style={{ color: "hsl(var(--muted-foreground))" }}
+        >
+          ← BACK
+        </button>
+        <p className="section-label mb-1">
+          {reportType === "cyber" ? "Cyber Incident" : "General Incident"}
+        </p>
+        <h1
+          className="text-2xl font-black tracking-wide"
+          style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.06em" }}
+        >
+          FILE REPORT
         </h1>
       </div>
 
-      <div className="px-5 space-y-5">
+      <div className="px-5 pt-5 space-y-4">
+
         {/* Anonymous Toggle */}
         <button
+          id="anonymous-toggle"
           onClick={() => setAnonymous(!anonymous)}
-          className="w-full glass rounded-xl p-4 flex items-center justify-between"
+          className="w-full flex items-center justify-between px-4 py-3.5 transition-all"
+          style={{
+            backgroundColor: anonymous ? "hsl(var(--safe) / 0.07)" : "hsl(var(--card))",
+            border: `1px solid ${anonymous ? "hsl(var(--safe) / 0.4)" : "hsl(var(--border))"}`,
+            borderRadius: "4px",
+          }}
         >
           <div className="flex items-center gap-3">
-            {anonymous ? <EyeOff className="w-5 h-5 text-safe" /> : <Eye className="w-5 h-5 text-muted-foreground" />}
+            {anonymous ? (
+              <EyeOff className="w-4 h-4" style={{ color: "hsl(var(--safe))" }} />
+            ) : (
+              <Eye className="w-4 h-4" style={{ color: "hsl(var(--muted-foreground))" }} />
+            )}
             <div className="text-left">
-              <p className="text-sm font-medium">{anonymous ? "Anonymous Mode" : "Identity Visible"}</p>
-              <p className="text-xs text-muted-foreground">
-                {anonymous ? "Your identity is hidden" : "Authorities can see your identity"}
+              <p
+                className="text-xs font-mono font-bold tracking-wider"
+                style={{ color: anonymous ? "hsl(var(--safe))" : "hsl(var(--muted-foreground))" }}
+              >
+                ANONYMOUS MODE: {anonymous ? "ON" : "OFF"}
+              </p>
+              <p className="text-[10px] mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
+                {anonymous ? "Your identity is fully protected" : "Authorities can identify you"}
               </p>
             </div>
           </div>
-          <div className={`w-10 h-6 rounded-full transition-colors ${anonymous ? "bg-safe" : "bg-muted"} relative`}>
-            <div className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${anonymous ? "translate-x-4" : "translate-x-0.5"}`} />
+          <div
+            className="w-9 h-5 rounded-full relative transition-colors flex-shrink-0"
+            style={{ backgroundColor: anonymous ? "hsl(var(--safe))" : "hsl(var(--muted))" }}
+          >
+            <div
+              className="w-4 h-4 rounded-full bg-white absolute top-0.5 transition-transform"
+              style={{ transform: anonymous ? "translateX(17px)" : "translateX(2px)" }}
+            />
           </div>
         </button>
 
         {/* Description */}
-        <div className="space-y-2">
-          <Label>Describe the incident <span className="text-sos">*</span></Label>
+        <div className="space-y-1.5">
+          <p className="section-label">
+            Incident Description <span style={{ color: "hsl(var(--sos))" }}>*</span>
+          </p>
           <textarea
+            id="incident-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="What happened? Include as much detail as possible..."
-            className="w-full min-h-[120px] rounded-xl border border-input bg-background px-4 py-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+            placeholder="Describe what happened. Include time, location, and any identifying details..."
+            rows={5}
+            className="w-full font-mono text-xs resize-none outline-none transition-colors px-4 py-3"
+            style={{
+              backgroundColor: "hsl(var(--card))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "4px",
+              color: "hsl(var(--foreground))",
+              caretColor: "hsl(var(--sos))",
+            }}
+            onFocus={(e) => {
+              (e.currentTarget as HTMLTextAreaElement).style.borderColor = "hsl(var(--foreground) / 0.3)";
+            }}
+            onBlur={(e) => {
+              (e.currentTarget as HTMLTextAreaElement).style.borderColor = "hsl(var(--border))";
+            }}
           />
-          <p className="text-xs text-muted-foreground text-right">{description.length} chars</p>
+          <p className="text-[10px] font-mono text-right" style={{ color: "hsl(var(--muted-foreground))" }}>
+            {description.length} chars
+          </p>
         </div>
 
         {/* Evidence Upload */}
-        <div className="space-y-3">
-          <Label>Evidence <span className="text-muted-foreground font-normal">(optional — affects credibility score)</span></Label>
+        <div className="space-y-2">
+          <p className="section-label">Evidence Upload <span className="normal-case" style={{ color: "hsl(var(--muted-foreground))", fontFamily: "var(--font-sans)", fontWeight: 400, letterSpacing: 0 }}>— optional</span></p>
 
-          {/* Hidden file input */}
           <input
             ref={fileInputRef}
             type="file"
@@ -231,48 +311,69 @@ const ReportPage = () => {
             className="hidden"
           />
 
-          {/* Drop Zone */}
           <div
+            id="upload-zone"
             onClick={handleFilePick}
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
-            className={`glass rounded-xl p-6 text-center border-dashed border-2 cursor-pointer transition-all ${dragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-              }`}
+            className="flex flex-col items-center justify-center gap-2 py-8 cursor-pointer transition-all"
+            style={{
+              backgroundColor: dragging ? "hsl(var(--foreground) / 0.04)" : "transparent",
+              border: `1px dashed ${dragging ? "hsl(var(--foreground) / 0.4)" : "hsl(var(--border))"}`,
+              borderRadius: "4px",
+            }}
           >
-            <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm font-medium">Tap to upload or drag & drop</p>
-            <p className="text-xs text-muted-foreground mt-1">Images, audio, video, PDF — up to 10MB each</p>
+            <Upload className="w-5 h-5" style={{ color: "hsl(var(--muted-foreground))" }} />
+            <p className="text-xs font-mono font-semibold" style={{ color: "hsl(var(--foreground) / 0.7)" }}>
+              TAP TO UPLOAD OR DRAG & DROP
+            </p>
+            <p className="text-[10px]" style={{ color: "hsl(var(--muted-foreground))" }}>
+              Images · Audio · Video · PDF — max 10MB each
+            </p>
           </div>
 
-          {/* File Previews */}
+          {/* File List */}
           <AnimatePresence>
             {uploadedFiles.map((uf) => {
               const Icon = getFileIcon(uf.file.type);
               return (
                 <motion.div
                   key={uf.id}
-                  initial={{ opacity: 0, y: 5 }}
+                  initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  className="glass rounded-xl p-3 flex items-center gap-3"
+                  exit={{ opacity: 0, y: -4 }}
+                  className="flex items-center gap-3 px-3 py-2.5"
+                  style={{
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "4px",
+                  }}
                 >
                   {uf.previewUrl ? (
-                    <img src={uf.previewUrl} alt={uf.file.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                    <img src={uf.previewUrl} alt={uf.file.name} className="w-10 h-10 object-cover rounded flex-shrink-0" />
                   ) : (
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-6 h-6 text-primary" />
+                    <div
+                      className="w-10 h-10 flex items-center justify-center rounded flex-shrink-0"
+                      style={{ backgroundColor: "hsl(var(--muted))" }}
+                    >
+                      <Icon className="w-5 h-5" style={{ color: "hsl(var(--muted-foreground))" }} />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{uf.file.name}</p>
-                    <p className="text-xs text-muted-foreground">{formatSize(uf.file.size)}</p>
+                    <p className="text-xs font-mono truncate" style={{ color: "hsl(var(--foreground))" }}>
+                      {uf.file.name}
+                    </p>
+                    <p className="text-[10px] font-mono" style={{ color: "hsl(var(--muted-foreground))" }}>
+                      {formatSize(uf.file.size)}
+                    </p>
                   </div>
                   <button
                     onClick={() => removeFile(uf.id)}
-                    className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-sos/20"
+                    className="w-7 h-7 flex items-center justify-center rounded"
+                    style={{ backgroundColor: "hsl(var(--muted))" }}
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-3.5 h-3.5" style={{ color: "hsl(var(--muted-foreground))" }} />
                   </button>
                 </motion.div>
               );
@@ -280,51 +381,38 @@ const ReportPage = () => {
           </AnimatePresence>
 
           {uploadedFiles.length > 0 && (
-            <p className="text-xs text-safe font-medium">✓ {uploadedFiles.length} file{uploadedFiles.length > 1 ? "s" : ""} attached — credibility will be scored</p>
+            <p className="text-[10px] font-mono" style={{ color: "hsl(var(--safe))" }}>
+              {uploadedFiles.length} file{uploadedFiles.length > 1 ? "s" : ""} attached
+            </p>
           )}
         </div>
 
-        {/* Info Cards */}
-        {reportType === "general" && (
-          <div className="glass rounded-xl p-4 flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
-            <div>
-              <p className="text-sm font-medium">High Risk – Low Evidence</p>
-              <p className="text-xs text-muted-foreground">Reports without evidence are flagged for monitoring</p>
-            </div>
-          </div>
-        )}
-
-        {reportType === "cyber" && (
-          <div className="glass rounded-xl p-4 space-y-2">
-            <div className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-primary" />
-              <p className="text-sm font-medium">AI Analysis</p>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Our AI will summarize the incident, suggest legal actions, and optionally forward to the official cybercrime portal.
-            </p>
-          </div>
-        )}
-
-        <Button
+        {/* Submit */}
+        <button
+          id="submit-report-btn"
           onClick={handleSubmit}
-          className="w-full"
-          size="lg"
           disabled={!description.trim() || submitting}
+          className="btn-primary"
+          style={{
+            opacity: !description.trim() || submitting ? 0.5 : 1,
+            cursor: !description.trim() || submitting ? "not-allowed" : "pointer",
+          }}
         >
           {submitting ? (
-            <span className="flex items-center gap-2">
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Submitting...
+            <span className="flex items-center justify-center gap-2">
+              <span
+                className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
+                style={{ display: "inline-block" }}
+              />
+              SUBMITTING...
             </span>
           ) : (
-            "Submit Report →"
+            "SUBMIT REPORT"
           )}
-        </Button>
+        </button>
 
-        <p className="text-xs text-center text-muted-foreground pb-4">
-          You can convert this into an official complaint later
+        <p className="text-[10px] font-mono text-center pb-4" style={{ color: "hsl(var(--muted-foreground))" }}>
+          Report can be converted to an official complaint at any time
         </p>
       </div>
 

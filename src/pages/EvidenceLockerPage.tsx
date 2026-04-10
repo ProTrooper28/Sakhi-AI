@@ -1,8 +1,9 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
-  Shield, Video, Image, FileAudio, File, MapPin, Clock,
+  Video, Image, FileAudio, File, MapPin, Clock,
   Lock, ArrowLeft, Inbox,
 } from "lucide-react";
+import { Film } from "lucide-react";
 import BottomNav from "@/components/BottomNav";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
@@ -17,78 +18,138 @@ const getFileIcon = (item: EvidenceItem) => {
   return File;
 };
 
-import { Film } from "lucide-react";
-
 const typeLabel: Record<EvidenceItem["type"], string> = {
-  "sos-recording": "SOS Recording",
-  "report-media":  "Report Media",
-};
-
-const typeBadge: Record<EvidenceItem["type"], string> = {
-  "sos-recording": "bg-sos/15 text-sos",
-  "report-media":  "bg-primary/15 text-primary",
+  "sos-recording": "SOS REC",
+  "report-media":  "REPORT",
 };
 
 const EvidenceLockerPage = () => {
   const { evidenceLocker } = useApp();
   const navigate = useNavigate();
 
+  const sosCount     = evidenceLocker.filter((e) => e.type === "sos-recording").length;
+  const reportCount  = evidenceLocker.filter((e) => e.type === "report-media").length;
+
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen pb-24" style={{ backgroundColor: "hsl(var(--background))" }}>
+
       {/* Header */}
-      <div className="px-5 pt-6 pb-4">
+      <div className="px-5 pt-8 pb-5 border-b border-border/40">
         <div className="flex items-center gap-3 mb-1">
-          <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-xl glass flex items-center justify-center">
-            <ArrowLeft className="w-5 h-5" />
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center justify-center w-8 h-8 transition-colors"
+            style={{
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "4px",
+              backgroundColor: "transparent",
+            }}
+          >
+            <ArrowLeft className="w-4 h-4" style={{ color: "hsl(var(--muted-foreground))" }} />
           </button>
-          <div>
-            <h1 className="text-xl font-bold">Evidence Locker</h1>
-            <p className="text-xs text-muted-foreground">Read-only · Secured locally</p>
+          <div className="flex-1">
+            <p className="section-label mb-0.5">Secured Storage</p>
+            <h1
+              className="text-2xl font-black tracking-wide"
+              style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.06em" }}
+            >
+              EVIDENCE LOCKER
+            </h1>
           </div>
-          <div className="ml-auto w-9 h-9 rounded-xl bg-safe/10 flex items-center justify-center">
-            <Lock className="w-4 h-4 text-safe" />
+          <div className="flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5" style={{ color: "hsl(var(--safe))" }} />
+            <span
+              className="text-[9px] font-mono font-bold tracking-wider"
+              style={{ color: "hsl(var(--safe))" }}
+            >
+              READ-ONLY
+            </span>
           </div>
         </div>
 
         {/* Summary strip */}
         {evidenceLocker.length > 0 && (
-          <div className="mt-3 glass rounded-xl p-3 flex items-center gap-3">
-            <Shield className="w-4 h-4 text-safe" />
-            <p className="text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground">{evidenceLocker.length}</span> item{evidenceLocker.length !== 1 ? "s" : ""} stored ·
-              {" "}<span className="font-semibold text-foreground">{evidenceLocker.filter((e) => e.type === "sos-recording").length}</span> SOS recording{evidenceLocker.filter((e) => e.type === "sos-recording").length !== 1 ? "s" : ""} ·
-              {" "}<span className="font-semibold text-foreground">{evidenceLocker.filter((e) => e.type === "report-media").length}</span> report media
-            </p>
+          <div
+            className="mt-4 flex items-center gap-4 px-4 py-2.5 status-line"
+            style={{
+              backgroundColor: "hsl(var(--muted))",
+              borderRadius: "4px",
+            }}
+          >
+            <div>
+              <p className="text-lg font-black font-mono" style={{ color: "hsl(var(--foreground))" }}>
+                {evidenceLocker.length}
+              </p>
+              <p className="text-[9px] font-mono" style={{ color: "hsl(var(--muted-foreground))" }}>
+                TOTAL ITEMS
+              </p>
+            </div>
+            <div
+              className="w-px h-8"
+              style={{ backgroundColor: "hsl(var(--border))" }}
+            />
+            <div>
+              <p className="text-lg font-black font-mono" style={{ color: "hsl(var(--sos))" }}>
+                {sosCount}
+              </p>
+              <p className="text-[9px] font-mono" style={{ color: "hsl(var(--muted-foreground))" }}>
+                SOS REC
+              </p>
+            </div>
+            <div
+              className="w-px h-8"
+              style={{ backgroundColor: "hsl(var(--border))" }}
+            />
+            <div>
+              <p className="text-lg font-black font-mono" style={{ color: "hsl(215 60% 60%)" }}>
+                {reportCount}
+              </p>
+              <p className="text-[9px] font-mono" style={{ color: "hsl(var(--muted-foreground))" }}>
+                REPORTS
+              </p>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="px-5">
+      <div className="px-5 pt-5">
         <AnimatePresence>
           {evidenceLocker.length === 0 ? (
             /* Empty State */
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               className="flex flex-col items-center justify-center py-24 gap-4"
             >
-              <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
-                <Inbox className="w-9 h-9 text-muted-foreground" />
+              <div
+                className="w-16 h-16 flex items-center justify-center"
+                style={{
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "4px",
+                }}
+              >
+                <Inbox className="w-7 h-7" style={{ color: "hsl(var(--muted-foreground))" }} />
               </div>
               <div className="text-center">
-                <p className="font-semibold text-base">No Evidence Stored</p>
-                <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-                  SOS recordings and uploaded report media will appear here automatically.
+                <p
+                  className="font-black font-mono tracking-wider text-sm"
+                  style={{ color: "hsl(var(--foreground) / 0.5)" }}
+                >
+                  NO EVIDENCE STORED
+                </p>
+                <p className="text-xs mt-2" style={{ color: "hsl(var(--muted-foreground))" }}>
+                  SOS recordings and report media appear here automatically
                 </p>
               </div>
             </motion.div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-px">
               {evidenceLocker.map((item, i) => {
                 const Icon = getFileIcon(item);
                 const date = new Date(item.timestamp);
                 const dateStr = date.toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" });
                 const timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                const isSOS   = item.type === "sos-recording";
 
                 return (
                   <motion.div
@@ -96,46 +157,92 @@ const EvidenceLockerPage = () => {
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.04 }}
-                    className="glass rounded-2xl p-4 flex items-center gap-4 select-none"
+                    className="flex items-center gap-4 px-4 py-3.5 select-none"
+                    style={{
+                      backgroundColor: "hsl(var(--card))",
+                      borderBottom: i < evidenceLocker.length - 1
+                        ? "1px solid hsl(var(--border) / 0.4)"
+                        : undefined,
+                      borderRadius:
+                        i === 0
+                          ? "4px 4px 0 0"
+                          : i === evidenceLocker.length - 1
+                          ? "0 0 4px 4px"
+                          : undefined,
+                    }}
                   >
-                    {/* Thumbnail or Icon */}
-                    {item.fileUrl && item.fileType?.startsWith("image/") ? (
-                      <img
-                        src={item.fileUrl}
-                        alt={item.name}
-                        className="w-14 h-14 rounded-xl object-cover flex-shrink-0"
-                        draggable={false}
-                      />
-                    ) : (
-                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        item.type === "sos-recording" ? "bg-sos/10" : "bg-primary/10"
-                      }`}>
-                        <Icon className={`w-7 h-7 ${item.type === "sos-recording" ? "text-sos" : "text-primary"}`} />
-                      </div>
-                    )}
+                    {/* File type tag */}
+                    <div
+                      className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-12 rounded"
+                      style={{
+                        backgroundColor: isSOS ? "hsl(var(--sos) / 0.1)" : "hsl(var(--muted))",
+                        border: `1px solid ${isSOS ? "hsl(var(--sos) / 0.3)" : "hsl(var(--border))"}`,
+                      }}
+                    >
+                      {item.fileUrl && item.fileType?.startsWith("image/") ? (
+                        <img
+                          src={item.fileUrl}
+                          alt={item.name}
+                          className="w-full h-full object-cover rounded"
+                          draggable={false}
+                        />
+                      ) : (
+                        <>
+                          <Icon
+                            className="w-4 h-4"
+                            style={{ color: isSOS ? "hsl(var(--sos))" : "hsl(var(--muted-foreground))" }}
+                          />
+                          <span
+                            className="text-[8px] font-mono font-bold mt-0.5 tracking-wider"
+                            style={{ color: isSOS ? "hsl(var(--sos))" : "hsl(var(--muted-foreground))" }}
+                          >
+                            {typeLabel[item.type]}
+                          </span>
+                        </>
+                      )}
+                    </div>
 
                     {/* Info */}
                     <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-sm font-medium truncate">{item.name}</p>
-                      <div className="flex flex-wrap gap-2 items-center">
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${typeBadge[item.type]}`}>
-                          {typeLabel[item.type]}
-                        </span>
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <Clock className="w-3 h-3" />
+                      <p
+                        className="text-xs font-mono font-medium truncate"
+                        style={{ color: "hsl(var(--foreground))" }}
+                      >
+                        {item.name}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Clock
+                          className="w-3 h-3 flex-shrink-0"
+                          style={{ color: "hsl(var(--muted-foreground))" }}
+                        />
+                        <span
+                          className="text-[10px] font-mono"
+                          style={{ color: "hsl(var(--muted-foreground))" }}
+                        >
                           {dateStr} · {timeStr}
                         </span>
                       </div>
                       {item.location && (
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <MapPin className="w-3 h-3" />
-                          {item.location}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <MapPin
+                            className="w-3 h-3 flex-shrink-0"
+                            style={{ color: "hsl(var(--muted-foreground))" }}
+                          />
+                          <span
+                            className="text-[10px] font-mono truncate"
+                            style={{ color: "hsl(var(--muted-foreground))" }}
+                          >
+                            {item.location}
+                          </span>
+                        </div>
                       )}
                     </div>
 
-                    {/* Lock icon — read-only indicator */}
-                    <Lock className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                    {/* Lock */}
+                    <Lock
+                      className="w-3.5 h-3.5 flex-shrink-0"
+                      style={{ color: "hsl(var(--muted-foreground) / 0.5)" }}
+                    />
                   </motion.div>
                 );
               })}

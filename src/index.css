@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,103 +6,76 @@
 
 @layer base {
   :root {
-    --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-sans:    'Inter', system-ui, sans-serif;
+    --font-heading: 'Poppins', system-ui, sans-serif;
 
-    --background: 30 25% 98%;
-    --foreground: 220 20% 14%;
+    /* Force dark emergency system palette */
+    --background: 225 30% 7%;
+    --foreground: 210 20% 90%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 20% 14%;
+    --card: 225 28% 10%;
+    --card-foreground: 210 20% 90%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 14%;
+    --popover: 225 28% 10%;
+    --popover-foreground: 210 20% 90%;
 
-    --primary: 12 76% 61%;
+    --primary: 0 72% 51%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 30 30% 94%;
-    --secondary-foreground: 220 20% 20%;
+    --secondary: 225 20% 16%;
+    --secondary-foreground: 210 15% 75%;
 
-    --muted: 30 15% 93%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 225 22% 13%;
+    --muted-foreground: 215 15% 48%;
 
-    --accent: 340 60% 55%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 225 18% 18%;
+    --accent-foreground: 210 15% 82%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 30 15% 89%;
-    --input: 30 15% 89%;
-    --ring: 12 76% 61%;
+    --border: 225 20% 16%;
+    --input: 225 20% 14%;
+    --ring: 0 72% 51%;
 
     --radius: 0.75rem;
 
-    --sos: 0 84% 60%;
+    --sos: 0 80% 52%;
     --sos-foreground: 0 0% 100%;
 
-    --safe: 152 60% 42%;
+    --safe: 142 60% 40%;
     --safe-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
+    --warning: 38 90% 48%;
     --warning-foreground: 0 0% 100%;
-
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 220 18% 10%;
-    --foreground: 30 20% 92%;
-
-    --card: 220 16% 14%;
-    --card-foreground: 30 20% 92%;
-
-    --popover: 220 16% 14%;
-    --popover-foreground: 30 20% 92%;
-
-    --primary: 12 76% 61%;
+    --background: 225 30% 7%;
+    --foreground: 210 20% 90%;
+    --card: 225 28% 10%;
+    --card-foreground: 210 20% 90%;
+    --popover: 225 28% 10%;
+    --popover-foreground: 210 20% 90%;
+    --primary: 0 72% 51%;
     --primary-foreground: 0 0% 100%;
-
-    --secondary: 220 14% 20%;
-    --secondary-foreground: 30 20% 88%;
-
-    --muted: 220 14% 18%;
-    --muted-foreground: 220 10% 55%;
-
-    --accent: 340 60% 55%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 62% 30%;
+    --secondary: 225 20% 16%;
+    --secondary-foreground: 210 15% 75%;
+    --muted: 225 22% 13%;
+    --muted-foreground: 215 15% 48%;
+    --accent: 225 18% 18%;
+    --accent-foreground: 210 15% 82%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-
-    --border: 220 14% 20%;
-    --input: 220 14% 20%;
-    --ring: 12 76% 61%;
-
-    --sos: 0 84% 55%;
+    --border: 225 20% 16%;
+    --input: 225 20% 14%;
+    --ring: 0 72% 51%;
+    --sos: 0 80% 52%;
     --sos-foreground: 0 0% 100%;
-
-    --safe: 152 50% 38%;
+    --safe: 142 60% 40%;
     --safe-foreground: 0 0% 100%;
-
-    --warning: 38 80% 45%;
+    --warning: 38 90% 48%;
     --warning-foreground: 0 0% 100%;
-
-    --sidebar-background: 220 18% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 14% 18%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 220 14% 20%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -111,23 +84,196 @@
     @apply border-border;
   }
 
-  body {
-    @apply bg-background text-foreground font-sans antialiased;
-    font-family: var(--font-sans);
+  html {
+    @apply dark;
   }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.6;
+    @apply antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--background)); }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 2px; }
 }
 
 @layer utilities {
+  /* ── Glass panel ── */
   .glass {
-    @apply bg-card/80 backdrop-blur-lg border border-border/50;
+    background-color: hsl(var(--card) / 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border) / 0.6);
   }
 
+  /* ── Section label — human-readable, sentence case ── */
+  .section-label {
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* ── Status badges ── */
+  .badge-active {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background-color: hsl(var(--safe) / 0.15);
+    color: hsl(var(--safe));
+    border: 1px solid hsl(var(--safe) / 0.3);
+  }
+
+  .badge-sos {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background-color: hsl(var(--sos) / 0.15);
+    color: hsl(var(--sos));
+    border: 1px solid hsl(var(--sos) / 0.4);
+  }
+
+  /* ── SOS pulse ── */
   .sos-pulse {
-    animation: sos-pulse 1.5s ease-in-out infinite;
+    animation: sos-ring 2s ease-out infinite;
   }
 
-  @keyframes sos-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 hsl(var(--sos) / 0.4); }
-    50% { box-shadow: 0 0 0 20px hsl(var(--sos) / 0); }
+  @keyframes sos-ring {
+    0%   { box-shadow: 0 0 0 0   hsl(var(--sos) / 0.5); }
+    60%  { box-shadow: 0 0 0 12px hsl(var(--sos) / 0); }
+    100% { box-shadow: 0 0 0 0   hsl(var(--sos) / 0); }
+  }
+
+  /* ── Border status indicators ── */
+  .status-line {
+    border-left: 3px solid hsl(var(--safe));
+    padding-left: 0.875rem;
+  }
+
+  .status-line-sos {
+    border-left: 3px solid hsl(var(--sos));
+    padding-left: 0.875rem;
+    animation: border-blink 1.4s step-start infinite;
+  }
+
+  @keyframes border-blink {
+    0%, 100% { border-color: hsl(var(--sos)); }
+    50%       { border-color: hsl(var(--sos) / 0.15); }
+  }
+
+  /* ── Primary action button ── */
+  .btn-primary {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    background-color: hsl(var(--sos));
+    color: white;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.01em;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background-color 0.15s, transform 0.1s;
+  }
+
+  .btn-primary:hover  { background-color: hsl(0 72% 44%); }
+  .btn-primary:active { transform: scale(0.98); }
+
+  .btn-secondary {
+    width: 100%;
+    padding: 0.875rem 1.5rem;
+    background-color: transparent;
+    color: hsl(var(--foreground));
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: 0.9rem;
+    letter-spacing: 0.01em;
+    border: 1.5px solid hsl(var(--border));
+    border-radius: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s, background-color 0.15s;
+  }
+
+  .btn-secondary:hover {
+    border-color: hsl(var(--foreground) / 0.4);
+    background-color: hsl(var(--muted));
+  }
+
+  /* ── Dot indicators ── */
+  .dot-active {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background-color: hsl(var(--safe));
+    animation: dot-pulse 2.2s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  .dot-sos {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background-color: hsl(var(--sos));
+    animation: dot-pulse 0.8s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes dot-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  /* ── Rounded card ── */
+  .card-surface {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 16px;
+  }
+
+  /* ── Soft input style ── */
+  .input-soft {
+    width: 100%;
+    background-color: hsl(var(--card));
+    border: 1.5px solid hsl(var(--border));
+    border-radius: 12px;
+    padding: 0.875rem 1rem;
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    color: hsl(var(--foreground));
+    outline: none;
+    transition: border-color 0.2s;
+    caret-color: hsl(var(--sos));
+  }
+
+  .input-soft::placeholder {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .input-soft:focus {
+    border-color: hsl(var(--foreground) / 0.3);
   }
 }

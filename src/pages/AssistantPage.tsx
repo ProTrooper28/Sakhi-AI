@@ -1,172 +1,179 @@
-import { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Send, Bot, Mic, Sparkles } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useApp } from "@/context/AppContext";
 import BottomNav from "@/components/BottomNav";
+import { Mic, ShieldAlert, FileText, Map as MapIcon, Lock } from "lucide-react";
 
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-}
-
-const suggestions = [
-  "I feel unsafe walking home",
-  "How to report cyber harassment?",
-  "Safety tips for late night travel",
-  "Help me create an emergency plan",
+// ─── Intent → Action Mapping ─────────────────────────────────────────────────
+const intentMap: { keywords: string[]; route: string; label: string; triggerSOS?: boolean }[] = [
+  {
+    keywords: ["help", "help me", "emergency", "sos", "attack", "scared", "save me", "danger", "dangerous", "unsafe", "someone is following me", "i am in danger", "following me", "in danger", "threat"],
+    route: "/sos",
+    label: "SOS Activated",
+    triggerSOS: true,
+  },
+  {
+    keywords: ["report", "harassment", "cyber", "incident", "complaint", "file"],
+    route: "/report",
+    label: "Opening Report",
+  },
+  {
+    keywords: ["location", "map", "route", "area", "zone", "heatmap", "where"],
+    route: "/risk-map",
+    label: "Opening Map",
+  },
+  {
+    keywords: ["evidence", "locker", "proof", "recording", "stored", "files"],
+    route: "/evidence-locker",
+    label: "Opening Evidence Locker",
+  },
 ];
 
+const quickCommands = [
+  { label: "Help Me",      command: "help me",  icon: ShieldAlert },
+  { label: "Report Issue", command: "report",   icon: FileText },
+  { label: "Check Map",    command: "map",      icon: MapIcon },
+  { label: "My Evidence",  command: "evidence", icon: Lock },
+];
+
+function resolveIntent(input: string) {
+  const lower = input.toLowerCase().trim();
+  for (const entry of intentMap) {
+    if (entry.keywords.some((kw) => lower.includes(kw))) {
+      return entry;
+    }
+  }
+  return null;
+}
+
 const AssistantPage = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content: "Hi! I'm Sakhi, your safety companion. 💛 How can I help you today? I can provide safety advice, help with reporting, or just talk.",
-    },
-  ]);
-  const [input, setInput] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const navigate    = useNavigate();
+  const { triggerSOS } = useApp();
+  const [input, setInput]         = useState("");
+  const [lastAction, setLastAction] = useState<string | null>(null);
+  const [noMatch, setNoMatch]     = useState(false);
+  const [dispatched, setDispatched] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages]);
+  const dispatch = (text: string) => {
+    if (!text.trim()) return;
+    setNoMatch(false);
+    setDispatched(false);
 
-  const generateResponse = (text: string) => {
-    const lowerInput = text.toLowerCase();
-    
-    // Emergency / Danger
-    if (/(help|danger|sos|urgent|attack|scared|unsafe)/i.test(lowerInput)) {
-      const emergencyResponses = [
-        "Your safety is the priority! Please find a safe space immediately. Do you want me to activate the emergency SOS now?",
-        "I'm here with you. Please share your live location with a trusted contact immediately and move to a well-lit, populated area. Tap the SOS button if you feel in immediate danger.",
-        "Stay calm but act quickly. Call your local emergency number or use the SOS button on this app to alert your contacts. Try to get to a public place."
-      ];
-      return emergencyResponses[Math.floor(Math.random() * emergencyResponses.length)];
+    const intent = resolveIntent(text);
+    if (intent) {
+      setLastAction(intent.label);
+      setDispatched(true);
+      setInput("");
+      // Trigger SOS immediately if mapped
+      if (intent.triggerSOS) {
+        triggerSOS();
+      }
+      setTimeout(() => navigate(intent.route), 400);
+    } else {
+      setNoMatch(true);
+      setLastAction(null);
     }
-
-    // Stalking / Followed
-    if (/(follow|following|trailing|behind me|staring)/i.test(lowerInput)) {
-      const followResponses = [
-        "If you think someone is following you, do not go home. Walk toward a crowded place, a cafe, or a police station. Consider calling a friend to stay on the line with you.",
-        "That sounds scary. Try changing your pace or crossing the street to see if they mimic you. Head to a well-lit, busy area and do not hesitate to ask for help from security or staff nearby.",
-        "Please stay alert. Keep your phone accessible, share your location, and avoid isolated streets. If they continue following you, activate the SOS feature."
-      ];
-      return followResponses[Math.floor(Math.random() * followResponses.length)];
-    }
-
-    // Cyber / Online Harassment
-    if (/(online|cyber|message|text|hack|fake|social media|instagram|whatsapp|harassment)/i.test(lowerInput)) {
-      const cyberResponses = [
-        "For online harassment, the first step is to block and report the user on the platform. Do not delete the messages yet—take screenshots as evidence.",
-        "Cyber safety is important. Do not engage with the person. Document the conversation, block the account, and consider reporting it to cybercrime authorities if it escalates.",
-        "Keep your personal information private. You can use the Sakhi app to anonymously report cyber bullying. Would you like me to guide you to the reporting section?"
-      ];
-      return cyberResponses[Math.floor(Math.random() * cyberResponses.length)];
-    }
-
-    // Default Fallback
-    const defaultResponses = [
-      "I'm here to listen. Can you tell me a bit more about what's going on so I can give you the best advice?",
-      "Thank you for sharing that with me. Your safety and well-being matters. How can I best support you right now?",
-      "I understand. Whether you need safety tips, want to file a report, or just need someone to talk to, I'm here."
-    ];
-    return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
   };
 
-  const sendMessage = (text: string) => {
-    if (!text.trim()) return;
-    const userMsg: Message = { id: Date.now().toString(), role: "user", content: text };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-
-    setTimeout(() => {
-      const reply: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: generateResponse(text),
-      };
-      setMessages((prev) => [...prev, reply]);
-    }, 1200);
+  const handleCommand = (cmd: string) => {
+    setInput(cmd);
+    dispatch(cmd);
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col pb-20">
+    <div className="min-h-screen pb-24 flex flex-col" style={{ backgroundColor: "hsl(var(--background))" }}>
+
       {/* Header */}
-      <div className="px-5 pt-6 pb-4 border-b border-border">
+      <div className="px-5 pt-8 pb-4 border-b border-border/40 bg-card/30 backdrop-blur-md sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <Bot className="w-5 h-5 text-primary" />
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
+             <span className="dot-active" />
           </div>
           <div>
-            <h1 className="text-lg font-bold">Sakhi AI</h1>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Sparkles className="w-3 h-3" /> AI-powered safety assistant
-            </p>
+            <h1 className="text-xl font-bold tracking-tight text-foreground/90 leading-tight">
+               Smart Safety Assistant
+            </h1>
+            <p className="text-xs font-medium text-muted-foreground">Always listening, ready to help.</p>
           </div>
         </div>
       </div>
 
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-        {messages.map((msg) => (
-          <motion.div
-            key={msg.id}
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-          >
-            <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                msg.role === "user"
-                  ? "bg-primary text-primary-foreground rounded-br-md"
-                  : "glass rounded-bl-md"
-              }`}
+      <div className="px-5 pt-6 flex-1 flex flex-col gap-6">
+
+        {/* System description (Humanized) */}
+        <div className="card-surface px-4 py-4 relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full pointer-events-none" />
+             <p className="text-[13px] font-medium leading-relaxed text-foreground/80 relative z-10">
+               Describe what you need or your current situation. I'll instantly guide you to the right tool or trigger an emergency response. No conversational delays.
+             </p>
+        </div>
+
+        {/* Quick Actions (Replacing Quick Commands) */}
+        <div>
+          <p className="section-label mb-3 text-[11px] opacity-80 pl-1">Suggested Actions</p>
+          <div className="grid grid-cols-2 gap-3">
+            {quickCommands.map((qc) => (
+              <button
+                key={qc.label}
+                onClick={() => handleCommand(qc.command)}
+                className="flex items-center gap-3 px-3 py-3.5 card-surface transition-all active:scale-[0.98] hover:border-primary/30"
+              >
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center border border-border/50 shrink-0">
+                   <qc.icon className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <span className="text-xs font-semibold text-foreground/90 tracking-wide text-left">{qc.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Action Status Output */}
+        <div className="mt-auto pt-4 space-y-3">
+           {dispatched && lastAction && (
+            <div className="flex items-center gap-3 px-4 py-3.5 card-surface" style={{ borderColor: lastAction.includes("SOS") ? "hsl(var(--sos)/0.4)" : "hsl(var(--safe)/0.3)" }}>
+               <span className="dot-active" style={{ backgroundColor: lastAction.includes("SOS") ? "hsl(var(--sos))" : "hsl(var(--safe))" }} />
+               <p className="text-sm font-semibold" style={{ color: lastAction.includes("SOS") ? "hsl(var(--sos))" : "hsl(var(--safe))" }}>
+                 {lastAction} — routing...
+               </p>
+            </div>
+           )}
+
+           {noMatch && (
+             <div className="flex items-center gap-3 px-4 py-3 card-surface border-warning/40">
+                <p className="text-xs font-medium text-warning">
+                  I didn't quite catch that. Try saying "help", "report", or "map".
+                </p>
+             </div>
+           )}
+
+          {/* Humanized Input Field */}
+          <div className="relative group">
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => { setInput(e.target.value); setNoMatch(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter") dispatch(input); }}
+              placeholder="Describe what's happening..."
+              autoComplete="off"
+              className="input-soft pl-4 pr-12 focus:ring-2 focus:ring-primary/20 
+                         shadow-[0_2px_10px_rgba(0,0,0,0.2)] focus:shadow-[0_4px_15px_rgba(200,20,20,0.1)]"
+            />
+             <button
+              onClick={() => dispatch(input)}
+              aria-label="Send"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center 
+                         rounded-full bg-primary text-white transition-transform active:scale-95
+                         shadow-sm hover:bg-primary/90"
             >
-              {msg.content}
-            </div>
-          </motion.div>
-        ))}
-
-        {/* Suggestions (show only at start) */}
-        {messages.length <= 1 && (
-          <div className="space-y-2 pt-2">
-            <p className="text-xs text-muted-foreground">Suggested</p>
-            <div className="flex flex-wrap gap-2">
-              {suggestions.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => sendMessage(s)}
-                  className="text-xs px-3 py-2 rounded-full glass hover:border-primary/40 transition-colors"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+               <Mic className="w-4 h-4" />
+            </button>
           </div>
-        )}
-      </div>
-
-      {/* Input */}
-      <div className="px-5 py-3 border-t border-border bg-background">
-        <div className="flex gap-2 items-center">
-          <button className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-            <Mic className="w-5 h-5" />
-          </button>
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage(input)}
-            placeholder="Type a message..."
-            className="flex-1 rounded-full"
-          />
-          <button
-            onClick={() => sendMessage(input)}
-            className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+          <p className="text-[11px] font-medium text-center text-muted-foreground/70 tracking-wide mt-3 px-2">
+            Emergency phrases instantly bypass to SOS.
+          </p>
         </div>
+
       </div>
 
       <BottomNav />
