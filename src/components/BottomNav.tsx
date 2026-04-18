@@ -17,11 +17,11 @@ const BottomNav = () => {
     <div
       className="fixed bottom-0 left-0 right-0 pb-[env(safe-area-inset-bottom)]"
       style={{
-        backgroundColor: "hsl(225 30% 6%)",
+        backgroundColor: "hsl(var(--background))",
         borderTop: "1px solid hsl(var(--border))",
       }}
     >
-      <div className="flex items-stretch justify-around h-16 max-w-lg mx-auto px-1">
+      <div className="flex items-stretch justify-around h-[4.5rem] max-w-lg mx-auto px-2">
         {navItems.map((item) => {
           const active =
             location.pathname === item.path ||
@@ -33,32 +33,37 @@ const BottomNav = () => {
               key={item.path}
               id={`nav-${item.label.toLowerCase()}`}
               onClick={() => navigate(item.path)}
-              className="relative flex flex-col items-center justify-center gap-1 flex-1 transition-all"
+              className="relative flex flex-col items-center justify-center gap-1.5 flex-1 transition-all"
               style={{
                 color: isSOS
                   ? "hsl(var(--sos))"
                   : active
-                  ? "hsl(var(--foreground))"
+                  ? "hsl(var(--primary))"
                   : "hsl(var(--muted-foreground))",
               }}
             >
-              {/* Active indicator — top line */}
+              {/* Active pill indicator */}
               {active && (
                 <div
                   className="absolute top-0 left-1/2"
                   style={{
-                    width: "24px",
-                    height: "2px",
-                    backgroundColor: isSOS ? "hsl(var(--sos))" : "hsl(var(--foreground) / 0.7)",
+                    width: "32px",
+                    height: "3px",
+                    borderRadius: "0 0 4px 4px",
+                    backgroundColor: isSOS ? "hsl(var(--sos))" : "hsl(var(--primary))",
                     transform: "translateX(-50%)",
                   }}
                 />
               )}
 
-              <item.icon
-                className="w-4 h-4"
-                strokeWidth={active || isSOS ? 2.5 : 1.75}
-              />
+              <div
+                className={`p-2 rounded-xl transition-all ${active && !isSOS ? 'bg-primary/10' : ''} ${isSOS ? 'bg-sos/10' : ''}`}
+              >
+                <item.icon
+                  className="w-[18px] h-[18px]"
+                  strokeWidth={active || isSOS ? 2.5 : 2}
+                />
+              </div>
               <span
                 style={{
                   fontSize: "8px",

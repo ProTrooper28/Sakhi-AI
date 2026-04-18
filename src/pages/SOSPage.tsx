@@ -265,26 +265,26 @@ const SOSPage = () => {
               style={{
                 fontFamily: "var(--font-heading)",
                 color: "hsl(var(--sos))",
-                letterSpacing: "0.1em",
+                letterSpacing: "0.05em",
               }}
             >
               SOS
             </p>
             <p
-              className="text-xl font-bold tracking-wide mt-1"
-              style={{ fontFamily: "var(--font-heading)", color: "hsl(var(--sos) / 0.8)", letterSpacing: "0.06em" }}
+              className="text-xl font-bold tracking-wide mt-2"
+              style={{ fontFamily: "var(--font-heading)", color: "hsl(var(--sos) / 0.9)" }}
             >
-              ACTIVATED
+              Alert Sent
             </p>
-            <p className="text-xs mt-2 font-medium" style={{ color: "hsl(var(--foreground) / 0.45)" }}>
-              Emergency protocol initiated
+            <p className="text-sm mt-2 font-medium" style={{ color: "hsl(var(--foreground) / 0.6)" }}>
+              Emergency protocol is actively managing your safety.
             </p>
           </motion.div>
 
           {/* Protocol Steps */}
           <div className="space-y-2">
-            <p className="section-label mb-1" style={{ color: "hsl(var(--foreground) / 0.4)" }}>
-              Protocol Status
+            <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-1" style={{ color: "hsl(var(--foreground) / 0.5)" }}>
+              Processing
             </p>
             {PROTOCOL_STEPS.map((step, i) => {
               const done = visibleSteps > i;
@@ -405,35 +405,35 @@ const SOSPage = () => {
     <div className="min-h-screen pb-24 flex flex-col" style={{ backgroundColor: "hsl(var(--background))" }}>
 
       {/* Header */}
-      <div className="px-5 pt-8 pb-5 border-b border-border/40">
-        <p className="section-label mb-1">Emergency System</p>
-        <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: "var(--font-heading)", letterSpacing: "0.02em" }}>
-          Active Threats
+      <div className="px-5 pt-8 pb-5 border-b border-border/40 bg-gradient-to-b from-background to-muted/20">
+        <p className="section-label mb-1 normal-case tracking-normal font-semibold text-muted-foreground">Emergency System</p>
+        <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: "var(--font-heading)" }}>
+          Sakhi is monitoring.
         </h1>
       </div>
 
       {/* SOS Ready State */}
       <div
-        className="mx-5 mt-5 py-10 flex flex-col items-center justify-center transition-all bg-card border border-border rounded-xl shadow-sm"
+        className="mx-5 mt-5 py-12 flex flex-col items-center justify-center transition-all bg-card/50 border border-border/50 rounded-2xl shadow-sm"
       >
         <p
           className="text-5xl font-black tracking-widest"
-          style={{ fontFamily: "var(--font-heading)", color: "hsl(var(--foreground))", letterSpacing: "0.1em" }}
+          style={{ fontFamily: "var(--font-heading)", color: "hsl(var(--foreground))", letterSpacing: "0.05em" }}
         >
           SOS
         </p>
-        <p className="text-xs mt-2 font-medium" style={{ color: "hsl(var(--muted-foreground) / 0.8)" }}>
-          System standby — tap below to activate
+        <p className="text-sm mt-3 font-medium px-8 text-center" style={{ color: "hsl(var(--muted-foreground))" }}>
+          Tap the red button below if you ever feel unsafe.
         </p>
       </div>
 
       <div className="px-5 mt-6 space-y-4">
 
         {/* Activate Button */}
-        <button id="sos-activate-btn" onClick={triggerSOS} className="w-full py-4 bg-sos text-white font-bold text-lg rounded-xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-3 relative overflow-hidden">
+        <button id="sos-activate-btn" onClick={triggerSOS} className="w-full py-[1.125rem] bg-sos text-white font-bold text-[17px] tracking-wide rounded-2xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-3 relative overflow-hidden">
              {/* Pulse effect wrapper */}
              <div className="absolute inset-0 bg-white/20 sos-pulse mix-blend-overlay pointer-events-none" />
-             ACTIVATE SOS
+             Send Emergency Alert
         </button>
 
         {/* Mode Selector */}
