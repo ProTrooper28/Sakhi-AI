@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,24 +33,33 @@ export type SOSState = {
   coords: { lat: number; lng: number };
 };
 
+export type AppLocationState = {
+  coords: { lat: number; lng: number } | null;
+  address: string | null;
+  error: boolean;
+  loading: boolean;
+};
+
 const DEFAULT_SOS_STATE: SOSState = {
   active: false,
   triggeredAt: null,
-  userName: "Taranpreet",
-  location: "Rohini, Delhi",
-  coords: { lat: 28.7041, lng: 77.1025 },
+  userName: "Preeti",
+  location: "Bandra West, Mumbai",
+  coords: { lat: 19.0596, lng: 72.8295 },
 };
 
 type AppContextType = {
   reports: Report[];
   evidenceLocker: EvidenceItem[];
   sosState: SOSState;
+  locationState: AppLocationState;
   addReport: (report: Omit<Report, "id" | "timestamp">) => string;
   updateReport: (id: string, updates: Partial<Report>) => void;
   addEvidence: (item: Omit<EvidenceItem, "id">) => string;
   getReport: (id: string) => Report | undefined;
   triggerSOS: () => void;
   cancelSOS: () => void;
+  requestLocation: () => void;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -70,11 +79,27 @@ const readSOSFromStorage = (): SOSState => {
   }
 };
 
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  // Rough distance in meters (haversine)
+  const R = 6371e3; // metres
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180;
+  const Δλ = (lon2-lon1) * Math.PI/180;
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+};
+
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
+  
   const [reports, setReports] = useState<Report[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_REPORTS);
@@ -90,8 +115,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const [sosState, setSOSState] = useState<SOSState>(readSOSFromStorage);
+  
+  const [locationState, setLocationState] = useState<AppLocationState>({
+    coords: null,
+    address: null,
+    error: false,
+    loading: true,
+  });
 
-  // Persist reports + evidence
+  // Track reverse-geolocation coord checks to avoid API spamming
+  const lastGeocodedCoords = useRef<{lat: number, lng: number} | null>(null);
+
+  // ── Persist Storage ──
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_REPORTS, JSON.stringify(reports));
   }, [reports]);
@@ -100,50 +135,97 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem(STORAGE_KEY_EVIDENCE, JSON.stringify(evidenceLocker));
   }, [evidenceLocker]);
 
-  // Listen for cross-tab SOS changes (simulates Device 1 → Device 2 sync)
+  // Sync SOS State across tabs (simulates multiple devices)
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY_SOS) {
-        setSOSState(readSOSFromStorage());
-      }
+      if (e.key === STORAGE_KEY_SOS) setSOSState(readSOSFromStorage());
     };
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  // Also poll every 1.5s (covers same-tab scenarios + edge cases)
+  // Poll SOS State (robust local sync)
   useEffect(() => {
     const id = setInterval(() => {
       const fresh = readSOSFromStorage();
       setSOSState((prev) => {
-        if (prev.active !== fresh.active || prev.triggeredAt !== fresh.triggeredAt) {
-          return fresh;
-        }
+        if (prev.active !== fresh.active || prev.triggeredAt !== fresh.triggeredAt) return fresh;
         return prev;
       });
     }, 1500);
     return () => clearInterval(id);
   }, []);
 
+  // ── GPS Geolocation Engine ──
+  const requestLocation = useCallback(() => {
+    setLocationState(prev => ({ ...prev, loading: true, error: false }));
+    
+    if (!("geolocation" in navigator)) {
+       setLocationState({ coords: null, address: null, loading: false, error: true });
+       return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        
+        setLocationState(prev => ({ ...prev, coords, error: false, loading: false }));
+
+        // Check distance to last geocoded point. If > 50 meters, fetch new address.
+        const last = lastGeocodedCoords.current;
+        if (!last || calculateDistance(last.lat, last.lng, coords.lat, coords.lng) > 50) {
+            lastGeocodedCoords.current = coords;
+            try {
+              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}&zoom=14`);
+              const data = await res.json();
+              if (data && data.address) {
+                 // Try to formulate a clean city location (e.g. "Bandra West, Mumbai")
+                 const suburb = data.address.suburb || data.address.neighbourhood || data.address.residential;
+                 const city = data.address.city || data.address.town || data.address.county;
+                 const readable = [suburb, city].filter(Boolean).join(", ");
+                 setLocationState(prev => ({ ...prev, address: readable || "Unknown Area" }));
+              }
+            } catch (err) {
+              console.warn("Reverse geocoding failed", err);
+              // don't set error: true because we still have coords
+            }
+        }
+      },
+      (err) => {
+        console.warn("GPS Tracking Warning:", err.message);
+        setLocationState(prev => ({ ...prev, loading: false, error: true }));
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
+
+  // Auto-start request immediately when app mounts
+  useEffect(() => {
+    const unsub = requestLocation();
+    return () => { if (unsub) unsub(); }
+  }, [requestLocation]);
+
   // ── SOS Actions ──
   const triggerSOS = useCallback(() => {
+    const activeCoords = locationState.coords || DEFAULT_SOS_STATE.coords;
+    const activeAddress = locationState.address || DEFAULT_SOS_STATE.location;
+
     const next: SOSState = {
       active: true,
       triggeredAt: new Date().toISOString(),
-      userName: "Taranpreet",
-      location: "Rohini, Delhi",
-      coords: { lat: 28.7041, lng: 77.1025 },
+      userName: "Preeti",
+      location: activeAddress,
+      coords: activeCoords,
     };
     localStorage.setItem(STORAGE_KEY_SOS, JSON.stringify(next));
-    // Dispatch custom event for same-tab detection
     window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY_SOS }));
     setSOSState(next);
-
-    // Mock evidence generation removed. Handled cleanly inside SOSPage via MediaRecorder.
-  }, []);
+  }, [locationState.coords, locationState.address]);
 
   const cancelSOS = useCallback(() => {
-    const next: SOSState = { ...DEFAULT_SOS_STATE };
+    const next: SOSState = { ...DEFAULT_SOS_STATE, active: false };
     localStorage.setItem(STORAGE_KEY_SOS, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY_SOS }));
     setSOSState(next);
@@ -152,7 +234,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   // ── Report Actions ──
   const addReport = (report: Omit<Report, "id" | "timestamp">): string => {
     const id = `rpt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const newReport: Report = { ...report, id, timestamp: new Date().toISOString() };
+    const loc = locationState.address || undefined;
+    const newReport: Report = { ...report, id, timestamp: new Date().toISOString(), location: loc };
     setReports((prev) => [newReport, ...prev]);
     newReport.evidence.forEach((ev) => {
       setEvidenceLocker((prev) => {
@@ -179,9 +262,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AppContext.Provider
       value={{
-        reports, evidenceLocker, sosState,
+        reports, evidenceLocker, sosState, locationState,
         addReport, updateReport, addEvidence, getReport,
-        triggerSOS, cancelSOS,
+        triggerSOS, cancelSOS, requestLocation,
       }}
     >
       {children}

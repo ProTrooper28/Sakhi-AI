@@ -402,7 +402,13 @@ const SOSPage = () => {
 
   // ── STANDBY STATE ───────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen pb-24 flex flex-col" style={{ backgroundColor: "hsl(var(--background))" }}>
+    <motion.div 
+      initial={{ opacity: 0 }} 
+      animate={{ opacity: 1 }} 
+      transition={{ duration: 0.3 }}
+      className="min-h-screen pb-24 flex flex-col" 
+      style={{ backgroundColor: "hsl(var(--background))" }}
+    >
 
       {/* Header */}
       <div className="px-5 pt-8 pb-5 border-b border-border/40 bg-gradient-to-b from-background to-muted/20">
@@ -430,7 +436,7 @@ const SOSPage = () => {
       <div className="px-5 mt-6 space-y-4">
 
         {/* Activate Button */}
-        <button id="sos-activate-btn" onClick={triggerSOS} className="w-full py-[1.125rem] bg-sos text-white font-bold text-[17px] tracking-wide rounded-2xl shadow-lg transition-transform active:scale-95 flex justify-center items-center gap-3 relative overflow-hidden">
+        <button id="sos-activate-btn" onClick={triggerSOS} className="w-full py-[1.125rem] bg-sos text-white font-bold text-[17px] tracking-wide rounded-2xl shadow-lg transition-all duration-300 hover:scale-[1.03] hover:shadow-xl hover:bg-red-500 active:scale-[0.97] flex justify-center items-center gap-3 relative overflow-hidden cursor-pointer">
              {/* Pulse effect wrapper */}
              <div className="absolute inset-0 bg-white/20 sos-pulse mix-blend-overlay pointer-events-none" />
              Send Emergency Alert
@@ -444,7 +450,7 @@ const SOSPage = () => {
               <button
                 key={mode.id}
                 onClick={() => setActiveMode(mode.id)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold tracking-wider transition-all border border-border rounded-lg bg-card"
+                className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold tracking-wider transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] cursor-pointer border border-border rounded-lg bg-card"
                 style={{
                   backgroundColor: active ? "hsl(var(--foreground) / 0.05)" : "transparent",
                   borderColor: active ? "hsl(var(--foreground) / 0.3)" : "hsl(var(--border))",
@@ -550,7 +556,7 @@ const SOSPage = () => {
       </div>
 
       <BottomNav />
-    </div>
+    </motion.div>
   );
 };
 

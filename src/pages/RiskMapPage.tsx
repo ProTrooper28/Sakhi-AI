@@ -16,14 +16,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-const ORIGIN_POINT: [number, number] = [28.7120, 77.1140]; // Demo Center User
-
-// Trusted Contacts Mock locations nearby
-const TRUSTED_CONTACTS = [
-  { id: "c1", lat: 28.7150, lng: 77.1120, name: "Priya", initial: "P", color: "bg-blue-500" },
-  { id: "c2", lat: 28.7110, lng: 77.1180, name: "Mom", initial: "M", color: "bg-purple-500" },
-  { id: "c3", lat: 28.7080, lng: 77.1135, name: "Dad", initial: "D", color: "bg-orange-500" },
-];
+const FALLBACK_POINT: [number, number] = [28.7120, 77.1140]; 
 
 function makeAvatarIcon(initial: string, colorClass: string) {
   return L.divIcon({
@@ -39,7 +32,7 @@ function makeUserIcon() {
     html: `
       <div class="relative flex items-center justify-center w-10 h-10">
         <div class="absolute inset-0 bg-primary/30 rounded-full animate-ping"></div>
-        <div class="relative z-10 w-4 h-4 bg-primary border-[3px] border-white rounded-full shadow-lg"></div>
+        <div class="relative z-10 w-4 h-4 bg-primary border-[3px] border-white rounded-full shadow-lg mt-0.5 ml-0.5"></div>
       </div>
     `,
     className: "",
@@ -50,63 +43,90 @@ function makeUserIcon() {
 
 const RiskMapPage = () => {
   const mapRef = useRef<L.Map | null>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
+  const safeZoneRef = useRef<L.Circle | null>(null);
+  const safeZoneBorderRef = useRef<L.Circle | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
   const navigate = useNavigate();
-  const { triggerSOS } = useApp();
+  const { triggerSOS, locationState, requestLocation } = useApp();
   
   const [isTracking, setIsTracking] = useState(true);
 
+  // Initialize Map
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
 
-    // Initialize Map
+    const initialCenter = locationState.coords 
+       ? [locationState.coords.lat, locationState.coords.lng] as [number, number] 
+       : FALLBACK_POINT;
+
     const map = L.map(containerRef.current, {
-      center: ORIGIN_POINT,
+      center: initialCenter,
       zoom: 15,
       zoomControl: false,
       attributionControl: false,
     });
 
-    // Subtly styled Light Theme base map (CartoDB Positron)
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
       maxZoom: 19,
     }).addTo(map);
 
-    if (isTracking) {
-      // 1. Safe Zone Radius (Soft Green)
-      L.circle(ORIGIN_POINT, {
-        radius: 600, // 600 meters
-        color: "transparent",
-        fillColor: "hsl(142, 60%, 45%)",
-        fillOpacity: 0.12,
-        weight: 0,
-      }).addTo(map);
-      
-      // Safe Zone Border
-      L.circle(ORIGIN_POINT, {
-        radius: 600,
-        color: "hsl(142, 60%, 45%)",
-        fillOpacity: 0,
-        weight: 1.5,
-        dashArray: "6, 6",
-      }).addTo(map);
+    // 1. Safe Zone
+    const radiusFill = L.circle(initialCenter, {
+      radius: 600,
+      color: "transparent",
+      fillColor: "hsl(142, 60%, 45%)",
+      fillOpacity: 0.12,
+      weight: 0,
+    }).addTo(map);
+    
+    const radiusBorder = L.circle(initialCenter, {
+      radius: 600,
+      color: "hsl(142, 60%, 45%)",
+      fillOpacity: 0,
+      weight: 1.5,
+      dashArray: "6, 6",
+    }).addTo(map);
 
-      // 2. User Location Marker
-      L.marker(ORIGIN_POINT, { icon: makeUserIcon(), zIndexOffset: 1000 }).addTo(map);
+    // 2. User Marker
+    const marker = L.marker(initialCenter, { icon: makeUserIcon(), zIndexOffset: 1000 }).addTo(map);
 
-      // 3. Trusted Contacts Avatars
-      TRUSTED_CONTACTS.forEach((contact) => {
-        L.marker([contact.lat, contact.lng], { icon: makeAvatarIcon(contact.initial, contact.color) }).addTo(map);
-      });
-    }
+    // 3. Dynamic Trusted Contacts based on initial location
+    const contacts = [
+      { id: "c1", lat: initialCenter[0] + 0.003, lng: initialCenter[1] - 0.002, name: "Priya", initial: "P", color: "bg-blue-500" },
+      { id: "c2", lat: initialCenter[0] - 0.002, lng: initialCenter[1] + 0.004, name: "Mom", initial: "M", color: "bg-purple-500" },
+      { id: "c3", lat: initialCenter[0] - 0.004, lng: initialCenter[1] - 0.001, name: "Dad", initial: "D", color: "bg-orange-500" },
+    ];
+    contacts.forEach((contact) => {
+      L.marker([contact.lat, contact.lng], { icon: makeAvatarIcon(contact.initial, contact.color) }).addTo(map);
+    });
 
     mapRef.current = map;
+    userMarkerRef.current = marker;
+    safeZoneRef.current = radiusFill;
+    safeZoneBorderRef.current = radiusBorder;
 
     return () => {
       map.remove();
       mapRef.current = null;
     };
-  }, [isTracking]);
+  }, []);
+
+  // Update Dynamic Tracking
+  useEffect(() => {
+     if (!isTracking || !locationState.coords || !mapRef.current) return;
+     
+     const newPoint = [locationState.coords.lat, locationState.coords.lng] as [number, number];
+     
+     // Smooth pan map
+     mapRef.current.panTo(newPoint, { animate: true, duration: 1 });
+     
+     // Update Live Marker & Geofence cleanly without refreshing layers
+     if (userMarkerRef.current) userMarkerRef.current.setLatLng(newPoint);
+     if (safeZoneRef.current) safeZoneRef.current.setLatLng(newPoint);
+     if (safeZoneBorderRef.current) safeZoneBorderRef.current.setLatLng(newPoint);
+  }, [locationState.coords, isTracking]);
 
   const handleEndJourney = () => {
     setIsTracking(false);
@@ -136,8 +156,21 @@ const RiskMapPage = () => {
            animate={{ opacity: 1, y: 0 }}
            className="bg-card/90 backdrop-blur-md shadow-sm border border-border/50 rounded-full px-4 py-2 flex items-center gap-2 pointer-events-auto"
         >
-          <div className="w-2 h-2 rounded-full bg-safe animate-pulse" />
-          <span className="text-xs font-bold text-foreground tracking-wide uppercase">GPS Active</span>
+          {locationState.error ? (
+              <>
+                 <AlertTriangle className="w-3 h-3 text-sos" />
+                 <span className="text-[10px] font-bold text-sos tracking-wider uppercase cursor-pointer" onClick={requestLocation}>
+                    Enable Location
+                 </span>
+              </>
+          ) : (
+              <>
+                <div className="w-2 h-2 rounded-full bg-safe animate-pulse" />
+                <span className="text-xs font-bold text-foreground tracking-wide uppercase">
+                   {locationState.loading ? "Locating..." : "GPS Active"}
+                </span>
+              </>
+          )}
         </motion.div>
       </div>
 
@@ -145,7 +178,7 @@ const RiskMapPage = () => {
       <div className="absolute top-1/2 right-4 -translate-y-1/2 z-20">
          <button 
            onClick={triggerSOS}
-           className="bg-sos text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-sos/90 active:scale-90 transition-all border-4 border-card/50"
+           className="bg-sos text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:scale-[1.05] hover:shadow-xl active:scale-[0.95] transition-all duration-300 border-4 border-card/50 cursor-pointer"
          >
            <AlertTriangle className="w-6 h-6" />
          </button>
@@ -184,10 +217,9 @@ const RiskMapPage = () => {
                 </div>
              </div>
 
-             {/* Action Button */}
              <button 
                onClick={handleEndJourney}
-               className="w-full py-3.5 bg-foreground text-background font-bold text-[15px] rounded-full active:scale-[0.98] transition-transform shadow-sm"
+               className="w-full py-3.5 bg-foreground text-background font-bold text-[15px] rounded-full hover:scale-[1.02] hover:shadow-md active:scale-[0.97] transition-all duration-300 shadow-sm cursor-pointer"
              >
                 End Journey
              </button>

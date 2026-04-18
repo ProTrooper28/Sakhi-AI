@@ -97,7 +97,7 @@
   }
 
   html {
-    @apply dark;
+    /* @apply dark; removed to permit system/default light mode */
   }
 
   body {
@@ -337,18 +337,18 @@
 
   /* ── Background Gradients ── */
   .bg-gradient-subtle {
-    background: linear-gradient(135deg, hsl(var(--background)), hsl(260 30% 12%));
+    background: linear-gradient(135deg, hsl(var(--background)), hsl(var(--card)));
   }
 
   .bg-gradient-sos {
-    background: linear-gradient(135deg, hsl(350 40% 15%), hsl(var(--card)));
+    background: linear-gradient(135deg, hsl(var(--sos) / 0.1), hsl(var(--card)));
   }
 
   /* ── Scrolling Safety Ticker ── */
   .ticker-wrap {
     width: 100%;
     overflow: hidden;
-    background-color: hsl(225 25% 12%);
+    background-color: hsl(var(--card));
     border-top: 1px solid hsl(var(--border) / 0.4);
     border-bottom: 1px solid hsl(var(--border) / 0.4);
     display: flex;

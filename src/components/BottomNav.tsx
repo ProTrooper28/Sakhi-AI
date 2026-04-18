@@ -1,79 +1,61 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, AlertTriangle, Terminal, FileWarning, Map } from "lucide-react";
+import { Home, Map, Terminal, FileWarning } from "lucide-react";
+import { useApp } from "@/context/AppContext";
 
 const navItems = [
-  { icon: Home,          label: "HOME",    path: "/home"      },
-  { icon: AlertTriangle, label: "SOS",     path: "/sos"       },
-  { icon: Terminal,      label: "COMMAND", path: "/assistant" },
-  { icon: FileWarning,   label: "REPORT",  path: "/report"    },
-  { icon: Map,           label: "MAP",     path: "/risk-map"  },
+  { icon: Home, path: "/home" },
+  { icon: Map, path: "/risk-map" },
+  { icon: "FAB", path: "/sos" }, // Placeholder for Center SOS
+  { icon: Terminal, path: "/assistant" },
+  { icon: FileWarning, path: "/report" },
 ];
 
 const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { triggerSOS } = useApp();
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 pb-[env(safe-area-inset-bottom)]"
-      style={{
-        backgroundColor: "hsl(var(--background))",
-        borderTop: "1px solid hsl(var(--border))",
-      }}
+      className="fixed bottom-0 left-0 right-0 pb-[env(safe-area-inset-bottom)] z-50 pointer-events-none"
     >
-      <div className="flex items-stretch justify-around h-[4.5rem] max-w-lg mx-auto px-2">
-        {navItems.map((item) => {
-          const active =
-            location.pathname === item.path ||
-            (item.path === "/report" && location.pathname.startsWith("/report-review"));
-          const isSOS = item.label === "SOS";
+      <div 
+        className="h-[4.5rem] bg-background/95 backdrop-blur-md border-t border-border flex items-center justify-around px-2 relative pointer-events-auto shadow-[0_-4px_20px_rgba(0,0,0,0.02)]"
+      >
+        {navItems.map((item, i) => {
+          if (item.icon === "FAB") {
+            return (
+              <div key="sos-fab" className="relative flex-1 flex justify-center -mt-6">
+                <button
+                  onClick={triggerSOS}
+                  className="w-[3.5rem] h-[3.5rem] bg-sos text-white rounded-full flex items-center justify-center shadow-lg transition-transform duration-300 hover:scale-[1.05] active:scale-[0.95]"
+                  style={{ boxShadow: "0 8px 30px rgba(220, 38, 38, 0.4)" }}
+                >
+                  <span className="font-bold text-sm tracking-widest text-center leading-none mt-0.5">SOS</span>
+                </button>
+              </div>
+            );
+          }
+
+          const IconComp = item.icon as React.ElementType;
+          const active = location.pathname === item.path || (item.path === "/report" && location.pathname.startsWith("/report-review"));
 
           return (
             <button
               key={item.path}
-              id={`nav-${item.label.toLowerCase()}`}
               onClick={() => navigate(item.path)}
-              className="relative flex flex-col items-center justify-center gap-1.5 flex-1 transition-all"
-              style={{
-                color: isSOS
-                  ? "hsl(var(--sos))"
-                  : active
-                  ? "hsl(var(--primary))"
-                  : "hsl(var(--muted-foreground))",
-              }}
+              className="flex-1 flex justify-center items-center h-full transition-all duration-300"
             >
-              {/* Active pill indicator */}
-              {active && (
-                <div
-                  className="absolute top-0 left-1/2"
-                  style={{
-                    width: "32px",
-                    height: "3px",
-                    borderRadius: "0 0 4px 4px",
-                    backgroundColor: isSOS ? "hsl(var(--sos))" : "hsl(var(--primary))",
-                    transform: "translateX(-50%)",
-                  }}
-                />
-              )}
-
               <div
-                className={`p-2 rounded-xl transition-all ${active && !isSOS ? 'bg-primary/10' : ''} ${isSOS ? 'bg-sos/10' : ''}`}
+                className={`p-2.5 rounded-2xl transition-all duration-300 ${
+                  active ? "bg-primary/10 text-primary scale-110" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
               >
-                <item.icon
-                  className="w-[18px] h-[18px]"
-                  strokeWidth={active || isSOS ? 2.5 : 2}
+                <IconComp
+                  className="w-6 h-6"
+                  strokeWidth={active ? 2.5 : 2}
                 />
               </div>
-              <span
-                style={{
-                  fontSize: "8px",
-                  fontFamily: "var(--font-mono)",
-                  fontWeight: 700,
-                  letterSpacing: "0.1em",
-                }}
-              >
-                {item.label}
-              </span>
             </button>
           );
         })}
