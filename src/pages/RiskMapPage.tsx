@@ -283,10 +283,14 @@ const RiskMapPage = () => {
       </div>
 
       {/* ─── Floating SOS ─────────────────────────────────────────────────── */}
-      <div className="absolute top-1/2 right-4 -translate-y-1/2 z-20 pointer-events-auto">
+      <div className="absolute top-1/2 right-4 -translate-y-1/2 z-[100] pointer-events-auto">
          <button 
-           onClick={triggerSOS}
-           className="bg-sos text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:scale-[1.05] hover:shadow-xl active:scale-[0.95] transition-all duration-300 border-4 border-card/50 cursor-pointer"
+           onClick={() => {
+             console.log("🚨 SOS Triggered from Map");
+             triggerSOS();
+             navigate("/sos");
+           }}
+           className="bg-sos text-white w-14 h-14 rounded-full shadow-[0_8px_30px_rgba(220,38,38,0.4)] flex items-center justify-center hover:scale-[1.1] active:scale-90 transition-all duration-300 border-4 border-background cursor-pointer"
          >
            <AlertTriangle className="w-6 h-6" />
          </button>
