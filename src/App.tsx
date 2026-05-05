@@ -14,6 +14,8 @@ import EvidenceLockerPage from "./pages/EvidenceLockerPage";
 import RiskMapPage from "./pages/RiskMapPage";
 import GuardianPage from "./pages/GuardianPage";
 import WearableDemoPage from "./pages/WearableDemoPage";
+import LocationTrackingPage from "./pages/LocationTrackingPage";
+import SecuritySettingsPage from "./pages/SecuritySettingsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,9 +35,11 @@ const App = () => (
             <Route path="/report" element={<ReportPage />} />
             <Route path="/report-review/:id" element={<ReportReviewPage />} />
             <Route path="/evidence-locker" element={<EvidenceLockerPage />} />
-            <Route path="/wearable" element={<WearableDemoPage />} />
             <Route path="/risk-map" element={<RiskMapPage />} />
             <Route path="/guardian" element={<GuardianPage />} />
+            <Route path="/wearable" element={<WearableDemoPage />} />
+            <Route path="/location" element={<LocationTrackingPage />} />
+            <Route path="/settings" element={<SecuritySettingsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

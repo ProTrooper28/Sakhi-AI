@@ -3,10 +3,9 @@ import { motion } from "framer-motion";
 import {
   Shield, AlertTriangle, CheckCircle, FileText, Clock,
   MapPin, Image, Film, FileAudio, File, ArrowLeft,
-  BookLock, BarChart3, Gavel,
+  BookLock, BarChart3, Gavel, Bell, Check, ChevronLeft
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import BottomNav from "@/components/BottomNav";
+import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
 import { toast } from "@/components/ui/use-toast";
 import type { Report } from "@/context/AppContext";
@@ -29,7 +28,7 @@ const detectLegalCategory = (description: string): string => {
     if (keywords.some((kw) => lower.includes(kw))) return category;
   }
   return "General Safety Incident";
-};
+}
 
 const generateSummary = (report: Report): string => {
   const cat = detectLegalCategory(report.description);
@@ -42,9 +41,9 @@ const generateSummary = (report: Report): string => {
 
 type Credibility = "Low" | "Medium" | "High";
 const getCredibility = (evidence: Report["evidence"]): { level: Credibility; color: string; bg: string; pct: number; detail: string } => {
-  if (evidence.length === 0)  return { level: "Low",    color: "text-sos",     bg: "bg-sos",     pct: 18,  detail: "No supporting files uploaded" };
-  if (evidence.length === 1)  return { level: "Medium", color: "text-warning", bg: "bg-warning", pct: 55,  detail: "1 file attached" };
-  return                             { level: "High",   color: "text-safe",    bg: "bg-safe",    pct: 90,  detail: `${evidence.length} files attached` };
+  if (evidence.length === 0)  return { level: "Low",    color: "text-red-500",     bg: "bg-red-500",     pct: 18,  detail: "No supporting files uploaded" };
+  if (evidence.length === 1)  return { level: "Medium", color: "text-amber-500", bg: "bg-amber-500", pct: 55,  detail: "1 file attached" };
+  return                             { level: "High",   color: "text-teal-500",    bg: "bg-teal-500",    pct: 90,  detail: `${evidence.length} files attached` };
 };
 
 const getFileIcon = (type?: string) => {
@@ -55,8 +54,6 @@ const getFileIcon = (type?: string) => {
   return File;
 };
 
-/* ── Component ───────────────────────────────────────────────── */
-
 const ReportReviewPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -66,12 +63,13 @@ const ReportReviewPage = () => {
 
   if (!report) {
     return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4 px-5">
-        <AlertTriangle className="w-12 h-12 text-warning" />
-        <h2 className="text-lg font-bold">Report Not Found</h2>
-        <Button onClick={() => navigate("/report")}>Go Back</Button>
-        <BottomNav />
+      <AppLayout>
+      <div className="min-h-screen bg-[#fcfcfd] flex flex-col items-center justify-center gap-4 px-5">
+        <AlertTriangle className="w-12 h-12 text-amber-500" />
+        <h2 className="text-lg font-bold text-slate-900">Report Not Found</h2>
+        <button onClick={() => navigate("/report")} className="px-5 py-2.5 rounded-lg bg-slate-900 text-white font-bold text-[13px]">Go Back</button>
       </div>
+      </AppLayout>
     );
   }
 
@@ -83,6 +81,7 @@ const ReportReviewPage = () => {
   const handleAnonymousSave = () => {
     updateReport(report.id, { status: "anonymous" });
     toast({ title: "✅ Saved Anonymously", description: "Your report is stored securely." });
+    navigate("/evidence-locker");
   };
 
   const handleHighRisk = () => {
@@ -92,189 +91,195 @@ const ReportReviewPage = () => {
       description: "This no-evidence case has been flagged for monitoring.",
       variant: "destructive",
     });
+    navigate("/evidence-locker");
   };
 
   return (
-    <div className="min-h-screen bg-background pb-28">
-      {/* Header */}
-      <div className="px-5 pt-6 pb-4 flex items-center gap-3">
-        <button onClick={() => navigate("/report")} className="w-9 h-9 rounded-xl glass flex items-center justify-center">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <h1 className="text-xl font-bold">Report Review</h1>
-          <p className="text-xs text-muted-foreground">AI-assisted analysis</p>
+    <AppLayout>
+      <div className="flex flex-col min-h-screen bg-[#fcfcfd]">
+        {/* Top Header */}
+        <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 bg-white shrink-0">
+          <div>
+             <h1 className="text-2xl font-bold text-slate-900 leading-tight" style={{ fontFamily: "Manrope, sans-serif" }}>Anonymous Reporting</h1>
+             <p className="text-[13px] text-slate-500 font-medium">Secure, encrypted, and untraceable incident logging.</p>
+          </div>
+          <div className="flex items-center gap-5">
+             <Bell className="w-5 h-5 text-slate-600" />
+             <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden">
+                <img src="https://ui-avatars.com/api/?name=User&background=0F172A&color=fff" alt="User" />
+             </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col flex-1 p-8 items-center justify-start relative bg-[#fcfcfd] overflow-y-auto">
+          
+          {/* Progress Tracker */}
+          <div className="w-full max-w-4xl flex items-center justify-start gap-4 mb-10">
+             <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 text-[10px] font-bold flex items-center justify-center"><Check className="w-3 h-3" /></div>
+             </div>
+             <div className="w-12 h-[2px] bg-slate-200 mx-2" />
+             <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 text-[10px] font-bold flex items-center justify-center"><Check className="w-3 h-3" /></div>
+             </div>
+             <div className="w-12 h-[2px] bg-slate-200 mx-2" />
+             <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-black text-white text-[10px] font-bold flex items-center justify-center">3</div>
+                <span className="text-[13px] font-bold text-slate-900">Review & Submit</span>
+             </div>
+          </div>
+
+          <div className="w-full max-w-4xl flex flex-col md:flex-row gap-8 pb-10">
+             
+             {/* Left Column - Summary & AI */}
+             <div className="flex-1 space-y-6">
+                
+                {/* AI Summary */}
+                <div className="bg-gradient-to-br from-indigo-50 to-white rounded-[24px] border border-indigo-100 shadow-sm p-6 relative overflow-hidden">
+                   <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-indigo-500/5 blur-2xl -translate-y-8 translate-x-8 pointer-events-none" />
+                   
+                   <div className="flex items-center gap-2 mb-4">
+                      <Shield className="w-5 h-5 text-indigo-600" />
+                      <span className="text-[15px] font-bold text-slate-900">Sakhi AI Summary</span>
+                      <span className="ml-auto text-[10px] bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-bold">AI Generated</span>
+                   </div>
+                   <p className="text-[13px] leading-relaxed text-slate-700 relative z-10 mb-4">{summary}</p>
+                   <div className="flex items-center gap-2 pt-4 border-t border-indigo-100/50 relative z-10">
+                      <Gavel className="w-4 h-4 text-slate-500" />
+                      <span className="text-[12px] font-medium text-slate-500">Legal Category:</span>
+                      <span className="text-[12px] font-bold text-indigo-700">{legalCategory}</span>
+                   </div>
+                </div>
+
+                {/* Report Details */}
+                <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] p-6">
+                   <div className="flex items-center gap-2 mb-4">
+                      <FileText className="w-5 h-5 text-slate-900" />
+                      <span className="text-[15px] font-bold text-slate-900">Incident Details</span>
+                   </div>
+                   <p className="text-[13px] leading-relaxed text-slate-600 mb-5">{report.description}</p>
+                   
+                   <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg">
+                         <Clock className="w-3.5 h-3.5" /> {reportTime}
+                      </div>
+                      {report.location && (
+                         <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg">
+                            <MapPin className="w-3.5 h-3.5" /> {report.location}
+                         </div>
+                      )}
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg">
+                         {report.reportType === "cyber" ? "Cyber Threat" : "Physical Incident"}
+                      </div>
+                      {report.anonymous && (
+                         <div className="flex items-center gap-1.5 text-[11px] font-bold text-teal-700 bg-teal-50 px-3 py-1.5 rounded-lg border border-teal-100">
+                            Anonymous
+                         </div>
+                      )}
+                   </div>
+
+                   {/* Attached Files */}
+                   {report.evidence.length > 0 && (
+                      <div className="space-y-2 pt-6">
+                         <p className="text-[12px] font-bold text-slate-700 mb-3">Attached Evidence</p>
+                         {report.evidence.map((ev) => {
+                            const Icon = getFileIcon(ev.fileType);
+                            return (
+                               <div key={ev.id} className="flex items-center gap-3 border border-slate-100 rounded-xl px-3 py-2 bg-slate-50/50">
+                                  {ev.fileUrl ? (
+                                     <img src={ev.fileUrl} alt={ev.name} className="w-10 h-10 rounded-lg object-cover border border-slate-200" />
+                                  ) : (
+                                     <div className="w-10 h-10 rounded-lg bg-slate-200 flex items-center justify-center text-slate-500">
+                                        <Icon className="w-5 h-5" />
+                                     </div>
+                                  )}
+                                  <p className="text-[12px] font-medium text-slate-700 truncate flex-1">{ev.name}</p>
+                               </div>
+                            );
+                         })}
+                      </div>
+                   )}
+                </div>
+
+             </div>
+
+             {/* Right Column - Score & Actions */}
+             <div className="w-full md:w-[320px] shrink-0 space-y-6">
+                
+                {/* Credibility */}
+                <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] p-6">
+                   <div className="flex items-center gap-2 mb-4">
+                      <BarChart3 className="w-5 h-5 text-slate-900" />
+                      <span className="text-[15px] font-bold text-slate-900">Credibility Score</span>
+                   </div>
+                   
+                   <div className="flex items-end justify-between mb-3">
+                      <span className={`text-3xl font-black ${cred.color}`}>{cred.level}</span>
+                      <span className="text-[11px] font-medium text-slate-500 mb-1">{cred.detail}</span>
+                   </div>
+                   
+                   {/* Animated progress bar */}
+                   <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden mb-4">
+                      <motion.div
+                         initial={{ width: 0 }}
+                         animate={{ width: `${cred.pct}%` }}
+                         transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+                         className={`h-full rounded-full ${cred.bg}`}
+                      />
+                   </div>
+                   
+                   <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                      {cred.level === "Low"    && "Add photos, screenshots, or recordings to increase credibility."}
+                      {cred.level === "Medium" && "Good start. Adding more evidence will strengthen your case."}
+                      {cred.level === "High"   && "Strong case. Multiple pieces of evidence significantly help."}
+                   </p>
+                </div>
+
+                {/* Actions */}
+                <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] p-6">
+                   <div className="flex items-center gap-2 mb-5">
+                      <CheckCircle className="w-5 h-5 text-slate-900" />
+                      <span className="text-[15px] font-bold text-slate-900">Final Actions</span>
+                   </div>
+
+                   <div className="space-y-3">
+                      <button 
+                        onClick={handleAnonymousSave} 
+                        className="w-full bg-[#0f172a] hover:bg-black text-white px-5 py-3.5 rounded-xl text-[13px] font-bold transition-colors flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <BookLock className="w-4 h-4" /> Save as Anonymous Report
+                      </button>
+
+                      {report.evidence.length === 0 && (
+                         <button 
+                           onClick={handleHighRisk}
+                           className="w-full bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 px-5 py-3.5 rounded-xl text-[13px] font-bold transition-colors flex items-center justify-center gap-2"
+                         >
+                           <AlertTriangle className="w-4 h-4" /> Mark High Risk (No Evidence)
+                         </button>
+                      )}
+
+                      <button className="w-full bg-slate-50 text-slate-400 border border-slate-100 px-5 py-3.5 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 cursor-not-allowed">
+                        <Gavel className="w-4 h-4" /> Proceed to Official Complaint
+                        <span className="ml-1 text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-sm">Soon</span>
+                      </button>
+                   </div>
+                   
+                   <p className="text-[10px] text-center text-slate-400 font-medium mt-5">
+                      All data is stored locally and never shared without your consent.
+                   </p>
+                </div>
+                
+                <button onClick={() => navigate("/report")} className="w-full flex items-center justify-center gap-2 text-[13px] font-bold text-slate-500 hover:text-slate-900 transition-colors py-2">
+                   <ChevronLeft className="w-4 h-4" /> Back to Edit Details
+                </button>
+
+             </div>
+
+          </div>
         </div>
       </div>
-
-      <div className="px-5 space-y-5">
-
-        {/* ── A. Report Details ─────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="glass rounded-2xl p-5 space-y-3">
-          <div className="flex items-center gap-2 mb-1">
-            <FileText className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold">Incident Details</span>
-          </div>
-          <p className="text-sm leading-relaxed text-foreground/90">{report.description}</p>
-          <div className="flex flex-wrap gap-3 pt-1">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Clock className="w-3.5 h-3.5" />
-              {reportTime}
-            </div>
-            {report.location && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <MapPin className="w-3.5 h-3.5" />
-                {report.location}
-              </div>
-            )}
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${report.reportType === "cyber" ? "bg-accent/15 text-accent" : "bg-warning/15 text-warning"}`}>
-              {report.reportType === "cyber" ? "Cyber" : "General"}
-            </span>
-            {report.anonymous && (
-              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-safe/15 text-safe">Anonymous</span>
-            )}
-          </div>
-
-          {/* Attached Files */}
-          {report.evidence.length > 0 && (
-            <div className="space-y-2 pt-1">
-              <p className="text-xs font-medium text-muted-foreground">Attached Evidence</p>
-              {report.evidence.map((ev) => {
-                const Icon = getFileIcon(ev.fileType);
-                return (
-                  <div key={ev.id} className="flex items-center gap-3 bg-muted/40 rounded-xl px-3 py-2">
-                    {ev.fileUrl ? (
-                      <img src={ev.fileUrl} alt={ev.name} className="w-10 h-10 rounded-lg object-cover" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Icon className="w-5 h-5 text-primary" />
-                      </div>
-                    )}
-                    <p className="text-xs truncate flex-1">{ev.name}</p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </motion.div>
-
-        {/* ── B. AI Summary ─────────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="rounded-2xl p-5 space-y-3 relative overflow-hidden"
-          style={{
-            background: "linear-gradient(135deg, hsl(var(--card)) 0%, hsl(var(--primary)/0.08) 100%)",
-            border: "1px solid hsl(var(--primary)/0.25)",
-          }}
-        >
-          {/* Glow accent */}
-          <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-primary/10 blur-2xl -translate-y-8 translate-x-8 pointer-events-none" />
-
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold">Sakhi AI Summary</span>
-            <span className="ml-auto text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-full font-medium">AI Generated</span>
-          </div>
-          <p className="text-sm leading-relaxed text-foreground/85 relative z-10">{summary}</p>
-          <div className="flex items-center gap-2 pt-1 relative z-10">
-            <Gavel className="w-4 h-4 text-accent" />
-            <span className="text-xs text-muted-foreground">Legal Category:</span>
-            <span className="text-xs font-semibold text-accent">{legalCategory}</span>
-          </div>
-        </motion.div>
-
-        {/* ── C. Credibility Indicator ──────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="glass rounded-2xl p-5 space-y-3"
-        >
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold">Credibility Score</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className={`text-2xl font-bold ${cred.color}`}>{cred.level}</span>
-            <span className="text-xs text-muted-foreground">{cred.detail}</span>
-          </div>
-          {/* Animated progress bar */}
-          <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${cred.pct}%` }}
-              transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
-              className={`h-full rounded-full ${cred.bg}`}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {cred.level === "Low"    && "Add photos, screenshots, or recordings to increase credibility."}
-            {cred.level === "Medium" && "Good start. Adding more evidence will strengthen your case."}
-            {cred.level === "High"   && "Strong case. Multiple pieces of evidence significantly help."}
-          </p>
-        </motion.div>
-
-        {/* ── D. Action Panel ───────────────────────────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="glass rounded-2xl p-5 space-y-3"
-        >
-          <div className="flex items-center gap-2 mb-1">
-            <CheckCircle className="w-4 h-4 text-safe" />
-            <span className="text-sm font-semibold">Take Action</span>
-          </div>
-
-          <Button onClick={handleAnonymousSave} className="w-full" variant="default">
-            <BookLock className="w-4 h-4 mr-2" />
-            Save as Anonymous Report
-          </Button>
-
-          {report.evidence.length === 0 && (
-            <Button
-              onClick={handleHighRisk}
-              className="w-full bg-warning/15 text-warning hover:bg-warning/25 border border-warning/30"
-              variant="ghost"
-            >
-              <AlertTriangle className="w-4 h-4 mr-2" />
-              Mark High Risk (No Evidence Case)
-            </Button>
-          )}
-
-          <Button className="w-full opacity-50 cursor-not-allowed" variant="outline" disabled>
-            <Gavel className="w-4 h-4 mr-2" />
-            Proceed to Official Complaint
-            <span className="ml-2 text-[10px] bg-muted px-1.5 py-0.5 rounded">Soon</span>
-          </Button>
-
-          <p className="text-xs text-center text-muted-foreground pt-1">
-            All data is stored locally and never shared without your consent
-          </p>
-        </motion.div>
-
-        {/* View Evidence Locker */}
-        <button
-          onClick={() => navigate("/evidence-locker")}
-          className="w-full glass rounded-xl p-4 flex items-center justify-between hover:border-safe/30 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-safe/10 flex items-center justify-center">
-              <Shield className="w-5 h-5 text-safe" />
-            </div>
-            <div className="text-left">
-              <p className="text-sm font-medium">View Evidence Locker</p>
-              <p className="text-xs text-muted-foreground">See all stored recordings & media</p>
-            </div>
-          </div>
-          <ArrowLeft className="w-4 h-4 text-muted-foreground rotate-180" />
-        </button>
-      </div>
-
-      <BottomNav />
-    </div>
+    </AppLayout>
   );
 };
 

@@ -1,13 +1,13 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, Map, Terminal, FileWarning } from "lucide-react";
+import { Home, Map, MessageSquare, ShieldCheck, Asterisk } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 
 const navItems = [
-  { icon: Home, path: "/home" },
-  { icon: Map, path: "/risk-map" },
-  { icon: "FAB", path: "/sos" }, // Placeholder for Center SOS
-  { icon: Terminal, path: "/assistant" },
-  { icon: FileWarning, path: "/report" },
+  { icon: Home,         path: "/home",           label: "Home" },
+  { icon: Map,          path: "/risk-map",        label: "Safety Map" },
+  { icon: "FAB",        path: "/sos",             label: "SOS" },
+  { icon: MessageSquare,path: "/assistant",       label: "Sakhi AI" },
+  { icon: ShieldCheck,  path: "/guardian",        label: "Guardian" },
 ];
 
 const BottomNav = () => {
@@ -16,55 +16,46 @@ const BottomNav = () => {
   const { triggerSOS } = useApp();
 
   const handleSOSClick = () => {
-    console.log("🚨 SOS Triggered from BottomNav");
     triggerSOS();
     navigate("/sos");
   };
 
   return (
-    <div
-      className="fixed bottom-0 left-0 right-0 pb-[env(safe-area-inset-bottom)] z-50 pointer-events-none flex justify-center"
-    >
-      <div 
-        className="h-[4.5rem] w-full bg-background/95 backdrop-blur-md border-t border-border flex items-center justify-around px-2 relative pointer-events-auto shadow-[0_-4px_20px_rgba(0,0,0,0.02)]"
-      >
+    <div className="fixed bottom-0 left-0 right-0 pb-[env(safe-area-inset-bottom)] z-50 pointer-events-none flex justify-center md:hidden">
+      {/* Floating Bottom Nav */}
+      <div className="mx-4 mb-4 h-[4.5rem] max-w-[500px] w-full bg-white/90 backdrop-blur-xl border border-slate-100 flex items-center justify-around px-4 relative pointer-events-auto shadow-[0_8px_30px_rgba(0,0,0,0.04)] rounded-[24px]">
         {navItems.map((item, i) => {
           if (item.icon === "FAB") {
             return (
               <div key="sos-fab" className="relative flex-1 flex justify-center pointer-events-none">
                 <button
                   onClick={handleSOSClick}
-                  className="absolute bottom-4 w-[4rem] h-[4rem] bg-sos text-white rounded-full flex items-center justify-center shadow-lg transition-all duration-300 hover:scale-[1.1] active:scale-95 pointer-events-auto z-[60]"
-                  style={{ 
-                    boxShadow: "0 8px 30px rgba(220, 38, 38, 0.4)",
-                    border: "4px solid hsl(var(--background))"
-                  }}
+                  className="absolute bottom-4 w-[4.2rem] h-[4.2rem] bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-red-200 transition-all duration-300 hover:scale-105 active:scale-90 pointer-events-auto z-[60] border-4 border-white"
                 >
-                  <span className="font-bold text-sm tracking-widest text-center leading-none">SOS</span>
+                  <Asterisk className="w-8 h-8" />
                 </button>
               </div>
             );
           }
 
           const IconComp = item.icon as React.ElementType;
-          const active = location.pathname === item.path || (item.path === "/report" && location.pathname.startsWith("/report-review"));
+          const active = location.pathname === item.path;
 
           return (
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className="flex-1 flex justify-center items-center h-full transition-all duration-300 pointer-events-auto"
+              className="flex-1 flex flex-col justify-center items-center h-full gap-1 transition-all duration-250 pointer-events-auto"
             >
-              <div
-                className={`p-2.5 rounded-2xl transition-all duration-300 ${
-                  active ? "bg-primary/10 text-primary scale-110" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                }`}
-              >
-                <IconComp
-                  className="w-6 h-6"
-                  strokeWidth={active ? 2.5 : 2}
-                />
+              <div className={`p-2 rounded-xl transition-all duration-300 ${active ? "text-slate-900" : "text-slate-400 hover:text-slate-600"}`}>
+                <IconComp className="w-5 h-5" strokeWidth={active ? 2.5 : 2} />
               </div>
+              <span className={`text-[9px] font-bold tracking-tight ${active ? "text-slate-900" : "text-slate-400"}`}>
+                {item.label}
+              </span>
+              {active && (
+                 <div className="absolute bottom-2 w-1 h-1 bg-slate-900 rounded-full" />
+              )}
             </button>
           );
         })}

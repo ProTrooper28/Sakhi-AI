@@ -1,33 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mic, WifiOff, EyeOff, Phone, MapPin, Video, MicOff, CheckCircle2, AlertTriangle, Radio } from "lucide-react";
-import BottomNav from "@/components/BottomNav";
+import { Mic, EyeOff, Eye, Phone, MapPin, Video, Watch, Users, ShieldAlert, CheckCircle2, Navigation, Bell, Shield } from "lucide-react";
+import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
-import { toast } from "@/components/ui/use-toast";
-
-const modes = [
-  { id: "voice", icon: Mic, label: "VOICE" },
-  { id: "offline", icon: WifiOff, label: "OFFLINE" },
-  { id: "silent", icon: EyeOff, label: "SILENT" },
-] as const;
-
-const PROTOCOL_STEPS = [
-  { label: "Alert sent to emergency contacts", delay: 700 },
-  { label: "Live location shared — Rohini, Delhi", delay: 1500 },
-  { label: "Emergency recording active", delay: 2300 },
-];
-
-const EMERGENCY_KEYWORDS = ["help", "bachao", "save me", "danger"];
-
-// Safe access to SpeechRecognition
-const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 const SOSPage = () => {
-  const { sosState, triggerSOS, cancelSOS, addEvidence } = useApp();
-  const [activeMode, setActiveMode] = useState<string>("voice");
-
-  // Protocol steps revealed sequentially
-  const [visibleSteps, setVisibleSteps] = useState<number>(0);
+  const { sosState, triggerSOS, cancelSOS, addEvidence, locationState } = useApp();
 
   // Native MediaRecorder State
   const [isMediaRecording, setIsMediaRecording] = useState(false);
@@ -35,15 +13,6 @@ const SOSPage = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaChunksRef = useRef<Blob[]>([]);
-
-  // Speech Detection State
-  const [listening, setListening] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [showVoicePanel, setShowVoicePanel] = useState(false);
-  const [keywordDetected, setKeywordDetected] = useState<string | null>(null);
-  
-  const recognitionRef = useRef<any>(null);
-  const stepsTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Format MM:SS
@@ -53,7 +22,6 @@ const SOSPage = () => {
      return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  // ── Native Media Capture Logic ──
   const stopNativeRecording = () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
           mediaRecorderRef.current.stop();
@@ -69,7 +37,6 @@ const SOSPage = () => {
 
   useEffect(() => {
      if (sosState.active) {
-         // Start Native Evidence Recording
          const startRecording = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -87,7 +54,6 @@ const SOSPage = () => {
                         const blob = new Blob(mediaChunksRef.current, { type: "video/webm" });
                         const url = URL.createObjectURL(blob);
                         
-                        // Push genuine blob URL to the Evidence Locker
                         addEvidence({
                             type: "sos-recording",
                             name: `SOS_Evidence_${new Date().toLocaleTimeString().replace(/:/g, "-")}.webm`,
@@ -108,455 +74,296 @@ const SOSPage = () => {
                 }, 1000);
 
             } catch (err) {
-                console.error("Media permission denied or not available", err);
-                toast({ title: "Hardware Access Required", description: "Camera/Mic access is required to capture evidence.", variant: "destructive" });
+                console.error("Media permission denied", err);
             }
          };
          
          startRecording();
      } else {
-         // Stop Native Recording and spawn chunk to Evidence Locker
          stopNativeRecording();
      }
      
      return stopNativeRecording;
   }, [sosState.active, addEvidence, sosState.location]);
 
-  // When SOS becomes active → reveal steps one-by-one
-  useEffect(() => {
-    if (sosState.active) {
-      setVisibleSteps(0);
-      stepsTimersRef.current.forEach(clearTimeout);
-      stepsTimersRef.current = PROTOCOL_STEPS.map(({ delay }, i) =>
-        setTimeout(() => setVisibleSteps((s) => Math.max(s, i + 1)), delay)
-      );
-    } else {
-      setVisibleSteps(0);
-      stepsTimersRef.current.forEach(clearTimeout);
-      setKeywordDetected(null);
-    }
-    return () => stepsTimersRef.current.forEach(clearTimeout);
-  }, [sosState.active]);
-
-  // Clean up speech recognition on unmount
-  useEffect(() => {
-     return () => {
-         if (recognitionRef.current) {
-             recognitionRef.current.stop();
-         }
-     }
-  }, []);
-
-  const startVoiceDetection = () => {
-    if (listening) return;
-    setTranscript("");
-    setKeywordDetected(null);
-
-    if (!SpeechRecognition) {
-       toast({ title: "Unsupported Browser", description: "Your browser does not support native speech recognition. Please use Google Chrome or Edge.", variant: "destructive" });
-       return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-IN"; // English-India for better mix of Hindi words
-
-    recognition.onstart = () => {
-       setListening(true);
-    };
-
-    recognition.onresult = (event: any) => {
-        let currentTranscript = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-            currentTranscript += event.results[i][0].transcript;
-        }
-        
-        setTranscript(currentTranscript);
-        
-        const textToLower = currentTranscript.toLowerCase();
-        
-        // Scan for keywords
-        const found = EMERGENCY_KEYWORDS.find(kw => textToLower.includes(kw));
-        
-        if (found && !sosState.active) {
-            setKeywordDetected(found);
-            recognition.stop();
-            
-            // Auto trigger SOS shortly after keyword detection
-            setTimeout(() => {
-                triggerSOS();
-                setListening(false);
-            }, 1000);
-        }
-    };
-
-    recognition.onerror = (event: any) => {
-       console.error("Speech Recognition Error", event.error);
-       setListening(false);
-       if (event.error !== "no-speech") {
-          toast({ title: "Microphone Error", description: "Failed to access microphone. Please ensure permissions are granted.", variant: "destructive" });
-       }
-    };
-
-    recognition.onend = () => {
-       setListening(false);
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-  };
-
-  const stopVoiceDetection = () => {
-     if (recognitionRef.current) {
-         recognitionRef.current.stop();
-     }
-     setListening(false);
-  }
-
   // ── ACTIVE FULL-SCREEN STATE ────────────────────────────────────────────────
   if (sosState.active) {
-    const triggeredTime = sosState.triggeredAt
-      ? new Date(sosState.triggeredAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-      : "--:--:--";
-
     return (
-      <div
-        className="fixed inset-0 flex flex-col z-50 overflow-y-auto"
-        style={{
-          backgroundColor: "hsl(0 30% 5%)",
-          boxShadow: "inset 0 0 0 2px hsl(var(--sos) / 0.4), inset 0 0 80px hsl(var(--sos) / 0.08)",
-        }}
-      >
-        {/* Top bar */}
-        <div
-          className="flex items-center justify-between px-5 pt-8 pb-4"
-          style={{ borderBottom: "1px solid hsl(var(--sos) / 0.2)" }}
-        >
-          <div>
-            <p className="section-label" style={{ color: "hsl(var(--sos) / 0.7)" }}>Emergency System</p>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="dot-sos" />
-              <span
-                className="text-[10px] font-mono font-bold tracking-widest"
-                style={{ color: "hsl(var(--sos))" }}
-              >
-                LIVE
-              </span>
-            </div>
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-[#Fdf5f5] text-slate-800 flex flex-col items-center pt-16 pb-32">
+        {/* Background Radial Glow */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(239,68,68,0.12)_0%,_rgba(253,245,245,0)_70%)] pointer-events-none" />
+
+        {/* Top Header */}
+        <div className="relative z-10 flex flex-col items-center mb-10">
+          <div className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-1.5 rounded-full border border-red-100 font-bold tracking-widest text-[13px] shadow-sm mb-2">
+            <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+            EMERGENCY ALERT ACTIVE
           </div>
-          <span
-            className="text-[10px] font-mono"
-            style={{ color: "hsl(var(--sos) / 0.6)" }}
-          >
-            {triggeredTime}
-          </span>
+          <p className="text-[13px] text-slate-500 font-medium">Transmitting real-time data to security teams</p>
         </div>
 
-        {/* Main heading */}
-        <div className="flex-1 flex flex-col px-5 pt-8 gap-6">
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <p
-              className="text-6xl font-black tracking-widest leading-none"
-              style={{
-                fontFamily: "var(--font-heading)",
-                color: "hsl(var(--sos))",
-                letterSpacing: "0.05em",
-              }}
-            >
-              SOS
-            </p>
-            <p
-              className="text-xl font-bold tracking-wide mt-2"
-              style={{ fontFamily: "var(--font-heading)", color: "hsl(var(--sos) / 0.9)" }}
-            >
-              Alert Sent
-            </p>
-            <p className="text-sm mt-2 font-medium" style={{ color: "hsl(var(--foreground) / 0.6)" }}>
-              Emergency protocol is actively managing your safety.
-            </p>
-          </motion.div>
-
-          {/* Protocol Steps */}
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider mb-2 px-1" style={{ color: "hsl(var(--foreground) / 0.5)" }}>
-              Processing
-            </p>
-            {PROTOCOL_STEPS.map((step, i) => {
-              const done = visibleSteps > i;
-              return (
-                <AnimatePresence key={step.label}>
-                  {done && (
-                    <motion.div
-                      initial={{ opacity: 0, x: -12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.35 }}
-                      className="flex items-center gap-3 px-4 py-3"
-                      style={{
-                        backgroundColor: "hsl(var(--safe) / 0.07)",
-                        border: "1px solid hsl(var(--safe) / 0.2)",
-                        borderRadius: "4px",
-                      }}
-                    >
-                      <CheckCircle2
-                        className="w-4 h-4 flex-shrink-0"
-                        style={{ color: "hsl(var(--safe))" }}
-                      />
-                      <p className="text-xs font-semibold" style={{ color: "hsl(var(--foreground) / 0.85)" }}>
-                        {step.label}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              );
-            })}
+        {/* Central SOS Button */}
+        <div className="relative z-10 flex flex-col items-center justify-center mb-10">
+          {/* Outer dashed ring */}
+          <div className="absolute w-[260px] h-[260px] rounded-full border-[1.5px] border-dashed border-red-300/80 animate-[spin_30s_linear_infinite]" />
+          {/* Inner solid ring */}
+          <div className="absolute w-[220px] h-[220px] rounded-full border border-red-200" />
+          
+          <div className="w-[170px] h-[170px] rounded-full bg-[#A30000] flex flex-col items-center justify-center shadow-[0_10px_40px_rgba(239,68,68,0.4)] border-[6px] border-red-50 relative overflow-hidden">
+             {/* Gradient overlay on button */}
+             <div className="absolute inset-0 bg-gradient-to-b from-red-600 to-[#900000]" />
+             <span className="relative z-10 text-white text-[38px] font-black leading-none mb-1 shadow-sm" style={{ fontFamily: "Manrope, sans-serif" }}>SOS</span>
+             <span className="relative z-10 text-white text-[17px] font-bold tracking-widest leading-none mb-3 shadow-sm">ACTIVATED</span>
+             <span className="relative z-10 text-red-200 text-[7px] font-bold tracking-wider text-center uppercase leading-tight max-w-[90px]">Emergency Protocols In Progress</span>
           </div>
+        </div>
 
-          {/* Location Card */}
-          <div
-            className="px-4 py-4"
-            style={{
-              backgroundColor: "hsl(var(--sos) / 0.05)",
-              border: "1px solid hsl(var(--sos) / 0.2)",
-              borderRadius: "4px",
-            }}
-          >
-            <p className="section-label mb-2" style={{ color: "hsl(var(--sos) / 0.6)" }}>
-              Current Location
-            </p>
-            <div className="flex items-start gap-2">
-              <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "hsl(var(--sos))" }} />
-              <div>
-                <p className="text-sm font-semibold" style={{ color: "hsl(var(--foreground))" }}>
-                  {sosState.location}
-                </p>
-                <p className="text-[10px] mt-0.5" style={{ color: "hsl(var(--foreground) / 0.4)" }}>
-                  {sosState.coords.lat.toFixed(4)}°N, {sosState.coords.lng.toFixed(4)}°E
-                </p>
+        {/* Status List */}
+        <div className="relative z-10 flex flex-col gap-3 mb-10 text-[12px] font-semibold text-slate-600 w-full max-w-[280px]">
+           <div className="flex items-center gap-3 text-red-600">
+             <div className="w-3.5 h-3.5 rounded-full border-2 border-red-600" /> Recording Started (just now)
+           </div>
+           <div className="flex items-center gap-3">
+             <MapPin className="w-4 h-4" /> Location shared (2s ago)
+           </div>
+           <div className="flex items-center gap-3">
+             <Navigation className="w-4 h-4 rotate-90" /> Alerts dispatched (12s ago)
+           </div>
+        </div>
+
+        {/* Grid of Cards */}
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-5xl px-6">
+          
+          {/* LIVE REC Card */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 border-t-4 border-t-red-600 flex flex-col h-[260px]">
+            <div className="flex justify-between items-start mb-auto">
+              <div className="flex items-center gap-2 text-red-600 font-bold text-[11px] tracking-wider">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" /> LIVE REC
               </div>
+              <div className="flex gap-3 text-slate-500">
+                <Mic className="w-4 h-4" />
+                <Video className="w-4 h-4" />
+              </div>
+            </div>
+            
+            <div className="flex flex-col items-center justify-center flex-1">
+              <div className="text-[42px] font-black tracking-tight text-slate-900 mb-2">{formatDuration(recordingDuration)}</div>
+              <p className="text-[12px] font-bold text-slate-500">Cloud Encryption Active</p>
             </div>
           </div>
 
-          {/* What's active */}
-          <div className="space-y-1.5">
-             <div
-                className="flex items-center justify-between px-4 py-2.5"
-                style={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--sos) / 0.5)",
-                  borderRadius: "4px",
-                }}
-              >
-                  <div className="flex items-center gap-3">
-                    <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: "hsl(var(--sos))" }} />
-                    <Video className="w-3.5 h-3.5 text-sos" />
-                    <p className="text-xs font-medium" style={{ color: "hsl(var(--foreground) / 0.8)" }}>Recording audio & video</p>
-                  </div>
-                  <span className="text-[10px] font-mono font-bold text-sos">{formatDuration(recordingDuration)}</span>
-              </div>
-            {[
-              { Icon: MapPin, color: "hsl(var(--warning))", text: "Broadcasting live location" },
-              { Icon: Phone, color: "hsl(var(--safe))", text: "Alerting emergency contacts" },
-            ].map(({ Icon, color, text }) => (
-              <div
-                key={text}
-                className="flex items-center gap-3 px-4 py-2.5"
-                style={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "4px",
-                }}
-              >
-                <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: color }} />
-                <Icon className="w-3.5 h-3.5" style={{ color }} />
-                <p className="text-xs font-medium" style={{ color: "hsl(var(--foreground) / 0.8)" }}>{text}</p>
-              </div>
-            ))}
+          {/* CONTACTS Card */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col h-[260px]">
+             <p className="text-[11px] font-bold text-slate-400 tracking-wider mb-8 uppercase">Emergency Contacts</p>
+             <div className="flex justify-around items-center flex-1">
+                <div className="flex flex-col items-center gap-2">
+                   <div className="relative">
+                     <div className="w-11 h-11 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-lg">D</div>
+                     <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center"><CheckCircle2 className="w-3.5 h-3.5 text-green-500" /></div>
+                   </div>
+                   <p className="font-bold text-[13px] text-slate-900">Dad</p>
+                   <p className="text-[8px] font-bold text-green-500 uppercase tracking-wider">Acknowledged</p>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                   <div className="relative">
+                     <div className="w-11 h-11 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-lg">M</div>
+                     <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center"><CheckCircle2 className="w-3.5 h-3.5 text-blue-500" /></div>
+                   </div>
+                   <p className="font-bold text-[13px] text-slate-900">Mom</p>
+                   <p className="text-[8px] font-bold text-blue-500 uppercase tracking-wider">Delivered</p>
+                </div>
+                <div className="flex flex-col items-center gap-2">
+                   <div className="relative">
+                     <div className="w-11 h-11 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-lg">ST</div>
+                     <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center"><Navigation className="w-3.5 h-3.5 text-orange-500" /></div>
+                   </div>
+                   <p className="font-bold text-[13px] text-slate-900">Security</p>
+                   <p className="text-[8px] font-bold text-orange-500 uppercase tracking-wider">Dispatched</p>
+                </div>
+             </div>
           </div>
+
+          {/* MAP Card */}
+          <div className="bg-[#1f242e] rounded-2xl relative overflow-hidden h-[260px] shadow-sm border border-slate-700">
+             {/* Map background placeholder (grid lines) */}
+             <div className="absolute inset-0 opacity-10" style={{
+                backgroundImage: "linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)",
+                backgroundSize: "24px 24px",
+                transform: "perspective(300px) rotateX(60deg) scale(2)",
+                transformOrigin: "center top"
+             }} />
+             <div className="absolute inset-0 bg-gradient-to-t from-[#1f242e] via-transparent to-[#1f242e]" />
+             
+             <div className="absolute inset-0 flex items-center justify-center pb-4">
+                <div className="relative flex flex-col items-center">
+                   <div className="absolute w-20 h-20 bg-teal-500/10 rounded-full animate-ping" />
+                   <div className="absolute w-24 h-24 border border-teal-500/20 rounded-full" />
+                   
+                   <div className="relative z-10 w-8 h-10 flex flex-col items-center">
+                      <div className="w-8 h-8 rounded-t-full rounded-b-full bg-teal-600/50 backdrop-blur-sm border-2 border-teal-400 flex items-center justify-center" style={{ borderBottomLeftRadius: 0, transform: 'rotate(45deg)' }}>
+                         <div className="w-3 h-3 bg-red-500 rounded-full shadow-sm" style={{ transform: 'rotate(-45deg)' }} />
+                      </div>
+                   </div>
+                </div>
+             </div>
+             <div className="absolute bottom-4 left-4 bg-black/90 rounded-md px-2.5 py-1.5 flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-[8px] text-white font-bold tracking-wider uppercase">Live Signal Active</span>
+             </div>
+          </div>
+
         </div>
 
-        {/* Cancel button */}
-        <div className="px-5 pb-10 pt-4">
-          <button
-            id="sos-cancel-btn"
-            onClick={cancelSOS}
-            className="w-full py-4 text-sm font-bold tracking-wider transition-all uppercase flex flex-col gap-1 items-center justify-center relative overflow-hidden group"
-            style={{
-              backgroundColor: "hsl(var(--sos) / 0.1)",
-              border: "1px solid hsl(var(--sos) / 0.5)",
-              borderRadius: "4px",
-              color: "hsl(var(--sos))",
-            }}
-          >
-            <span>Cancel Emergency</span>
-            <span className="text-[9px] font-mono opacity-60">Will save recording to storage</span>
-          </button>
+        {/* Bottom Sticky Bar */}
+        <div className="fixed bottom-0 left-0 right-0 bg-[#Fdf5f5] border-t border-slate-200 p-4 flex justify-center gap-4 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.02)]">
+           <button className="bg-[#C82121] hover:bg-[#A30000] text-white font-bold tracking-widest text-[11px] px-8 py-3.5 rounded-xl shadow-lg flex items-center gap-2 transition-colors">
+              <Phone className="w-4 h-4" /> CALL POLICE
+           </button>
+           <button onClick={cancelSOS} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold tracking-widest text-[11px] px-8 py-3.5 rounded-xl transition-colors">
+              CANCEL (LONG PRESS)
+           </button>
         </div>
+
       </div>
     );
   }
 
   // ── STANDBY STATE ───────────────────────────────────────────────────────────
   return (
-    <motion.div 
-      initial={{ opacity: 0 }} 
-      animate={{ opacity: 1 }} 
-      transition={{ duration: 0.3 }}
-      className="min-h-screen pb-24 flex flex-col" 
-      style={{ backgroundColor: "hsl(var(--background))" }}
-    >
-
-      {/* Header */}
-      <div className="px-5 pt-8 pb-5 border-b border-border/40 bg-gradient-to-b from-background to-muted/20">
-        <p className="section-label mb-1 normal-case tracking-normal font-semibold text-muted-foreground">Emergency System</p>
-        <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: "var(--font-heading)" }}>
-          Sakhi is monitoring.
-        </h1>
-      </div>
-
-      {/* SOS Ready State */}
-      <div
-        className="mx-5 mt-5 py-12 flex flex-col items-center justify-center transition-all bg-card/50 border border-border/50 rounded-2xl shadow-sm"
-      >
-        <p
-          className="text-5xl font-black tracking-widest"
-          style={{ fontFamily: "var(--font-heading)", color: "hsl(var(--foreground))", letterSpacing: "0.05em" }}
-        >
-          SOS
-        </p>
-        <p className="text-sm mt-3 font-medium px-8 text-center" style={{ color: "hsl(var(--muted-foreground))" }}>
-          Tap the red button below if you ever feel unsafe.
-        </p>
-      </div>
-
-      <div className="px-5 mt-6 space-y-4">
-
-        {/* Activate Button */}
-        <button id="sos-activate-btn" onClick={triggerSOS} className="w-full py-[1.125rem] bg-sos text-white font-bold text-[17px] tracking-wide rounded-2xl shadow-lg transition-all duration-300 hover:scale-[1.03] hover:shadow-xl hover:bg-red-500 active:scale-[0.97] flex justify-center items-center gap-3 relative overflow-hidden cursor-pointer">
-             {/* Pulse effect wrapper */}
-             <div className="absolute inset-0 bg-white/20 sos-pulse mix-blend-overlay pointer-events-none" />
-             Send Emergency Alert
-        </button>
-
-        {/* Mode Selector */}
-        <div className="flex gap-2">
-          {modes.map((mode) => {
-            const active = activeMode === mode.id;
-            return (
-              <button
-                key={mode.id}
-                onClick={() => setActiveMode(mode.id)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold tracking-wider transition-all duration-300 hover:scale-[1.03] active:scale-[0.97] cursor-pointer border border-border rounded-lg bg-card"
-                style={{
-                  backgroundColor: active ? "hsl(var(--foreground) / 0.05)" : "transparent",
-                  borderColor: active ? "hsl(var(--foreground) / 0.3)" : "hsl(var(--border))",
-                  color: active ? "hsl(var(--foreground))" : "hsl(var(--muted-foreground))",
-                }}
-              >
-                <mode.icon className="w-4 h-4" />
-                {mode.label}
-              </button>
-            );
-          })}
+    <AppLayout>
+      <div className="flex flex-col h-full bg-[#fdfdfd]">
+        {/* Top Header matching screenshot */}
+        <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 bg-white shrink-0">
+          <h1 className="text-xl font-bold text-slate-900" style={{ fontFamily: "Manrope, sans-serif" }}>Emergency Assistance</h1>
+          <div className="flex items-center gap-6">
+             <Bell className="w-5 h-5 text-slate-600" />
+             <Shield className="w-5 h-5 text-slate-600" />
+             <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden">
+                <img src="https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff" alt="User" />
+             </div>
+          </div>
         </div>
 
-        {/* Guardian Device Link */}
-        <a
-          href="/guardian"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 px-4 py-3 border border-border rounded-lg"
-        >
-          <div className="p-2 rounded-full bg-muted">
-             <AlertTriangle className="w-4 h-4 text-muted-foreground" />
+        <div className="flex flex-col flex-1 p-6 items-center justify-start relative bg-[#fdfdfd] overflow-y-auto">
+          
+          {/* Status Pill & Subtitle */}
+          <div className="mt-6 flex flex-col items-center mb-10">
+            <div className="flex items-center gap-2 bg-teal-50/70 text-teal-500 px-4 py-1.5 rounded-full border border-teal-100 font-bold text-[12px] shadow-sm mb-3">
+               <div className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+               Monitoring Active
+            </div>
+            <p className="text-slate-500 text-[13px] font-semibold">Press SOS to instantly alert your safety network</p>
           </div>
-          <div className="flex-1">
-            <p className="text-xs font-semibold" style={{ color: "hsl(var(--foreground) / 0.9)" }}>
-              DEVICE 2 — GUARDIAN
-            </p>
-            <p className="text-[11px] mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
-              Open in another window to test dual-device connection.
-            </p>
-          </div>
-        </a>
 
-        {/* Voice Keyword Panel */}
-        {activeMode === "voice" && (
-          <div className="border border-border rounded-lg overflow-hidden bg-card transition-all">
-            <button
-              onClick={() => setShowVoicePanel((v) => !v)}
-              className="w-full flex items-center justify-between px-4 py-3"
+          {/* Centered circular SOS button */}
+          <div className="relative mb-14 mt-4 flex items-center justify-center">
+            {/* Subtle pulse rings */}
+            <div className="absolute w-[280px] h-[280px] rounded-full border border-red-100" />
+            <div className="absolute w-[360px] h-[360px] rounded-full border border-red-50" />
+            
+            <button 
+              onClick={triggerSOS}
+              className="relative z-10 w-48 h-48 rounded-full bg-[#da2929] flex flex-col items-center justify-center shadow-[0_15px_40px_rgba(218,41,41,0.3)] transition-transform active:scale-95 hover:bg-[#c52525]"
             >
-              <div className="flex items-center gap-2">
-                <Radio className="w-4 h-4 text-muted-foreground" />
-                <span className="font-semibold text-sm text-foreground/80">
-                  Keyword Detection
-                </span>
-              </div>
-              <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                {showVoicePanel ? "HIDE" : "SHOW"}
-              </span>
+              <span style={{ fontFamily: "Manrope, sans-serif" }} className="text-white text-[56px] font-black leading-none mb-1">SOS</span>
+              <span className="text-white font-bold text-[11px] tracking-widest uppercase">HOLD TO TRIGGER</span>
             </button>
-
-            <AnimatePresence>
-              {showVoicePanel && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  style={{ overflow: "hidden" }}
-                >
-                  <div className="px-4 pb-4 pt-2 space-y-4 border-t border-border bg-muted/30">
-                    <p className="text-xs text-muted-foreground font-medium">
-                      Actively listens for emergency phrases to automatically trigger SOS. Try saying <b>"Help"</b>, <b>"Danger"</b>, or <b>"Bachao"</b>.
-                    </p>
-                    
-                    <button
-                      onClick={listening ? stopVoiceDetection : startVoiceDetection}
-                      className="flex w-full items-center justify-center gap-2 px-4 py-3 text-xs font-bold transition-all rounded-lg"
-                      style={{
-                        backgroundColor: listening ? "hsl(var(--sos) / 0.1)" : "hsl(var(--primary))",
-                        color: listening ? "hsl(var(--sos))" : "white",
-                        border: listening ? "1px solid hsl(var(--sos) / 0.3)" : "none"
-                      }}
-                    >
-                      {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                      {listening ? "STOP DETECTION" : "START DETECTING"}
-                    </button>
-
-                    {listening && (
-                        <div className="px-3 py-3 rounded bg-black/40 border border-border min-h-[60px] flex flex-col justify-end">
-                            {keywordDetected ? (
-                                <motion.p 
-                                    initial={{ scale: 0.9, opacity: 0 }} 
-                                    animate={{ scale: 1, opacity: 1 }} 
-                                    className="text-center font-bold text-sos tracking-wider text-sm p-1 rounded"
-                                >
-                                    "{keywordDetected}" DETECTED — TRIGGERING SOS
-                                </motion.p>
-                             ) : (
-                                <p className="text-xs text-safe italic text-center w-full flex items-center justify-center gap-2">
-                                     <span className="w-2 h-2 rounded-full bg-safe animate-pulse" />
-                                     Listening... {transcript ? `"${transcript}"` : ""}
-                                </p>
-                             )}
-                        </div>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
-        )}
-      </div>
 
-      <BottomNav />
-    </motion.div>
+          {/* Options grid */}
+          <div className="grid grid-cols-2 gap-4 w-full max-w-[700px] relative z-10 mb-14">
+            
+            <div className="bg-white rounded-2xl p-5 flex items-start gap-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100 hover:border-slate-200 transition-colors">
+               <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                 <EyeOff className="w-4 h-4 text-slate-400" />
+               </div>
+               <div className="flex-1 pt-0.5">
+                  <div className="flex items-center justify-between mb-1.5">
+                     <h3 className="text-[13px] font-bold text-slate-900">Silent Mode</h3>
+                     {/* Toggle switch (visual only for now) */}
+                     <div className="w-7 h-4 bg-slate-200 rounded-full relative shadow-inner">
+                        <div className="w-3 h-3 bg-white rounded-full absolute left-0.5 top-0.5 shadow-sm" />
+                     </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium leading-[1.4] pr-2">Send alerts without sound or screen indication</p>
+               </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 flex items-start gap-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100 hover:border-slate-200 transition-colors">
+               <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                 <Mic className="w-4 h-4 text-slate-400" />
+               </div>
+               <div className="flex-1 pt-0.5">
+                  <div className="flex items-center justify-between mb-1.5">
+                     <h3 className="text-[13px] font-bold text-slate-900">Voice Trigger</h3>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium leading-[1.4]">Activate SOS using secure voice command</p>
+               </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 flex items-start gap-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100 hover:border-slate-200 transition-colors">
+               <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                 <Watch className="w-4 h-4 text-slate-400" />
+               </div>
+               <div className="flex-1 pt-0.5">
+                  <div className="flex items-center justify-between mb-1.5">
+                     <h3 className="text-[13px] font-bold text-slate-900">Wearable Trigger</h3>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium leading-[1.4]">Trigger SOS from connected smartwatch</p>
+               </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-5 flex items-start gap-4 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100 hover:border-slate-200 transition-colors">
+               <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
+                 <Eye className="w-4 h-4 text-slate-400" />
+               </div>
+               <div className="flex-1 pt-0.5">
+                  <div className="flex items-center justify-between mb-1.5">
+                     <h3 className="text-[13px] font-bold text-slate-900">Guardian View</h3>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium leading-[1.4]">Preview what contacts will see during alert</p>
+               </div>
+            </div>
+
+          </div>
+
+          {/* Bottom Stats Row */}
+          <div className="w-full max-w-[700px] flex justify-between items-center mt-auto pb-4">
+             <div className="flex items-center gap-3">
+                <div className="flex -space-x-2">
+                   <img src="https://ui-avatars.com/api/?name=Dad&background=1e293b&color=fff" className="w-8 h-8 rounded-full border-2 border-white relative z-20" />
+                   <img src="https://ui-avatars.com/api/?name=Mom&background=1e293b&color=fff" className="w-8 h-8 rounded-full border-2 border-white relative z-10" />
+                   <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center relative z-0">+1</div>
+                </div>
+                <div>
+                   <p className="text-[12px] font-bold text-slate-900 leading-tight mb-0.5">3 Trusted Contacts Ready</p>
+                   <p className="text-[10px] text-slate-500 font-medium">Will be alerted instantly</p>
+                </div>
+             </div>
+
+             <div className="flex items-center gap-3">
+                <MapPin className="w-4 h-4 text-teal-500 shrink-0" />
+                <div>
+                   <p className="text-[12px] font-bold text-slate-900 leading-tight mb-0.5">Live Location Sharing</p>
+                   <p className="text-[10px] text-slate-500 font-medium">Enabled & Precise</p>
+                </div>
+             </div>
+
+             <div className="flex items-center gap-3">
+                <div className="relative">
+                   <Watch className="w-4 h-4 text-teal-500 shrink-0" />
+                   <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-teal-400 rounded-full border border-white" />
+                </div>
+                <div>
+                   <p className="text-[12px] font-bold text-slate-900 leading-tight mb-0.5">Wearable Status</p>
+                   <p className="text-[10px] text-slate-500 font-medium">Connected & Synced</p>
+                </div>
+             </div>
+          </div>
+
+        </div>
+      </div>
+    </AppLayout>
   );
 };
 

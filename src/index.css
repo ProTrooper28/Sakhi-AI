@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,98 +6,75 @@
 
 @layer base {
   :root {
+    /* ── Serene Guardian Design System ── */
     --font-sans: 'Inter', system-ui, sans-serif;
-    --font-heading: 'Poppins', system-ui, sans-serif;
+    --font-heading: 'Manrope', system-ui, sans-serif;
 
-    /* Soft, comforting light theme */
-    --background: 210 40% 98%;
-    --foreground: 222 47% 11%;
+    /* Surface / Background */
+    --background: 340 33% 98%;       /* #fcf8fa */
+    --foreground: 240 7% 11%;        /* #1b1b1d */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    /* Cards */
+    --card: 0 0% 100%;               /* #ffffff */
+    --card-foreground: 240 7% 11%;
 
+    /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 240 7% 11%;
 
-    --primary: 199 89% 48%; /* Calm bright blue/cyan */
+    /* Primary — Deep Navy */
+    --primary: 222 47% 11%;          /* #0F172A */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
+    /* Secondary — Slate Gray */
+    --secondary: 215 28% 17%;        /* #1E293B */
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted */
+    --muted: 330 13% 94%;            /* #f0edef */
+    --muted-foreground: 240 3% 27%;  /* #45464d */
 
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
+    /* Accent — Muted Teal (AI states) */
+    --accent: 174 72% 40%;           /* #14B8A6 */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    /* Destructive */
+    --destructive: 0 84% 60%;        /* #EF4444 */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 199 89% 48%;
+    /* Border / Input */
+    --border: 220 13% 91%;           /* #E2E8F0 */
+    --input: 220 13% 91%;
+    --ring: 222 47% 11%;
 
-    --radius: 1.25rem;
+    --radius: 0.5rem;                /* 8px base */
 
-    --sos: 0 84% 60%;
+    /* Domain colours */
+    --sos: 0 84% 60%;                /* #EF4444 — controlled red */
     --sos-foreground: 0 0% 100%;
 
-    --safe: 142 71% 45%;
+    --safe: 142 71% 45%;             /* muted green */
     --safe-foreground: 0 0% 100%;
+
+    --teal: 174 72% 40%;             /* accent teal */
+    --teal-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
+
+    /* Sidebar */
+    --sidebar-bg: 222 47% 11%;       /* Deep Navy */
+    --sidebar-fg: 220 20% 88%;
+    --sidebar-active: 174 72% 40%;   /* Teal active highlight */
+    --sidebar-width: 280px;
   }
 
-  .dark {
-    /* Soft Navy Dark Theme */
-    --background: 222 47% 8%; 
-    --foreground: 210 40% 98%;
-    
-    --card: 222 47% 12%;
-    --card-foreground: 210 40% 98%;
-    
-    --popover: 222 47% 12%;
-    --popover-foreground: 210 40% 98%;
-    
-    --primary: 199 89% 48%;
-    --primary-foreground: 0 0% 100%;
-    
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 199 89% 48%;
-
-    --sos: 0 84% 60%;
-    --sos-foreground: 0 0% 100%;
-
-    --safe: 142 71% 45%;
-    --safe-foreground: 0 0% 100%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-  }
+  /* Dark mode keeps light theme (design is light-only per Stitch spec) */
 }
 
 @layer base {
   * {
     @apply border-border;
-  }
-
-  html {
-    /* @apply dark; removed to permit system/default light mode */
   }
 
   body {
@@ -109,23 +86,17 @@
     @apply antialiased;
   }
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
+  h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
   }
 
   ::-webkit-scrollbar {
     width: 4px;
+    height: 4px;
   }
-
   ::-webkit-scrollbar-track {
     background: hsl(var(--background));
   }
-
   ::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
     border-radius: 2px;
@@ -134,140 +105,248 @@
 
 @layer utilities {
 
-  /* ── Glass panel ── */
+  /* ── Glass panel (glassmorphism) ── */
   .glass {
-    background-color: hsl(var(--card) / 0.85);
-    backdrop-filter: blur(12px);
-    border: 1px solid hsl(var(--border) / 0.6);
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
   }
 
-  /* ── Section label — human-readable, sentence case ── */
+  .glass-dark {
+    background-color: rgba(15, 23, 42, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* ── Serene Guardian card ── */
+  .card-surface {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 1rem;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+  }
+
+  .card-surface-sm {
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  }
+
+  /* ── Section label ── */
   .section-label {
     display: block;
     font-family: var(--font-sans);
-    font-size: 0.7rem;
+    font-size: 0.6875rem;
     font-weight: 600;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: hsl(var(--muted-foreground));
   }
 
-  /* ── Status badges ── */
-  .badge-active {
+  /* ── Status badges / chips ── */
+  .badge-safe {
     display: inline-flex;
     align-items: center;
-    gap: 0.375rem;
+    gap: 0.3rem;
     font-family: var(--font-sans);
     font-size: 0.6875rem;
     font-weight: 600;
-    letter-spacing: 0.03em;
     padding: 0.25rem 0.75rem;
     border-radius: 999px;
-    background-color: hsl(var(--safe) / 0.15);
-    color: hsl(var(--safe));
-    border: 1px solid hsl(var(--safe) / 0.3);
+    background-color: hsl(var(--safe) / 0.12);
+    color: hsl(142 55% 32%);
+    border: 1px solid hsl(var(--safe) / 0.25);
   }
 
   .badge-sos {
     display: inline-flex;
     align-items: center;
-    gap: 0.375rem;
+    gap: 0.3rem;
     font-family: var(--font-sans);
     font-size: 0.6875rem;
     font-weight: 600;
-    letter-spacing: 0.03em;
     padding: 0.25rem 0.75rem;
     border-radius: 999px;
-    background-color: hsl(var(--sos) / 0.15);
+    background-color: hsl(var(--sos) / 0.1);
     color: hsl(var(--sos));
-    border: 1px solid hsl(var(--sos) / 0.4);
+    border: 1px solid hsl(var(--sos) / 0.3);
   }
 
-  /* ── SOS pulse ── */
+  .badge-teal {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background-color: hsl(var(--teal) / 0.1);
+    color: hsl(var(--teal));
+    border: 1px solid hsl(var(--teal) / 0.25);
+  }
+
+  .badge-muted {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background-color: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    border: 1px solid hsl(var(--border));
+  }
+
+  /* ── SOS pulse ring ── */
   .sos-pulse {
     animation: sos-ring 2s ease-out infinite;
   }
 
   @keyframes sos-ring {
-    0% {
-      box-shadow: 0 0 0 0 hsl(var(--sos) / 0.5);
-    }
-
-    60% {
-      box-shadow: 0 0 0 12px hsl(var(--sos) / 0);
-    }
-
-    100% {
-      box-shadow: 0 0 0 0 hsl(var(--sos) / 0);
-    }
+    0%   { box-shadow: 0 0 0 0 hsl(var(--sos) / 0.5); }
+    60%  { box-shadow: 0 0 0 16px hsl(var(--sos) / 0); }
+    100% { box-shadow: 0 0 0 0 hsl(var(--sos) / 0); }
   }
 
-  /* ── Border status indicators ── */
-  .status-line {
-    border-left: 3px solid hsl(var(--safe));
-    padding-left: 0.875rem;
+  /* ── Teal pulse ring ── */
+  .teal-pulse {
+    animation: teal-ring 2.5s ease-out infinite;
   }
 
-  .status-line-sos {
-    border-left: 3px solid hsl(var(--sos));
-    padding-left: 0.875rem;
-    animation: border-blink 1.4s step-start infinite;
+  @keyframes teal-ring {
+    0%   { box-shadow: 0 0 0 0 hsl(var(--teal) / 0.4); }
+    60%  { box-shadow: 0 0 0 12px hsl(var(--teal) / 0); }
+    100% { box-shadow: 0 0 0 0 hsl(var(--teal) / 0); }
   }
 
-  @keyframes border-blink {
-
-    0%,
-    100% {
-      border-color: hsl(var(--sos));
-    }
-
-    50% {
-      border-color: hsl(var(--sos) / 0.15);
-    }
-  }
-
-  /* ── Primary action button ── */
+  /* ── Primary button — Deep Navy ── */
   .btn-primary {
-    width: 100%;
-    padding: 1rem 1.5rem;
-    background-color: hsl(var(--sos));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background-color: hsl(var(--primary));
     color: white;
-    font-family: var(--font-heading);
-    font-weight: 700;
-    font-size: 1rem;
-    letter-spacing: 0.01em;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 0.9rem;
     border: none;
-    border-radius: 12px;
+    border-radius: 0.5rem;
     cursor: pointer;
-    transition: background-color 0.15s, transform 0.1s;
+    transition: background-color 0.25s ease-out, transform 0.1s;
+    white-space: nowrap;
   }
 
   .btn-primary:hover {
-    background-color: hsl(0 72% 44%);
+    background-color: hsl(215 28% 17%);
   }
 
   .btn-primary:active {
     transform: scale(0.98);
   }
 
-  .btn-secondary {
-    width: 100%;
+  /* ── SOS button — Controlled Red ── */
+  .btn-sos {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
     padding: 0.875rem 1.5rem;
+    background-color: hsl(var(--sos));
+    color: white;
+    font-family: var(--font-sans);
+    font-weight: 700;
+    font-size: 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.25s ease-out, transform 0.1s;
+    white-space: nowrap;
+  }
+
+  .btn-sos:hover {
+    background-color: hsl(0 72% 50%);
+  }
+
+  .btn-sos:active {
+    transform: scale(0.97);
+  }
+
+  /* ── Secondary / ghost button ── */
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
     background-color: transparent;
     color: hsl(var(--foreground));
-    font-family: var(--font-heading);
+    font-family: var(--font-sans);
     font-weight: 600;
-    font-size: 0.9rem;
-    letter-spacing: 0.01em;
-    border: 1.5px solid hsl(var(--border));
-    border-radius: 12px;
+    font-size: 0.875rem;
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
     cursor: pointer;
-    transition: border-color 0.15s, background-color 0.15s;
+    transition: all 0.25s ease-out;
+    white-space: nowrap;
   }
 
   .btn-secondary:hover {
-    border-color: hsl(var(--foreground) / 0.4);
+    border-color: hsl(var(--primary) / 0.4);
     background-color: hsl(var(--muted));
+  }
+
+  /* ── Teal / AI action button ── */
+  .btn-teal {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background-color: hsl(var(--teal));
+    color: white;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 0.875rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.25s ease-out, transform 0.1s;
+    white-space: nowrap;
+  }
+
+  .btn-teal:hover {
+    background-color: hsl(174 62% 34%);
+  }
+
+  /* ── Input field ── */
+  .input-soft {
+    width: 100%;
+    background-color: hsl(var(--card));
+    border: 1.5px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    color: hsl(var(--foreground));
+    outline: none;
+    transition: border-color 0.25s ease-out, box-shadow 0.25s ease-out;
+  }
+
+  .input-soft::placeholder {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .input-soft:focus {
+    border-color: hsl(var(--teal));
+    box-shadow: 0 0 0 3px hsl(var(--teal) / 0.1);
   }
 
   /* ── Dot indicators ── */
@@ -291,60 +370,114 @@
     flex-shrink: 0;
   }
 
+  .dot-teal {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: hsl(var(--teal));
+    animation: dot-pulse 1.8s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
   @keyframes dot-pulse {
-
-    0%,
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-
-    50% {
-      opacity: 0.4;
-      transform: scale(0.8);
-    }
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.8); }
   }
 
-  /* ── Rounded card ── */
-  .card-surface {
-    background-color: hsl(var(--card));
-    border: 1px solid hsl(var(--border));
-    border-radius: 16px;
-  }
-
-  /* ── Soft input style ── */
-  .input-soft {
-    width: 100%;
-    background-color: hsl(var(--card));
-    border: 1.5px solid hsl(var(--border));
-    border-radius: 12px;
-    padding: 0.875rem 1rem;
+  /* ── Sidebar nav item ── */
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.5rem;
     font-family: var(--font-sans);
-    font-size: 0.9rem;
-    color: hsl(var(--foreground));
-    outline: none;
-    transition: border-color 0.2s;
-    caret-color: hsl(var(--sos));
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: hsl(220 20% 75%);
+    cursor: pointer;
+    transition: all 0.25s ease-out;
+    text-decoration: none;
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
   }
 
-  .input-soft::placeholder {
-    color: hsl(var(--muted-foreground));
+  .sidebar-item:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: white;
   }
 
-  .input-soft:focus {
-    border-color: hsl(var(--foreground) / 0.3);
+  .sidebar-item.active {
+    background-color: hsl(var(--teal) / 0.15);
+    color: hsl(var(--teal));
+    font-weight: 600;
   }
 
-  /* ── Background Gradients ── */
-  .bg-gradient-subtle {
-    background: linear-gradient(135deg, hsl(var(--background)), hsl(var(--card)));
+  .sidebar-item.active svg {
+    color: hsl(var(--teal));
   }
 
-  .bg-gradient-sos {
-    background: linear-gradient(135deg, hsl(var(--sos) / 0.1), hsl(var(--card)));
+  /* ── Status line borders ── */
+  .status-line {
+    border-left: 3px solid hsl(var(--safe));
+    padding-left: 0.875rem;
   }
 
-  /* ── Scrolling Safety Ticker ── */
+  .status-line-sos {
+    border-left: 3px solid hsl(var(--sos));
+    padding-left: 0.875rem;
+    animation: border-blink 1.4s step-start infinite;
+  }
+
+  @keyframes border-blink {
+    0%, 100% { border-color: hsl(var(--sos)); }
+    50%       { border-color: hsl(var(--sos) / 0.15); }
+  }
+
+  /* ── Page layout with sidebar ── */
+  .page-with-sidebar {
+    display: flex;
+    min-height: 100vh;
+    background-color: hsl(var(--background));
+  }
+
+  .sidebar {
+    width: var(--sidebar-width);
+    min-width: var(--sidebar-width);
+    background-color: hsl(var(--sidebar-bg));
+    min-height: 100vh;
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    z-index: 40;
+  }
+
+  .main-content {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 2rem 2.5rem;
+  }
+
+  /* Mobile: stack sidebar below (hidden) */
+  @media (max-width: 768px) {
+    .sidebar {
+      display: none;
+    }
+    .main-content {
+      padding: 1.25rem 1rem 7rem;
+    }
+    .page-with-sidebar {
+      display: block;
+    }
+  }
+
+  /* ── Scrolling safety ticker ── */
   .ticker-wrap {
     width: 100%;
     overflow: hidden;
@@ -370,17 +503,25 @@
     text-transform: uppercase;
   }
 
-  .ticker-content span {
-    color: hsl(var(--sos) / 0.9);
-    font-weight: 700;
+  @keyframes ticker-scroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
   }
 
-  @keyframes ticker-scroll {
-    0% {
-      transform: translateX(0);
-    }
-    100% {
-      transform: translateX(-100%);
-    }
+  /* ── Subtle background gradients ── */
+  .bg-gradient-subtle {
+    background: linear-gradient(135deg, hsl(var(--background)), hsl(340 33% 96%));
+  }
+
+  .bg-gradient-sos {
+    background: linear-gradient(135deg, hsl(var(--sos) / 0.05), hsl(var(--card)));
+  }
+
+  .bg-gradient-teal {
+    background: linear-gradient(135deg, hsl(var(--teal) / 0.08), hsl(var(--card)));
+  }
+
+  .bg-gradient-navy {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(215 28% 17%));
   }
 }

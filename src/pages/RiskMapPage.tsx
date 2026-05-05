@@ -5,7 +5,7 @@ import {
   Phone, Search, Layers, X, Info, Zap, Shield
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import BottomNav from "@/components/BottomNav";
+import AppLayout from "@/components/AppLayout";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { toast } from "@/components/ui/use-toast";
@@ -239,10 +239,11 @@ const RiskMapPage = () => {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-background">
+    <AppLayout>
+    <div className="relative overflow-hidden bg-background" style={{ height: "calc(100vh - 64px)" }}>
       
       {/* ─── Map Surface ──────────────────────────────────────────────────── */}
-      <div ref={containerRef} className="absolute inset-0 z-0" style={{ height: "calc(100vh - 4.5rem)" }} />
+      <div ref={containerRef} className="absolute inset-0 z-0" />
 
       {/* ─── Top Interface Overlay ────────────────────────────────────────── */}
       <div className="absolute top-0 left-0 right-0 z-20 pt-10 px-5 space-y-3 pointer-events-none">
@@ -405,8 +406,8 @@ const RiskMapPage = () => {
         </AnimatePresence>
       </div>
 
-      <BottomNav />
     </div>
+    </AppLayout>
   );
 };
 
