@@ -112,13 +112,13 @@ const ReportPage = () => {
       <div className="flex flex-col min-h-screen bg-[#fcfcfd]">
         {/* Top Header */}
         <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 bg-white shrink-0">
-          <div>
-             <h1 className="text-2xl font-bold text-slate-900 leading-tight" style={{ fontFamily: "Manrope, sans-serif" }}>Anonymous Reporting</h1>
-             <p className="text-[13px] text-slate-500 font-medium">Secure, encrypted, and untraceable incident logging.</p>
-          </div>
+          <motion.div initial={{ opacity: 0, x: -15 }} animate={{ opacity: 1, x: 0 }}>
+             <h1 className="text-2xl font-black text-slate-900 leading-tight tracking-tight" style={{ fontFamily: "Manrope, sans-serif" }}>Anonymous Reporting</h1>
+             <p className="text-[13px] text-slate-500 font-bold uppercase tracking-widest mt-1">Safe • Encrypted • Untraceable</p>
+          </motion.div>
           <div className="flex items-center gap-5">
-             <Bell className="w-5 h-5 text-slate-600" />
-             <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden">
+             <motion.button whileHover={{ scale: 1.1 }} className="text-slate-400 hover:text-slate-900 transition-colors"><Bell className="w-5 h-5" /></motion.button>
+             <div className="w-9 h-9 rounded-full bg-slate-900 overflow-hidden border-2 border-white shadow-sm">
                 <img src="https://ui-avatars.com/api/?name=User&background=0F172A&color=fff" alt="User" />
              </div>
           </div>
@@ -127,140 +127,135 @@ const ReportPage = () => {
         <div className="flex flex-col flex-1 p-8 items-center justify-start relative bg-[#fcfcfd] overflow-y-auto">
           
           {/* Progress Tracker */}
-          <div className="w-full max-w-5xl flex items-center justify-start gap-4 mb-10">
-             <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-black text-white text-[10px] font-bold flex items-center justify-center">1</div>
-                <span className="text-[13px] font-bold text-slate-900">Select Report Type</span>
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-5xl flex items-center justify-start gap-4 mb-10"
+          >
+             <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-full bg-slate-900 text-white text-[11px] font-black flex items-center justify-center shadow-lg">1</div>
+                <span className="text-[14px] font-black text-slate-900">Classification</span>
              </div>
              <div className="w-12 h-[2px] bg-slate-100 mx-2" />
-             <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-white border-2 border-slate-200 text-slate-400 text-[10px] font-bold flex items-center justify-center">2</div>
-                <span className="text-[13px] font-semibold text-slate-400">Report Details</span>
+             <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-full bg-white border-2 border-slate-100 text-slate-300 text-[11px] font-black flex items-center justify-center">2</div>
+                <span className="text-[14px] font-bold text-slate-300">Details</span>
              </div>
              <div className="w-12 h-[2px] bg-slate-100 mx-2" />
-             <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-white border-2 border-slate-200 text-slate-400 text-[10px] font-bold flex items-center justify-center">3</div>
-                <span className="text-[13px] font-semibold text-slate-400">Review & Submit</span>
+             <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-full bg-white border-2 border-slate-100 text-slate-300 text-[11px] font-black flex items-center justify-center">3</div>
+                <span className="text-[14px] font-bold text-slate-300">Review</span>
              </div>
-          </div>
+          </motion.div>
 
           <div className="w-full max-w-5xl flex flex-col lg:flex-row gap-8 pb-10">
              
              {/* Left Column - Step 1 Classification */}
-             <div className="w-full lg:w-[340px] shrink-0">
-                <h2 className="text-[17px] font-bold text-slate-900 mb-5">Step 1: Classification</h2>
+             <div className="w-full lg:w-[360px] shrink-0">
+                <h2 className="text-[17px] font-black text-slate-900 mb-6 flex items-center gap-2">
+                   Select Category
+                </h2>
                 <div className="space-y-4">
-                   
-                   {/* Physical Incident */}
-                   <button 
-                     onClick={() => setReportType("physical")}
-                     className={`w-full text-left p-6 rounded-2xl border-2 transition-all relative ${reportType === "physical" ? "border-slate-900 bg-white shadow-sm" : "border-slate-100 bg-white hover:border-slate-200"}`}
-                   >
-                     {reportType === "physical" && (
-                        <div className="absolute top-5 right-5 w-5 h-5 bg-black rounded-full flex items-center justify-center">
-                           <Check className="w-3 h-3 text-white" />
-                        </div>
-                     )}
-                     <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-5 ${reportType === "physical" ? "bg-[#1e293b] text-white" : "bg-slate-50 border border-slate-100 text-slate-400"}`}>
-                        <Shield className="w-5 h-5" />
-                     </div>
-                     <h3 className={`text-[15px] font-bold mb-2 ${reportType === "physical" ? "text-slate-900" : "text-slate-500"}`}>Physical Incident</h3>
-                     <p className="text-[11px] text-slate-500 font-medium leading-relaxed pr-2">Assault, physical harassment, theft, or real-world threats encountered in public or private spaces.</p>
-                   </button>
-
-                   {/* Digital Incident */}
-                   <button 
-                     onClick={() => setReportType("cyber")}
-                     className={`w-full text-left p-6 rounded-2xl border-2 transition-all relative ${reportType === "cyber" ? "border-slate-900 bg-white shadow-sm" : "border-slate-100 bg-white hover:border-slate-200"}`}
-                   >
-                     {reportType === "cyber" && (
-                        <div className="absolute top-5 right-5 w-5 h-5 bg-black rounded-full flex items-center justify-center">
-                           <Check className="w-3 h-3 text-white" />
-                        </div>
-                     )}
-                     <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-5 ${reportType === "cyber" ? "bg-[#1e293b] text-white" : "bg-slate-50 border border-slate-100 text-slate-400"}`}>
-                        <Shield className="w-5 h-5" /> {/* Could use a different icon like AlertTriangle or Wifi */}
-                     </div>
-                     <h3 className={`text-[15px] font-bold mb-2 ${reportType === "cyber" ? "text-slate-900" : "text-slate-500"}`}>Digital / Online Threat</h3>
-                     <p className="text-[11px] text-slate-500 font-medium leading-relaxed pr-2">Cyber stalking, digital harassment, or unauthorized access to sensitive accounts.</p>
-                   </button>
-
-                   {/* General Observation */}
-                   <button 
-                     onClick={() => setReportType("general")}
-                     className={`w-full text-left p-6 rounded-2xl border-2 transition-all relative ${reportType === "general" ? "border-slate-900 bg-white shadow-sm" : "border-slate-100 bg-white hover:border-slate-200"}`}
-                   >
-                     {reportType === "general" && (
-                        <div className="absolute top-5 right-5 w-5 h-5 bg-black rounded-full flex items-center justify-center">
-                           <Check className="w-3 h-3 text-white" />
-                        </div>
-                     )}
-                     <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-5 ${reportType === "general" ? "bg-[#1e293b] text-white" : "bg-slate-50 border border-slate-100 text-slate-400"}`}>
-                        <Shield className="w-5 h-5" />
-                     </div>
-                     <h3 className={`text-[15px] font-bold mb-2 ${reportType === "general" ? "text-slate-900" : "text-slate-500"}`}>General Observation</h3>
-                     <p className="text-[11px] text-slate-500 font-medium leading-relaxed pr-2">Suspicious activity or environmental hazards that require non-emergency monitoring.</p>
-                   </button>
-
+                   {[
+                     { id: "physical", title: "Physical Incident", desc: "Assault, physical harassment, theft, or real-world threats encountered." },
+                     { id: "cyber", title: "Digital / Online", desc: "Cyber stalking, digital harassment, or unauthorized access to accounts." },
+                     { id: "general", title: "Observation", desc: "Suspicious activity or environmental hazards that require monitoring." }
+                   ].map((type, i) => (
+                     <motion.button 
+                       key={type.id}
+                       initial={{ opacity: 0, x: -20 }}
+                       animate={{ opacity: 1, x: 0 }}
+                       transition={{ delay: i * 0.1 }}
+                       whileHover={{ scale: 1.02, y: -2 }}
+                       whileTap={{ scale: 0.98 }}
+                       onClick={() => setReportType(type.id as ReportType)}
+                       className={`w-full text-left p-6 rounded-[28px] border-2 transition-all relative group ${reportType === type.id ? "border-slate-900 bg-white shadow-xl shadow-slate-100" : "border-slate-50 bg-white hover:border-slate-100"}`}
+                     >
+                       <AnimatePresence>
+                         {reportType === type.id && (
+                            <motion.div 
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              exit={{ scale: 0 }}
+                              className="absolute top-6 right-6 w-5 h-5 bg-slate-900 rounded-full flex items-center justify-center"
+                            >
+                               <Check className="w-3 h-3 text-white" />
+                            </motion.div>
+                         )}
+                       </AnimatePresence>
+                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 transition-colors ${reportType === type.id ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-300 group-hover:text-slate-500"}`}>
+                          <Shield className="w-6 h-6" />
+                       </div>
+                       <h3 className={`text-[16px] font-black mb-2 transition-colors ${reportType === type.id ? "text-slate-900" : "text-slate-400"}`}>{type.title}</h3>
+                       <p className="text-[12px] text-slate-400 font-bold leading-relaxed">{type.desc}</p>
+                     </motion.button>
+                   ))}
                 </div>
              </div>
 
              {/* Right Column - Step 2 Details */}
-             <div className="flex-1 bg-white rounded-[24px] border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] p-8">
-                <h2 className="text-[17px] font-bold text-slate-900 mb-6">Step 2: Incident Details</h2>
+             <motion.div 
+               initial={{ opacity: 0, scale: 0.98 }}
+               animate={{ opacity: 1, scale: 1 }}
+               transition={{ delay: 0.3 }}
+               className="flex-1 bg-white rounded-[32px] border border-slate-50 shadow-[0_10px_40px_rgba(0,0,0,0.02)] p-10"
+             >
+                <h2 className="text-[17px] font-black text-slate-900 mb-8">Document Incident</h2>
                 
-                <div className="space-y-7">
+                <div className="space-y-8">
                    {/* Description */}
                    <div>
-                      <label className="block text-[13px] font-bold text-slate-700 mb-2">Incident Description</label>
+                      <label className="block text-[13px] font-black text-slate-700 mb-3 uppercase tracking-widest">Incident Description</label>
                       <textarea
                          value={description}
                          onChange={(e) => setDescription(e.target.value)}
-                         placeholder={reportType === "physical" ? "Describe the physical incident with as much detail as possible. What happened? Who was involved?" : "Describe the nature of the cyber threat, harassment, or unauthorized access..."}
-                         className="w-full h-36 p-4 rounded-xl border border-slate-200 text-[13px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-shadow resize-none"
+                         placeholder="Describe the incident with as much detail as possible..."
+                         className="w-full h-40 p-5 rounded-2xl border border-slate-100 bg-slate-50/30 text-[14px] text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-100 transition-all resize-none font-medium"
                       />
-                      <p className="text-[11px] text-slate-400 italic mt-2">Encryption: This data is end-to-end encrypted before storage.</p>
                    </div>
 
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       {/* Location */}
                       <div>
-                         <div className="flex items-center justify-between mb-2">
-                            <label className="text-[13px] font-bold text-slate-700">Location</label>
+                         <div className="flex items-center justify-between mb-3">
+                            <label className="text-[13px] font-black text-slate-700 uppercase tracking-widest">Location</label>
                             <div className="flex items-center gap-2">
-                               <span className="text-[11px] font-medium text-slate-400">Auto-detect</span>
+                               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Auto-detect</span>
                                <button 
                                  onClick={() => setAutoDetectLoc(!autoDetectLoc)}
                                  className={`w-8 h-[18px] rounded-full relative transition-colors ${autoDetectLoc ? "bg-slate-900" : "bg-slate-200"}`}
                                >
-                                  <div className={`w-[14px] h-[14px] bg-white rounded-full absolute top-[2px] shadow-sm transition-transform ${autoDetectLoc ? "left-4" : "left-0.5"}`} />
+                                  <motion.div 
+                                    animate={{ x: autoDetectLoc ? 16 : 2 }}
+                                    className="w-[14px] h-[14px] bg-white rounded-full absolute top-[2px] shadow-sm" 
+                                  />
                                </button>
                             </div>
                          </div>
                          <div className="relative">
-                            <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input 
                                type="text" 
                                value={locationStr}
                                onChange={(e) => setLocationStr(e.target.value)}
-                               placeholder={autoDetectLoc ? "34.0522° N, 118.2437° W" : "Enter location..."}
+                               placeholder={autoDetectLoc ? "Auto-detecting..." : "Enter location..."}
                                disabled={autoDetectLoc}
-                               className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-[13px] text-slate-900 bg-slate-50/50 focus:outline-none focus:border-slate-400 disabled:opacity-70"
+                               className="w-full pl-11 pr-4 py-4 rounded-2xl border border-slate-100 bg-slate-50/50 text-[13px] font-bold text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-50 transition-all"
                             />
                          </div>
                       </div>
 
                       {/* Time */}
                       <div>
-                         <label className="block text-[13px] font-bold text-slate-700 mb-2">Time of Incident</label>
+                         <label className="block text-[13px] font-black text-slate-700 mb-3 uppercase tracking-widest">Incident Time</label>
                          <div className="relative">
-                            <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input 
                                type="text" 
                                value={timeStr}
                                onChange={(e) => setTimeStr(e.target.value)}
-                               placeholder="05/20/2024 02:30 PM"
-                               className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-[13px] text-slate-900 focus:outline-none focus:border-slate-400"
+                               placeholder="Today, 02:30 PM"
+                               className="w-full pl-11 pr-4 py-4 rounded-2xl border border-slate-100 bg-slate-50/50 text-[13px] font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-50 transition-all"
                             />
                          </div>
                       </div>
@@ -268,88 +263,91 @@ const ReportPage = () => {
 
                    {/* Evidence Upload */}
                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                         <label className="text-[13px] font-bold text-slate-700">Evidence Upload <span className="font-normal text-slate-400">(Optional)</span></label>
-                         <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 bg-slate-50 px-2.5 py-1 rounded-md">
-                            <Shield className="w-3.5 h-3.5" /> Secured
+                      <div className="flex items-center justify-between mb-4">
+                         <label className="text-[13px] font-black text-slate-700 uppercase tracking-widest">Evidence Files</label>
+                         <div className="flex items-center gap-1.5 text-[10px] font-black text-teal-600 bg-teal-50 px-3 py-1 rounded-full border border-teal-100">
+                            <Shield className="w-3 h-3" /> Secure Upload
                          </div>
                       </div>
                       
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        accept="image/*,audio/*,video/*,application/pdf"
-                        onChange={handleFileChange}
-                        className="hidden"
-                      />
+                      <input ref={fileInputRef} type="file" multiple accept="image/*,audio/*,video/*,application/pdf" onChange={handleFileChange} className="hidden" />
 
-                      <div
+                      <motion.div
                         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
                         onDragLeave={() => setDragging(false)}
                         onDrop={handleDrop}
-                        className={`w-full rounded-2xl border-2 border-dashed p-8 flex flex-col items-center justify-center transition-colors ${dragging ? "border-slate-400 bg-slate-50" : "border-slate-200 bg-[#fafafa]"}`}
+                        whileHover={{ borderColor: "#cbd5e1" }}
+                        className={`w-full rounded-[24px] border-2 border-dashed p-10 flex flex-col items-center justify-center transition-all ${dragging ? "border-slate-900 bg-slate-50" : "border-slate-100 bg-slate-50/30"}`}
                       >
-                         <div className="w-12 h-12 bg-white shadow-sm border border-slate-100 rounded-xl flex items-center justify-center mb-4 text-slate-600">
-                            <Upload className="w-5 h-5" />
+                         <div className="w-14 h-14 bg-white shadow-xl shadow-slate-100 border border-slate-50 rounded-2xl flex items-center justify-center mb-5 text-slate-400 group-hover:text-slate-900 transition-colors">
+                            <Upload className="w-6 h-6" />
                          </div>
-                         <p className="text-[14px] font-bold text-slate-900 mb-1">Drag and drop media here</p>
-                         <p className="text-[12px] text-slate-500 font-medium mb-6 text-center max-w-[300px]">Support for Photos (JPG, PNG), Video (MP4), and Audio (WAV, MP3)</p>
+                         <p className="text-[14px] font-black text-slate-900 mb-1">Upload Media Evidence</p>
+                         <p className="text-[12px] text-slate-400 font-bold mb-8 text-center max-w-[280px]">Drop files here or use the secure camera</p>
                          
-                         <div className="flex items-center gap-3">
-                            <button onClick={handleFilePick} className="px-5 py-2.5 rounded-lg border border-slate-200 text-[12px] font-bold text-slate-700 bg-white shadow-sm hover:bg-slate-50 transition-colors">
+                         <div className="flex items-center gap-4">
+                            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleFilePick} className="px-6 py-3 rounded-xl border border-slate-200 text-[12px] font-black text-slate-700 bg-white shadow-sm hover:border-slate-300 transition-all">
                                Select Files
-                            </button>
-                            <button className="px-5 py-2.5 rounded-lg text-[12px] font-bold text-white bg-[#0f172a] shadow-sm hover:bg-black transition-colors flex items-center gap-2">
-                               <Camera className="w-3.5 h-3.5" /> Use AI Camera
-                            </button>
+                            </motion.button>
+                            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-6 py-3 rounded-xl text-[12px] font-black text-white bg-slate-900 shadow-xl shadow-slate-200 hover:bg-black transition-all flex items-center gap-2">
+                               <Camera className="w-4 h-4" /> AI Camera
+                            </motion.button>
                          </div>
-                      </div>
+                      </motion.div>
 
                       {/* File List */}
-                      {uploadedFiles.length > 0 && (
-                         <div className="mt-4 space-y-2">
-                            {uploadedFiles.map((uf) => {
-                               const Icon = getFileIcon(uf.file.type);
-                               return (
-                                 <div key={uf.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white shadow-sm">
-                                    {uf.previewUrl ? (
-                                      <img src={uf.previewUrl} alt={uf.file.name} className="w-10 h-10 object-cover rounded flex-shrink-0 border border-slate-100" />
-                                    ) : (
-                                      <div className="w-10 h-10 flex items-center justify-center rounded flex-shrink-0 bg-slate-100 text-slate-500">
-                                        <Icon className="w-5 h-5" />
+                      <AnimatePresence>
+                        {uploadedFiles.length > 0 && (
+                           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="mt-6 space-y-3">
+                              {uploadedFiles.map((uf) => {
+                                 const Icon = getFileIcon(uf.file.type);
+                                 return (
+                                   <motion.div 
+                                     key={uf.id} 
+                                     initial={{ opacity: 0, x: -10 }} 
+                                     animate={{ opacity: 1, x: 0 }}
+                                     className="flex items-center gap-4 p-4 rounded-2xl border border-slate-50 bg-white shadow-sm group"
+                                   >
+                                      {uf.previewUrl ? (
+                                        <img src={uf.previewUrl} alt={uf.file.name} className="w-11 h-11 object-cover rounded-xl flex-shrink-0 border border-slate-50 shadow-sm" />
+                                      ) : (
+                                        <div className="w-11 h-11 flex items-center justify-center rounded-xl flex-shrink-0 bg-slate-50 text-slate-400">
+                                          <Icon className="w-5 h-5" />
+                                        </div>
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-[13px] font-black text-slate-900 truncate">{uf.file.name}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{formatSize(uf.file.size)} • Encrypted</p>
                                       </div>
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-[12px] font-bold text-slate-900 truncate">{uf.file.name}</p>
-                                      <p className="text-[10px] text-slate-500">{formatSize(uf.file.size)}</p>
-                                    </div>
-                                    <button onClick={() => removeFile(uf.id)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                 </div>
-                               );
-                            })}
-                         </div>
-                      )}
+                                      <button onClick={() => removeFile(uf.id)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all">
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                   </motion.div>
+                                 );
+                              })}
+                           </motion.div>
+                        )}
+                      </AnimatePresence>
                    </div>
 
                    {/* Footer Actions */}
-                   <div className="flex items-center justify-between pt-6 border-t border-slate-100">
-                      <button className="text-[14px] font-bold text-slate-500 hover:text-slate-900 transition-colors">
+                   <div className="flex items-center justify-between pt-10 border-t border-slate-50">
+                      <button className="text-[13px] font-black text-slate-300 hover:text-slate-900 transition-colors uppercase tracking-widest">
                          Save Draft
                       </button>
-                      <button 
+                      <motion.button 
+                         whileHover={{ scale: 1.02 }}
+                         whileTap={{ scale: 0.98 }}
                          onClick={handleSubmit}
                          disabled={!description.trim() || submitting}
-                         className={`px-6 py-3.5 rounded-xl text-[14px] font-bold text-white transition-all flex items-center gap-2 ${(!description.trim() || submitting) ? "bg-slate-300 cursor-not-allowed" : "bg-black hover:bg-slate-900 shadow-md hover:shadow-lg"}`}
+                         className={`px-8 py-4 rounded-2xl text-[13px] font-black text-white transition-all flex items-center gap-3 shadow-xl ${(!description.trim() || submitting) ? "bg-slate-200 shadow-none cursor-not-allowed" : "bg-slate-900 hover:bg-black shadow-slate-200"}`}
                       >
                          {submitting ? "Processing..." : "Continue to Review"} <ChevronRight className="w-4 h-4" />
-                      </button>
+                      </motion.button>
                    </div>
                 </div>
 
-             </div>
+             </motion.div>
 
           </div>
         </div>

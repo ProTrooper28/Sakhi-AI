@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   MapPin, Navigation2, CheckCircle2, AlertTriangle, ShieldCheck, 
-  Phone, Search, Layers, X, Info, Zap, Shield
+  Phone, Search, Layers, X, Info, Zap, Shield, Asterisk
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
@@ -21,26 +21,7 @@ L.Icon.Default.mergeOptions({
 
 const FALLBACK_POINT: [number, number] = [19.0596, 72.8295]; // Default to Mumbai
 
-// ─── Mock Data Generators ────────────────────────────────────────────────────
-
-const generateHeatmap = (center: [number, number]) => {
-  return [
-    { pos: [center[0] + 0.005, center[1] + 0.003], level: "red", label: "High Risk Area" },
-    { pos: [center[0] - 0.004, center[1] + 0.008], level: "red", label: "Poorly Lit Zone" },
-    { pos: [center[0] + 0.002, center[1] - 0.006], level: "orange", label: "Moderate Activity" },
-    { pos: [center[0] - 0.007, center[1] - 0.002], level: "orange", label: "Developing Area" },
-    { pos: [center[0] + 0.008, center[1] - 0.001], level: "green", label: "Well Lit / Safe" },
-    { pos: [center[0] - 0.001, center[1] - 0.004], level: "green", label: "Secure Perimeter" },
-  ];
-};
-
-const COLORS = {
-  red: "rgba(239, 68, 68, 0.4)",
-  orange: "rgba(249, 115, 22, 0.4)",
-  green: "rgba(34, 197, 94, 0.25)",
-};
-
-// ─── Custom Icons ────────────────────────────────────────────────────────────
+// ─── Custom Icons with Animations ───────────────────────────────────────────
 
 function makeAvatarIcon(initial: string, colorClass: string) {
   return L.divIcon({
@@ -55,8 +36,9 @@ function makeUserIcon() {
   return L.divIcon({
     html: `
       <div class="relative flex items-center justify-center w-10 h-10">
-        <div class="absolute inset-0 bg-primary/30 rounded-full animate-ping"></div>
-        <div class="relative z-10 w-4 h-4 bg-primary border-[3px] border-white rounded-full shadow-lg mt-0.5 ml-0.5"></div>
+        <div class="absolute inset-0 bg-teal-500/30 rounded-full animate-ping"></div>
+        <div class="absolute inset-0 bg-teal-500/20 rounded-full animate-pulse scale-150"></div>
+        <div class="relative z-10 w-4 h-4 bg-teal-600 border-[3px] border-white rounded-full shadow-lg"></div>
       </div>
     `,
     className: "",
@@ -66,7 +48,7 @@ function makeUserIcon() {
 }
 
 const destIcon = L.divIcon({
-  html: `<div class="bg-foreground text-background w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 border-white"><MapPin size={16} /></div>`,
+  html: `<div class="bg-slate-900 text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg border-2 border-white"><div class="w-2 h-2 bg-white rounded-full"></div></div>`,
   className: "",
   iconSize: [32, 32],
   iconAnchor: [16, 32],
@@ -84,7 +66,6 @@ const RiskMapPage = () => {
   const navigate = useNavigate();
   const { triggerSOS, locationState, requestLocation } = useApp();
   
-  // Navigation & State
   const [navMode, setNavMode] = useState<'browsing' | 'routing' | 'tracking'>('browsing');
   const [showHeatmap, setShowHeatmap] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -94,10 +75,13 @@ const RiskMapPage = () => {
     locationState.coords ? [locationState.coords.lat, locationState.coords.lng] : FALLBACK_POINT
   , [locationState.coords]);
 
-  // Heatmap Data
-  const heatmapData = useMemo(() => generateHeatmap(currentPos), [currentPos]);
+  const heatmapData = useMemo(() => [
+    { pos: [currentPos[0] + 0.005, currentPos[1] + 0.003], level: "red" },
+    { pos: [currentPos[0] - 0.004, currentPos[1] + 0.008], level: "red" },
+    { pos: [currentPos[0] + 0.002, currentPos[1] - 0.006], level: "orange" },
+    { pos: [currentPos[0] + 0.008, currentPos[1] - 0.001], level: "green" },
+  ], [currentPos]);
 
-  // Initial Map Setup
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
 
@@ -108,22 +92,10 @@ const RiskMapPage = () => {
       attributionControl: false,
     });
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19,
-    }).addTo(map);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
 
-    // Initial User Marker
     const marker = L.marker(currentPos, { icon: makeUserIcon(), zIndexOffset: 1000 }).addTo(map);
     userMarkerRef.current = marker;
-
-    // Contact Markers
-    const contacts = [
-      { id: "c1", lat: currentPos[0] + 0.003, lng: currentPos[1] - 0.002, initial: "P", color: "bg-blue-500" },
-      { id: "c2", lat: currentPos[0] - 0.002, lng: currentPos[1] + 0.004, initial: "M", color: "bg-purple-500" },
-    ];
-    contacts.forEach((contact) => {
-      L.marker([contact.lat, contact.lng], { icon: makeAvatarIcon(contact.initial, contact.color) }).addTo(map);
-    });
 
     heatmapLayerRef.current = L.layerGroup().addTo(map);
     routeLayerRef.current = L.layerGroup().addTo(map);
@@ -135,278 +107,146 @@ const RiskMapPage = () => {
     };
   }, []);
 
-  // Update Heatmap Toggle
   useEffect(() => {
     if (!heatmapLayerRef.current) return;
     heatmapLayerRef.current.clearLayers();
-    
     if (showHeatmap) {
       heatmapData.forEach((zone) => {
         L.circle(zone.pos as [number, number], {
           radius: 350,
           color: "transparent",
-          fillColor: COLORS[zone.level as keyof typeof COLORS],
-          fillOpacity: 1,
-          weight: 0,
+          fillColor: zone.level === 'red' ? '#ef4444' : zone.level === 'orange' ? '#f97316' : '#22c55e',
+          fillOpacity: 0.15,
         }).addTo(heatmapLayerRef.current!);
       });
     }
   }, [showHeatmap, heatmapData]);
 
-  // Update Position Tracking
-  useEffect(() => {
-    if (navMode !== 'tracking' || !mapRef.current || !locationState.coords) return;
-    const newPoint = [locationState.coords.lat, locationState.coords.lng] as [number, number];
-    mapRef.current.panTo(newPoint, { animate: true, duration: 1 });
-    if (userMarkerRef.current) userMarkerRef.current.setLatLng(newPoint);
-  }, [locationState.coords, navMode]);
-
-  // ── Handling Search / Routing Simulation ──
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-    
     setNavMode('routing');
-    
     if (!routeLayerRef.current || !mapRef.current) return;
     routeLayerRef.current.clearLayers();
 
-    const dest: [number, number] = [currentPos[0] + 0.012, currentPos[1] + 0.008];
-    
-    // Render Destination Marker
+    const dest: [number, number] = [currentPos[0] + 0.01, currentPos[1] + 0.01];
     L.marker(dest, { icon: destIcon }).addTo(routeLayerRef.current);
 
-    // Fastest Route (Through Red Zone)
-    const fastestPath: [number, number][] = [
-      currentPos,
-      [currentPos[0] + 0.006, currentPos[1] + 0.004],
-      dest
-    ];
+    const path: [number, number][] = [currentPos, [currentPos[0] + 0.005, currentPos[1] + 0.005], dest];
+    L.polyline(path, { color: selectedRoute === 'safest' ? '#14b8a6' : '#ef4444', weight: 6, opacity: 0.8 }).addTo(routeLayerRef.current);
     
-    // Safest Route (Avoiding zones)
-    const safestPath: [number, number][] = [
-      currentPos,
-      [currentPos[0] + 0.002, currentPos[1] + 0.009],
-      dest
-    ];
-
-    // Render Routes
-    const fastestPoly = L.polyline(fastestPath, { 
-      color: "hsl(var(--sos))", 
-      weight: 6, 
-      opacity: selectedRoute === 'fastest' ? 0.8 : 0.2,
-      dashArray: "10, 10"
-    }).addTo(routeLayerRef.current);
-
-    const safestPoly = L.polyline(safestPath, { 
-      color: "hsl(var(--safe))", 
-      weight: 8, 
-      opacity: selectedRoute === 'safest' ? 1 : 0.3
-    }).addTo(routeLayerRef.current);
-
-    mapRef.current.fitBounds(safestPoly.getBounds(), { padding: [50, 50] });
-    
-    toast({
-      title: "Routes Calculated",
-      description: "Found a safest path avoiding high-risk zones.",
-    });
-  };
-
-  useEffect(() => {
-    if (navMode === 'routing') {
-      handleSearch({ preventDefault: () => {} } as any);
-    }
-  }, [selectedRoute]);
-
-  const toggleHeatmap = () => setShowHeatmap(!showHeatmap);
-  
-  const startTracking = () => {
-    setNavMode('tracking');
-    routeLayerRef.current?.clearLayers();
-    toast({
-      title: "Safe Journey Started",
-      description: "Sakhi is now monitoring your route in real-time.",
-    });
-  };
-
-  const endJourney = () => {
-    setNavMode('browsing');
-    toast({
-      title: "Journey Ended",
-      description: "Live tracking has been securely stopped.",
-    });
+    mapRef.current.fitBounds(L.polyline(path).getBounds(), { padding: [50, 50] });
   };
 
   return (
     <AppLayout>
-    <div className="relative overflow-hidden bg-background" style={{ height: "calc(100vh - 64px)" }}>
-      
-      {/* ─── Map Surface ──────────────────────────────────────────────────── */}
-      <div ref={containerRef} className="absolute inset-0 z-0" />
+      <div className="relative overflow-hidden bg-[#fcfcfd]" style={{ height: "calc(100vh - 0px)" }}>
+        <div ref={containerRef} className="absolute inset-0 z-0" />
 
-      {/* ─── Top Interface Overlay ────────────────────────────────────────── */}
-      <div className="absolute top-0 left-0 right-0 z-20 pt-10 px-5 space-y-3 pointer-events-none">
-        
-        {/* Search Bar */}
-        <div className="max-w-md mx-auto pointer-events-auto">
-          <form onSubmit={handleSearch} className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-            <input 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search safe address..."
-              className="w-full bg-card/90 backdrop-blur-xl border border-border/50 rounded-full pl-11 pr-5 py-3.5 text-sm font-bold shadow-lg focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-            />
-          </form>
+        {/* Top Interface */}
+        <div className="absolute top-0 left-0 right-0 z-20 pt-10 px-8 flex flex-col items-center gap-4 pointer-events-none">
+           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md pointer-events-auto">
+             <form onSubmit={handleSearch} className="relative group">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Enter destination..."
+                  className="w-full bg-white border border-slate-100 rounded-full pl-14 pr-6 py-4 text-sm font-bold shadow-2xl focus:outline-none transition-all"
+                />
+             </form>
+           </motion.div>
+
+           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3 pointer-events-auto">
+              <button 
+                onClick={() => setShowHeatmap(!showHeatmap)}
+                className={`px-5 py-2.5 rounded-full border text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-xl backdrop-blur-md ${showHeatmap ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-900 border-slate-100"}`}
+              >
+                <Layers className="w-3.5 h-3.5 inline mr-2" /> Heatmap
+              </button>
+              <div className="bg-white px-5 py-2.5 rounded-full border border-slate-100 shadow-xl flex items-center gap-2 backdrop-blur-md">
+                 <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="w-2 h-2 rounded-full bg-teal-500" />
+                 <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">GPS Locked</span>
+              </div>
+           </motion.div>
         </div>
 
-        {/* Global Controls Row */}
-        <div className="flex justify-between items-start max-w-lg mx-auto pointer-events-auto">
-          <button 
-             onClick={toggleHeatmap}
-             className={`flex items-center gap-2 px-4 py-2.5 rounded-full border shadow-md transition-all font-bold text-[10px] uppercase tracking-wider backdrop-blur-md
-                        ${showHeatmap ? 'bg-foreground text-background border-foreground' : 'bg-card/90 text-foreground border-border/50'}`}
-          >
-             <Layers className="w-3.5 h-3.5" />
-             Heatmap {showHeatmap ? 'ON' : 'OFF'}
-          </button>
+        {/* Floating SOS Button */}
+        <div className="absolute top-1/2 right-8 -translate-y-1/2 z-30">
+           <motion.button 
+             whileHover={{ scale: 1.1 }}
+             whileTap={{ scale: 0.9 }}
+             animate={{ 
+               scale: [1, 1.05, 1],
+               boxShadow: ["0 10px 30px rgba(239,68,68,0.2)", "0 10px 50px rgba(239,68,68,0.4)", "0 10px 30px rgba(239,68,68,0.2)"]
+             }}
+             transition={{ repeat: Infinity, duration: 3 }}
+             onClick={() => { triggerSOS(); navigate("/sos"); }}
+             className="w-16 h-16 bg-red-500 text-white rounded-full flex items-center justify-center shadow-2xl border-4 border-white"
+           >
+              <Asterisk className="w-8 h-8" />
+           </motion.button>
+        </div>
 
-          {navMode === 'browsing' && (
-            <div className="bg-card/90 backdrop-blur-md shadow-sm border border-border/50 rounded-full px-4 py-2 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-safe animate-pulse" />
-              <span className="text-[10px] font-bold text-foreground tracking-wide uppercase">
-                 {locationState.loading ? "Locating..." : "GPS Active"}
-              </span>
-            </div>
-          )}
+        {/* Bottom Sheets */}
+        <div className="absolute bottom-[4.5rem] left-0 right-0 z-40 px-8 pb-4">
+           <AnimatePresence>
+             {navMode === 'routing' && (
+               <motion.div 
+                 initial={{ y: 100, opacity: 0 }}
+                 animate={{ y: 0, opacity: 1 }}
+                 exit={{ y: 100, opacity: 0 }}
+                 className="max-w-[700px] mx-auto bg-white rounded-[32px] p-8 shadow-2xl border border-slate-50 flex flex-col gap-6"
+               >
+                  <div className="flex items-center justify-between">
+                     <div>
+                        <h2 className="text-xl font-black text-slate-900 tracking-tight">Select Route</h2>
+                        <p className="text-[13px] font-bold text-slate-400">Choose the safest path for your journey</p>
+                     </div>
+                     <button onClick={() => setNavMode('browsing')} className="text-slate-300 hover:text-slate-900 transition-colors"><X className="w-6 h-6" /></button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                     <motion.button 
+                        whileHover={{ y: -2 }}
+                        onClick={() => setSelectedRoute('safest')}
+                        className={`text-left p-6 rounded-[24px] border-2 transition-all ${selectedRoute === 'safest' ? "border-teal-500 bg-teal-50/30 shadow-inner" : "border-slate-50 hover:border-slate-100"}`}
+                     >
+                        <div className="flex items-center gap-2 mb-3">
+                           <Shield className="w-4 h-4 text-teal-600" />
+                           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-600">Safest</span>
+                        </div>
+                        <p className="text-2xl font-black text-slate-900">12 min</p>
+                        <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Score: 98%</p>
+                     </motion.button>
+
+                     <motion.button 
+                        whileHover={{ y: -2 }}
+                        onClick={() => setSelectedRoute('fastest')}
+                        className={`text-left p-6 rounded-[24px] border-2 transition-all ${selectedRoute === 'fastest' ? "border-red-500 bg-red-50/30 shadow-inner" : "border-slate-50 hover:border-slate-100"}`}
+                     >
+                        <div className="flex items-center gap-2 mb-3">
+                           <Zap className="w-4 h-4 text-red-600" />
+                           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600">Fastest</span>
+                        </div>
+                        <p className="text-2xl font-black text-slate-900">8 min</p>
+                        <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Risk: High</p>
+                     </motion.button>
+                  </div>
+
+                  <motion.button 
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => { setNavMode('tracking'); toast({ title: "Safe Journey Started", description: "Monitoring your path in real-time." }); }}
+                    className="w-full py-4 bg-slate-900 text-white font-black text-[14px] rounded-2xl shadow-xl shadow-slate-200 flex items-center justify-center gap-3"
+                  >
+                     Start Live Navigation <Navigation2 className="w-4 h-4" />
+                  </motion.button>
+               </motion.div>
+             )}
+           </AnimatePresence>
         </div>
       </div>
-
-      {/* ─── Floating SOS ─────────────────────────────────────────────────── */}
-      <div className="absolute top-1/2 right-4 -translate-y-1/2 z-[100] pointer-events-auto">
-         <button 
-           onClick={() => {
-             console.log("🚨 SOS Triggered from Map");
-             triggerSOS();
-             navigate("/sos");
-           }}
-           className="bg-sos text-white w-14 h-14 rounded-full shadow-[0_8px_30px_rgba(220,38,38,0.4)] flex items-center justify-center hover:scale-[1.1] active:scale-90 transition-all duration-300 border-4 border-background cursor-pointer"
-         >
-           <AlertTriangle className="w-6 h-6" />
-         </button>
-      </div>
-
-      {/* ─── Context Insight Tooltips ─────────────────────────────────────── */}
-      <AnimatePresence>
-         {navMode === 'tracking' && (
-            <motion.div 
-               initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-               className="absolute top-[25%] left-[20%] z-10 pointer-events-none"
-            >
-               <div className="bg-card/90 backdrop-blur px-3 py-1.5 rounded-xl border border-border/50 shadow-sm flex items-center gap-2">
-                  <Zap className="w-3 h-3 text-orange-500 fill-orange-500" />
-                  <span className="text-[9px] font-bold text-foreground uppercase tracking-wider">Well-Lit Area</span>
-               </div>
-            </motion.div>
-         )}
-      </AnimatePresence>
-
-      {/* ─── Bottom Sheets ────────────────────────────────────────────────── */}
-      <div className="absolute bottom-[4.5rem] left-0 right-0 z-20 px-4 pb-4">
-        <AnimatePresence mode="wait">
-          
-          {/* 1. ROUTE SELECTION CARD */}
-          {navMode === 'routing' && (
-            <motion.div 
-              initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
-              className="bg-card shadow-2xl border border-border/80 rounded-[2rem] p-6 w-full flex flex-col gap-5"
-            >
-               <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-bold text-foreground">Navigate Safely</h2>
-                    <p className="text-xs font-medium text-muted-foreground">Select your preferred path</p>
-                  </div>
-                  <button onClick={() => setNavMode('browsing')} className="p-2 bg-muted rounded-full text-muted-foreground"><X size={16} /></button>
-               </div>
-
-               <div className="grid grid-cols-2 gap-4">
-                  <button 
-                    onClick={() => setSelectedRoute('safest')}
-                    className={`text-left p-4 rounded-2xl border-2 transition-all cursor-pointer ${selectedRoute === 'safest' ? 'border-safe bg-safe/5 shadow-inner' : 'border-border/60'}`}
-                  >
-                     <div className="flex items-center gap-2 mb-2">
-                        <Shield className="w-4 h-4 text-safe" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-safe">Safest</span>
-                     </div>
-                     <p className="text-xl font-bold text-foreground leading-none">12 <span className="text-sm">min</span></p>
-                     <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase tracking-wider">Safety Score: 98%</p>
-                  </button>
-
-                  <button 
-                    onClick={() => setSelectedRoute('fastest')}
-                    className={`text-left p-4 rounded-2xl border-2 transition-all cursor-pointer ${selectedRoute === 'fastest' ? 'border-sos bg-sos/5 shadow-inner' : 'border-border/60'}`}
-                  >
-                     <div className="flex items-center gap-2 mb-2">
-                        <Zap className="w-4 h-4 text-sos" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-sos">Fastest</span>
-                     </div>
-                     <p className="text-xl font-bold text-foreground leading-none">8 <span className="text-sm">min</span></p>
-                     <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase tracking-wider">Risk Level: High</p>
-                  </button>
-               </div>
-
-               <button 
-                 onClick={startTracking}
-                 className="w-full py-4 bg-foreground text-background font-bold text-[16px] rounded-full hover:scale-[1.02] transition-all shadow-xl active:scale-[0.97] flex items-center justify-center gap-2 cursor-pointer"
-               >
-                  Start Safe Journey <Navigation2 className="w-4 h-4" />
-               </button>
-            </motion.div>
-          )}
-
-          {/* 2. TRACKING STATUS CARD */}
-          {navMode === 'tracking' && (
-            <motion.div 
-              initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
-              className="bg-card shadow-2xl border border-border/80 rounded-[2rem] p-6 w-full flex flex-col gap-5"
-            >
-               <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                       <ShieldCheck className="w-5 h-5 text-safe" />
-                       <h2 className="text-base font-bold text-foreground">Tracking Active</h2>
-                    </div>
-                    <p className="text-xs font-medium text-muted-foreground">Monitoring your environment in real-time</p>
-                  </div>
-                  <div className={`px-4 py-2 rounded-full font-bold text-xs ${selectedRoute === 'safest' ? 'bg-safe/10 text-safe' : 'bg-sos/10 text-sos'}`}>
-                     {selectedRoute === 'safest' ? 'SAFE ROUTE ACTIVE' : 'CAUTION: FAST ROUTE'}
-                  </div>
-               </div>
-
-               <div className="flex items-center gap-4 bg-muted/60 rounded-2xl p-4 border border-border/50">
-                  <div className="w-10 h-10 bg-card rounded-xl flex items-center justify-center shadow-sm">
-                     <Info className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1">
-                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Live Insight</p>
-                     <p className="text-xs font-bold text-foreground">Area has high footfall and good lighting.</p>
-                  </div>
-               </div>
-
-               <button 
-                 onClick={endJourney}
-                 className="w-full py-4 bg-muted text-foreground font-bold text-[15px] rounded-full hover:scale-[1.02] active:scale-[0.97] transition-all cursor-pointer"
-               >
-                  End Journey
-               </button>
-            </motion.div>
-          )}
-
-        </AnimatePresence>
-      </div>
-
-    </div>
     </AppLayout>
   );
 };

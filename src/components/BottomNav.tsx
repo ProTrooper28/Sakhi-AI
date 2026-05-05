@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, Map, MessageSquare, ShieldCheck, Asterisk } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { motion } from "framer-motion";
 
 const navItems = [
   { icon: Home,         path: "/home",           label: "Home" },
@@ -28,12 +29,27 @@ const BottomNav = () => {
           if (item.icon === "FAB") {
             return (
               <div key="sos-fab" className="relative flex-1 flex justify-center pointer-events-none">
-                <button
+                <motion.button
                   onClick={handleSOSClick}
-                  className="absolute bottom-4 w-[4.2rem] h-[4.2rem] bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-red-200 transition-all duration-300 hover:scale-105 active:scale-90 pointer-events-auto z-[60] border-4 border-white"
+                  animate={{ 
+                    scale: [1, 1.05, 1],
+                    boxShadow: [
+                      "0 0 0px rgba(239, 68, 68, 0)",
+                      "0 0 20px rgba(239, 68, 68, 0.3)",
+                      "0 0 0px rgba(239, 68, 68, 0)"
+                    ]
+                  }}
+                  transition={{ 
+                    duration: 3, 
+                    repeat: Infinity, 
+                    ease: "easeInOut" 
+                  }}
+                  whileHover={{ scale: 1.1, backgroundColor: "#dc2626" }}
+                  whileTap={{ scale: 0.9 }}
+                  className="absolute bottom-4 w-[4.2rem] h-[4.2rem] bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg shadow-red-200 transition-colors pointer-events-auto z-[60] border-4 border-white"
                 >
                   <Asterisk className="w-8 h-8" />
-                </button>
+                </motion.button>
               </div>
             );
           }
@@ -45,16 +61,23 @@ const BottomNav = () => {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className="flex-1 flex flex-col justify-center items-center h-full gap-1 transition-all duration-250 pointer-events-auto"
+              className="flex-1 flex flex-col justify-center items-center h-full gap-1 transition-all duration-250 pointer-events-auto group"
             >
-              <div className={`p-2 rounded-xl transition-all duration-300 ${active ? "text-slate-900" : "text-slate-400 hover:text-slate-600"}`}>
+              <motion.div 
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                className={`p-2 rounded-xl transition-all duration-300 ${active ? "text-slate-900" : "text-slate-400 group-hover:text-slate-600"}`}
+              >
                 <IconComp className="w-5 h-5" strokeWidth={active ? 2.5 : 2} />
-              </div>
+              </motion.div>
               <span className={`text-[9px] font-bold tracking-tight ${active ? "text-slate-900" : "text-slate-400"}`}>
                 {item.label}
               </span>
               {active && (
-                 <div className="absolute bottom-2 w-1 h-1 bg-slate-900 rounded-full" />
+                 <motion.div 
+                   layoutId="nav-dot"
+                   className="absolute bottom-2 w-1.5 h-1.5 bg-slate-900 rounded-full" 
+                 />
               )}
             </button>
           );

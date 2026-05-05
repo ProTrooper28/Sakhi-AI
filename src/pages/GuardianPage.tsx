@@ -1,372 +1,265 @@
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Bell, Settings, LayoutDashboard, Map as MapIcon, Users, Brain, Activity, 
-  Plus, HelpCircle, FileText, Phone, Navigation, MessageSquare, 
-  Video, MapPin, ShieldAlert, AlertTriangle, CheckCircle2, Play, Search, LogOut
-} from "lucide-react";
-import { useApp } from "@/context/AppContext";
+import { useState, useEffect } from "react";
+import { MapPin, Shield, Phone, MessageSquare, AlertCircle, Clock, Navigation, CheckCircle2, MoreVertical, Menu, Search, Filter, RefreshCw, Radio } from "lucide-react";
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import AppLayout from "@/components/AppLayout";
+import { motion, AnimatePresence } from "framer-motion";
 
-// Fix marker icons
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl:       "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+// Custom Marker for User
+const createUserMarker = () => L.divIcon({
+  className: "custom-user-marker",
+  html: `<div class="relative">
+          <div class="absolute inset-0 w-8 h-8 bg-teal-500/30 rounded-full animate-ping"></div>
+          <div class="relative w-8 h-8 bg-teal-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center">
+            <div class="w-3 h-3 bg-white rounded-full"></div>
+          </div>
+         </div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16]
 });
 
-// Blinking red marker icon
-const makePulseIcon = () =>
-  L.divIcon({
-    html: `
-      <div style="position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center;">
-        <div style="
-          position:absolute;width:24px;height:24px;border-radius:50%;
-          background:rgba(239,68,68,0.25);
-          animation:guardian-ping 1.2s ease-out infinite;
-        "></div>
-        <div style="
-          width:12px;height:12px;border-radius:50%;
-          background:#ef4444;
-          border:2px solid rgba(255,255,255,0.8);
-          box-shadow:0 0 8px rgba(239,68,68,0.8);
-        "></div>
-      </div>
-    `,
-    className: "",
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-  });
-
-if (typeof document !== "undefined") {
-  const style = document.createElement("style");
-  style.textContent = `
-    @keyframes guardian-ping {
-      0%   { transform: scale(1);   opacity: 0.8; }
-      100% { transform: scale(2.5); opacity: 0;   }
-    }
-    @keyframes radar-spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-  `;
-  document.head.appendChild(style);
-}
+// Custom Marker for Guardians
+const createGuardianMarker = (color: string) => L.divIcon({
+  className: "custom-guardian-marker",
+  html: `<div class="relative">
+          <div class="w-10 h-10 ${color} rounded-2xl border-2 border-white shadow-xl flex items-center justify-center text-white font-black text-xs">G</div>
+          <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white"></div>
+         </div>`,
+  iconSize: [40, 40],
+  iconAnchor: [20, 40]
+});
 
 const GuardianPage = () => {
-  const { sosState } = useApp();
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapRef          = useRef<L.Map | null>(null);
-  const markerRef       = useRef<L.Marker | null>(null);
+  const [activeTab, setActiveTab] = useState<"active" | "requests">("active");
+  const [selectedGuardian, setSelectedGuardian] = useState<any>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const centerLat = sosState?.coords?.lat || 28.5700;
-  const centerLng = sosState?.coords?.lng || 77.3200;
+  const guardians = [
+    { id: 1, name: "Priya Sharma", role: "Primary Guardian", status: "Online", distance: "0.8 km", battery: "84%", lat: 28.5355, lng: 77.3910, color: "bg-teal-600", lastSeen: "Just now" },
+    { id: 2, name: "Rahul Singh", role: "Emergency Contact", status: "En Route", distance: "1.2 km", battery: "92%", lat: 28.5450, lng: 77.4000, color: "bg-blue-600", lastSeen: "2m ago" },
+    { id: 3, name: "Security Team", role: "Response Team", status: "Monitoring", distance: "2.5 km", battery: "100%", lat: 28.5200, lng: 77.3800, color: "bg-slate-900", lastSeen: "Live" }
+  ];
 
-  useEffect(() => {
-    if (!mapContainerRef.current) return;
-
-    if (!mapRef.current) {
-      const map = L.map(mapContainerRef.current, {
-        center: [centerLat, centerLng],
-        zoom: 15,
-        zoomControl: false,
-        attributionControl: false,
-      });
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-        maxZoom: 19,
-      }).addTo(map);
-      
-      const marker = L.marker([centerLat, centerLng], { icon: makePulseIcon() }).addTo(map);
-      
-      mapRef.current = map;
-      markerRef.current = marker;
-    } else {
-      mapRef.current.setView([centerLat, centerLng], 15);
-      if (markerRef.current) markerRef.current.setLatLng([centerLat, centerLng]);
-    }
-  }, [centerLat, centerLng]);
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => setIsRefreshing(false), 1500);
+  };
 
   return (
-    <div className="flex h-screen bg-[#fcfcfd] text-slate-700 overflow-hidden" style={{ fontFamily: "Manrope, sans-serif" }}>
-      
-      {/* Sidebar - Light Redesign */}
-      <div className="w-[280px] bg-white border-r border-slate-100 flex flex-col shrink-0 z-20">
-         <div className="p-8 pb-6">
-            <div className="flex items-center gap-2 mb-2">
-               <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
-                  <ShieldAlert className="w-5 h-5 text-white" />
-               </div>
-               <h2 className="text-xl font-black text-slate-900 tracking-tight">Sakhi Guardian</h2>
-            </div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pl-10">Live Command Center</p>
-         </div>
-
-         <div className="flex-1 px-4 py-2 space-y-1">
-            <button className="w-full flex items-center gap-3 px-4 py-3 bg-slate-900 text-white rounded-2xl font-bold text-[13px] shadow-lg shadow-slate-200 transition-all">
-               <LayoutDashboard className="w-4 h-4" /> Dashboard
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-2xl font-bold text-[13px] transition-all">
-               <MapIcon className="w-4 h-4" /> Live Heatmap
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-2xl font-bold text-[13px] transition-all">
-               <Users className="w-4 h-4" /> Team Coordination
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-2xl font-bold text-[13px] transition-all">
-               <Brain className="w-4 h-4" /> Threat Analysis
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-2xl font-bold text-[13px] transition-all">
-               <Activity className="w-4 h-4" /> System Health
-            </button>
-         </div>
-
-         <div className="p-6">
-            <button className="w-full flex items-center justify-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-900 px-4 py-4 rounded-[20px] text-[13px] font-black transition-colors">
-               <Plus className="w-4 h-4" /> New Coordination
-            </button>
-         </div>
-
-         <div className="p-6 border-t border-slate-50 space-y-1">
-            <button className="w-full flex items-center gap-3 px-4 py-2 text-slate-400 hover:text-slate-900 rounded-lg text-[12px] font-bold transition-all">
-               <HelpCircle className="w-4 h-4" /> Knowledge Base
-            </button>
-            <button className="w-full flex items-center gap-3 px-4 py-2 text-slate-400 hover:text-slate-900 rounded-lg text-[12px] font-bold transition-all">
-               <FileText className="w-4 h-4" /> Export Logs
-            </button>
-         </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <AppLayout>
+      <div className="flex h-screen bg-[#fcfcfd] overflow-hidden">
         
-        {/* Top Navbar - Light */}
-        <header className="h-20 flex items-center justify-between px-10 bg-white border-b border-slate-100 shrink-0">
-           <div className="flex items-center gap-8">
-              <div className="relative group">
-                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
-                 <input placeholder="Search protected ID..." className="bg-slate-50 border border-slate-100 rounded-full pl-10 pr-4 py-2 text-[13px] font-medium w-64 outline-none focus:ring-2 focus:ring-slate-100 transition-all" />
-              </div>
-           </div>
-           
-           <div className="flex items-center gap-6">
-              <div className="flex items-center gap-4 border-r border-slate-100 pr-6">
-                 <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-                    <span className="text-[10px] font-black tracking-widest text-red-500 uppercase">Emergency Active</span>
+        {/* ── Left Sidebar (List) ── */}
+        <motion.div 
+          initial={{ x: -20, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          className="w-full md:w-[420px] bg-white border-r border-slate-100 flex flex-col z-30 shadow-2xl relative"
+        >
+          {/* Header */}
+          <div className="p-8 border-b border-slate-50">
+            <div className="flex items-center justify-between mb-8">
+               <h1 className="text-2xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "Manrope, sans-serif" }}>Guardians</h1>
+               <motion.button 
+                 whileHover={{ scale: 1.1, rotate: 180 }}
+                 whileTap={{ scale: 0.9 }}
+                 onClick={handleRefresh}
+                 className="text-slate-400 hover:text-slate-900 transition-all"
+               >
+                 <RefreshCw className={`w-5 h-5 ${isRefreshing ? "animate-spin" : ""}`} />
+               </motion.button>
+            </div>
+
+            {/* Search */}
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
+              <input 
+                placeholder="Search your network..." 
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3.5 pl-11 pr-4 text-sm font-bold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-100 transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex px-8 mt-6 gap-6 border-b border-slate-50">
+             <button 
+               onClick={() => setActiveTab("active")}
+               className={`pb-4 text-[13px] font-black tracking-widest uppercase transition-all relative ${activeTab === "active" ? "text-slate-900" : "text-slate-400 hover:text-slate-600"}`}
+             >
+               Active (3)
+               {activeTab === "active" && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900 rounded-t-full" />}
+             </button>
+             <button 
+               onClick={() => setActiveTab("requests")}
+               className={`pb-4 text-[13px] font-black tracking-widest uppercase transition-all relative ${activeTab === "requests" ? "text-slate-900" : "text-slate-400 hover:text-slate-600"}`}
+             >
+               Requests
+               {activeTab === "requests" && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900 rounded-t-full" />}
+             </button>
+          </div>
+
+          {/* Guardian List */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+             <AnimatePresence>
+               {activeTab === "active" ? (
+                 guardians.map((g, i) => (
+                   <motion.div 
+                     key={g.id}
+                     initial={{ opacity: 0, y: 10 }}
+                     animate={{ opacity: 1, y: 0 }}
+                     transition={{ delay: i * 0.1 }}
+                     whileHover={{ x: 4, backgroundColor: "#f8fafc" }}
+                     onClick={() => setSelectedGuardian(g)}
+                     className={`p-5 rounded-[28px] border cursor-pointer transition-all ${selectedGuardian?.id === g.id ? "bg-slate-50 border-slate-200 shadow-sm" : "bg-white border-transparent"}`}
+                   >
+                     <div className="flex items-center gap-5">
+                       <div className={`w-14 h-14 rounded-2xl ${g.color} flex items-center justify-center text-white font-black text-xl shadow-lg`}>
+                         {g.name[0]}
+                       </div>
+                       <div className="flex-1">
+                         <div className="flex items-center justify-between mb-1">
+                           <h3 className="font-black text-slate-900 text-[15px]">{g.name}</h3>
+                           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-full border border-slate-100">
+                             <div className={`w-1.5 h-1.5 rounded-full ${g.status === "Online" ? "bg-green-500" : g.status === "En Route" ? "bg-blue-500" : "bg-slate-400"} animate-pulse`} />
+                             <span className="text-[10px] font-black text-slate-600 uppercase tracking-wider">{g.status}</span>
+                           </div>
+                         </div>
+                         <p className="text-slate-500 text-[12px] font-bold">{g.role}</p>
+                         <div className="flex items-center gap-4 mt-3">
+                            <span className="flex items-center gap-1 text-[11px] font-black text-slate-400"><MapPin className="w-3 h-3" /> {g.distance}</span>
+                            <span className="flex items-center gap-1 text-[11px] font-black text-slate-400"><Clock className="w-3 h-3" /> {g.lastSeen}</span>
+                         </div>
+                       </div>
+                     </div>
+                   </motion.div>
+                 ))
+               ) : (
+                 <div className="flex flex-col items-center justify-center h-64 text-center p-8">
+                   <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100 text-slate-300">
+                      <Users className="w-8 h-8" />
+                   </div>
+                   <p className="text-slate-900 font-black text-[15px] mb-1">No pending requests</p>
+                   <p className="text-slate-400 font-bold text-[13px]">When people ask to follow you, they'll appear here.</p>
                  </div>
-                 <button className="bg-red-500 hover:bg-red-600 text-white text-[11px] font-black tracking-widest uppercase px-5 py-2.5 rounded-full shadow-lg shadow-red-200 transition-all active:scale-95">
-                    DEPLOY INTERVENTION
-                 </button>
-              </div>
-              
-              <div className="flex items-center gap-4">
-                 <button className="w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-colors relative">
-                    <Bell className="w-5 h-5" />
-                    <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
-                 </button>
-                 <div className="w-10 h-10 rounded-full bg-slate-100 border-2 border-white overflow-hidden shadow-sm">
-                    <img src="https://ui-avatars.com/api/?name=Admin&background=0F172A&color=fff" alt="Avatar" className="w-full h-full object-cover" />
-                 </div>
-              </div>
-           </div>
-        </header>
+               )}
+             </AnimatePresence>
+          </div>
 
-        {/* Dashboard Content */}
-        <main className="flex-1 overflow-y-auto p-10 flex flex-col gap-8">
-           
-           {/* Alert Banner Redesign */}
-           <div className="bg-white rounded-[32px] p-6 flex items-center justify-between shadow-[0_4px_25px_rgba(0,0,0,0.03)] border border-slate-100 shrink-0">
-              <div className="flex items-center gap-5">
-                 <div className="w-16 h-16 rounded-[24px] bg-red-50 flex items-center justify-center border border-red-100/50">
-                    <AlertTriangle className="w-8 h-8 text-red-500" />
-                 </div>
-                 <div>
-                    <h2 className="text-xl font-black text-slate-900 mb-1 leading-none">Emergency Protocol Initiated</h2>
-                    <p className="text-[13px] text-slate-500 font-medium">Tracking session ID: <span className="font-bold text-slate-900">#SX-8854-B</span> • High accuracy GPS engaged</p>
-                 </div>
-              </div>
-              <div className="flex items-center gap-3">
-                 <button className="bg-slate-900 text-white font-black text-[13px] px-8 py-4 rounded-2xl shadow-xl shadow-slate-200 hover:bg-black transition-all">
-                    OPEN COMMAND COMMS
-                 </button>
-              </div>
-           </div>
+          {/* Bottom Action */}
+          <div className="p-8 border-t border-slate-50">
+             <motion.button 
+               whileHover={{ scale: 1.02 }}
+               whileTap={{ scale: 0.98 }}
+               className="w-full py-4 bg-slate-900 text-white font-black text-[13px] rounded-2xl shadow-xl shadow-slate-200 flex items-center justify-center gap-3"
+             >
+                <Users className="w-4 h-4" /> Add New Guardian
+             </motion.button>
+          </div>
+        </motion.div>
 
-           {/* Main Grid */}
-           <div className="flex-1 flex gap-8 min-h-0">
-              
-              {/* Left Column (Map & Actions) */}
-              <div className="flex-1 flex flex-col gap-6 min-w-0">
-                 {/* Map Container */}
-                 <div className="flex-1 bg-white rounded-[32px] relative overflow-hidden shadow-[0_4px_25px_rgba(0,0,0,0.03)] border border-slate-100">
-                    <div ref={mapContainerRef} className="absolute inset-0 z-0 bg-slate-50" />
-                    
-                    {/* Simulated Radar Overlay on Map */}
-                    <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center overflow-hidden">
-                       <div className="relative">
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] border-[1.5px] border-red-500/10 rounded-full" />
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border-[1.5px] border-red-500/5 rounded-full" />
-                          <div className="absolute top-1/2 left-1/2 w-[400px] h-[400px] -translate-y-full origin-bottom-left animate-[radar-spin_4s_linear_infinite]" style={{
-                             background: 'conic-gradient(from 90deg at bottom left, transparent 0deg, rgba(239,68,68,0.1) 90deg, transparent 90deg)'
-                          }} />
-                       </div>
-                    </div>
+        {/* ── Right Content (Map) ── */}
+        <div className="flex-1 relative">
+           <MapContainer 
+             center={[28.5355, 77.3910]} 
+             zoom={14} 
+             className="w-full h-full"
+             zoomControl={false}
+           >
+             <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
+             
+             {/* User Marker */}
+             <Marker position={[28.5355, 77.3910]} icon={createUserMarker()} />
+             
+             {/* Guardian Markers */}
+             {guardians.map(g => (
+               <Marker key={g.id} position={[g.lat, g.lng]} icon={createGuardianMarker(g.color)}>
+                 <Popup>
+                   <div className="p-2">
+                     <p className="font-bold text-slate-900">{g.name}</p>
+                     <p className="text-xs text-slate-500">{g.status}</p>
+                   </div>
+                 </Popup>
+               </Marker>
+             ))}
 
-                    {/* Floating Map UI */}
-                    <div className="absolute top-6 left-6 z-20 bg-white/95 backdrop-blur rounded-[20px] px-4 py-3 shadow-xl border border-slate-100">
-                       <div className="flex items-center gap-2 mb-1">
-                          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                          <span className="text-[11px] font-black text-slate-900 tracking-widest uppercase">Target Vector</span>
-                       </div>
-                       <p className="text-[10px] text-slate-500 font-bold pl-4 uppercase">Sync: 0.2s latency</p>
-                    </div>
+             {/* Selected Guardian Visuals */}
+             {selectedGuardian && (
+               <>
+                 <Circle 
+                   center={[selectedGuardian.lat, selectedGuardian.lng]} 
+                   radius={300} 
+                   pathOptions={{ color: 'teal', fillColor: 'teal', fillOpacity: 0.1, weight: 1 }} 
+                 />
+               </>
+             )}
+           </MapContainer>
 
-                    <div className="absolute bottom-6 left-6 z-20 bg-slate-900 text-white text-[13px] font-black px-6 py-3 rounded-2xl shadow-xl flex items-center gap-2 pointer-events-none">
-                       <MapPin className="w-4 h-4 text-red-400" /> {sosState?.location || "Sector 18, Noida, Uttar Pradesh"}
-                    </div>
-
-                    {/* Zoom controls */}
-                    <div className="absolute top-6 right-6 z-20 flex flex-col gap-2">
-                       <div className="bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden flex flex-col">
-                          <button className="w-10 h-10 flex items-center justify-center text-slate-600 hover:bg-slate-50 border-b border-slate-50"><Plus className="w-5 h-5" /></button>
-                          <button className="w-10 h-10 flex items-center justify-center text-slate-600 hover:bg-slate-50 font-black text-lg pb-1">-</button>
-                       </div>
-                       <button className="w-10 h-10 bg-white rounded-xl shadow-lg border border-slate-100 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-colors">
-                          <Navigation className="w-5 h-5" />
-                       </button>
-                    </div>
-                 </div>
-
-                 {/* Action Buttons */}
-                 <div className="grid grid-cols-3 gap-6 shrink-0">
-                    <button className="bg-red-500 hover:bg-red-600 text-white font-black text-[15px] py-6 rounded-[24px] shadow-xl shadow-red-100 transition-all flex items-center justify-center gap-3">
-                       <Phone className="w-5 h-5 fill-current" /> Call Help
-                    </button>
-                    <button className="bg-white hover:bg-slate-50 text-slate-900 border border-slate-100 font-black text-[15px] py-6 rounded-[24px] shadow-sm transition-all flex items-center justify-center gap-3">
-                       <Navigation className="w-5 h-5" /> Directions
-                    </button>
-                    <button className="bg-white hover:bg-slate-50 text-slate-900 border border-slate-100 font-black text-[15px] py-6 rounded-[24px] shadow-sm transition-all flex items-center justify-center gap-3">
-                       <MessageSquare className="w-5 h-5 fill-current" /> Send Alert
-                    </button>
-                 </div>
-              </div>
-
-              {/* Right Column (Status Panels) */}
-              <div className="w-[400px] flex flex-col gap-6 overflow-y-auto pr-1 pb-1">
-                 
-                 {/* Live Status Feed */}
-                 <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-[0_4px_25px_rgba(0,0,0,0.03)] shrink-0">
-                    <h3 className="text-[17px] font-black text-slate-900 mb-8 flex items-center gap-2">
-                       <FileText className="w-5 h-5 text-slate-400" /> Operational Log
-                    </h3>
-                    <div className="relative border-l-2 border-slate-50 ml-3 space-y-8">
-                       
-                       <div className="relative pl-8">
-                          <div className="absolute -left-[11px] top-0.5 w-[20px] h-[20px] rounded-full bg-red-100 border-[4px] border-white flex items-center justify-center shadow-md ring-1 ring-red-100/50">
-                             <div className="w-2 h-2 rounded-full bg-red-500" />
-                          </div>
-                          <div className="flex justify-between items-start">
-                             <div>
-                                <p className="text-[14px] font-black text-slate-900 leading-none mb-1.5">Evidence Capture Active</p>
-                                <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Cloud Sync: Synchronized</p>
-                             </div>
-                             <span className="text-[11px] font-black text-red-500 bg-red-50 px-2 py-0.5 rounded tracking-widest">00:23</span>
-                          </div>
-                       </div>
-
-                       <div className="relative pl-8">
-                          <div className="absolute -left-[11px] top-0.5 w-[20px] h-[20px] rounded-full bg-slate-100 border-[4px] border-white flex items-center justify-center shadow-md">
-                             <div className="w-2 h-2 rounded-full bg-slate-400" />
-                          </div>
-                          <div className="flex justify-between items-start">
-                             <div>
-                                <p className="text-[14px] font-black text-slate-900 leading-none mb-1.5">GPS Vector Stable</p>
-                                <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Precision: 2.4 meters</p>
-                             </div>
-                             <span className="text-[11px] font-bold text-slate-300">2s ago</span>
-                          </div>
-                       </div>
-
-                       <div className="relative pl-8">
-                          <div className="absolute -left-[11px] top-0.5 w-[20px] h-[20px] rounded-full bg-teal-100 border-[4px] border-white flex items-center justify-center shadow-md">
-                             <div className="w-2 h-2 rounded-full bg-teal-500" />
-                          </div>
-                          <div className="flex justify-between items-start">
-                             <div>
-                                <p className="text-[14px] font-black text-slate-900 leading-none mb-1.5">Guardians Dispatched</p>
-                                <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">ETA: 4-6 minutes</p>
-                             </div>
-                             <span className="text-[11px] font-bold text-teal-500">10s ago</span>
-                          </div>
-                       </div>
-
-                    </div>
-                 </div>
-
-                 {/* Video Feed Redesign */}
-                 <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-[0_4px_25px_rgba(0,0,0,0.03)] shrink-0">
-                    <div className="flex justify-between items-center mb-6">
-                       <h3 className="text-[17px] font-black text-slate-900">Live Surveillance</h3>
-                       <div className="bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-2 shadow-lg shadow-red-200">
-                          <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> LIVE STREAM
-                       </div>
-                    </div>
-                    <div className="w-full aspect-[16/9] bg-slate-900 rounded-[24px] relative overflow-hidden group cursor-pointer shadow-xl">
-                       <img src="https://images.unsplash.com/photo-1555626906-fcf10d6851b4?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Live Feed" className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700" />
-                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
-                       <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-xl flex items-center justify-center border border-white/30 group-hover:bg-white/40 transition-all shadow-2xl">
-                             <Play className="w-6 h-6 text-white ml-1 fill-current" />
-                          </div>
-                       </div>
-                       <div className="absolute bottom-4 right-4 text-[11px] font-black text-white bg-black/60 px-3 py-1 rounded-lg backdrop-blur-md border border-white/10 uppercase tracking-widest">
-                          CAM-01 • HD
-                       </div>
-                    </div>
-                 </div>
-
-                 {/* Coordination List Redesign */}
-                 <div className="bg-white rounded-[32px] p-8 border border-slate-100 shadow-[0_4px_25px_rgba(0,0,0,0.03)] shrink-0">
-                    <h3 className="text-[17px] font-black text-slate-900 mb-8">Active Responders</h3>
-                    <div className="space-y-6">
-                       
-                       <div className="flex items-center justify-between group">
-                          <div className="flex items-center gap-4">
-                             <div className="w-12 h-12 rounded-[18px] overflow-hidden bg-slate-100 border-2 border-white shadow-sm ring-1 ring-slate-100 group-hover:scale-105 transition-transform">
-                                <img src="https://ui-avatars.com/api/?name=Dad&background=F1F5F9&color=334155" alt="Dad" className="w-full h-full object-cover" />
-                             </div>
-                             <div>
-                                <p className="text-[14px] font-black text-slate-900 leading-none mb-1.5">Dad (Sunil)</p>
-                                <p className="text-[11px] text-slate-400 font-bold flex items-center gap-1.5"><MapIcon className="w-3.5 h-3.5" /> Passive Monitor</p>
-                             </div>
-                          </div>
-                          <span className="text-[10px] font-black px-3 py-1 bg-slate-50 text-slate-400 rounded-full border border-slate-100 uppercase tracking-widest">Standby</span>
-                       </div>
-
-                       <div className="flex items-center justify-between group">
-                          <div className="flex items-center gap-4">
-                             <div className="w-12 h-12 rounded-[18px] overflow-hidden bg-teal-50 border-2 border-white shadow-sm ring-1 ring-teal-100 group-hover:scale-105 transition-transform">
-                                <img src="https://ui-avatars.com/api/?name=Mom&background=F0FDFA&color=0D9488" alt="Mom" className="w-full h-full object-cover" />
-                             </div>
-                             <div>
-                                <p className="text-[14px] font-black text-slate-900 leading-none mb-1.5">Mom (Asha)</p>
-                                <p className="text-[11px] text-teal-600 font-black flex items-center gap-1.5"><Navigation className="w-3.5 h-3.5" /> En Route to Target</p>
-                             </div>
-                          </div>
-                          <span className="text-[10px] font-black px-3 py-1 bg-teal-50 text-teal-600 rounded-full border border-teal-100 uppercase tracking-widest">Active</span>
-                       </div>
-
-                    </div>
-                 </div>
-
-              </div>
+           {/* Floating Map Controls */}
+           <div className="absolute top-8 right-8 z-[400] flex flex-col gap-3">
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-12 h-12 bg-white rounded-2xl border border-slate-100 shadow-xl flex items-center justify-center text-slate-900"><RefreshCw className="w-5 h-5" /></motion.button>
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-12 h-12 bg-white rounded-2xl border border-slate-100 shadow-xl flex items-center justify-center text-slate-900"><Radio className="w-5 h-5" /></motion.button>
+              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-12 h-12 bg-slate-900 rounded-2xl border border-white shadow-xl flex items-center justify-center text-white"><Shield className="w-5 h-5" /></motion.button>
            </div>
 
-        </main>
+           {/* Bottom Floating Stats Panel */}
+           <AnimatePresence>
+             {selectedGuardian && (
+               <motion.div 
+                 initial={{ y: 100, opacity: 0 }}
+                 animate={{ y: 0, opacity: 1 }}
+                 exit={{ y: 100, opacity: 0 }}
+                 className="absolute bottom-8 left-8 right-8 md:left-[50%] md:translate-x-[-50%] md:w-[600px] z-[400] bg-white rounded-[32px] p-8 shadow-2xl border border-slate-100"
+               >
+                  <div className="flex items-center justify-between mb-8">
+                     <div className="flex items-center gap-5">
+                        <div className={`w-16 h-16 rounded-[20px] ${selectedGuardian.color} flex items-center justify-center text-white font-black text-2xl shadow-lg`}>
+                           {selectedGuardian.name[0]}
+                        </div>
+                        <div>
+                           <h2 className="text-xl font-black text-slate-900">{selectedGuardian.name}</h2>
+                           <p className="text-slate-400 font-bold text-[13px] uppercase tracking-widest">{selectedGuardian.role}</p>
+                        </div>
+                     </div>
+                     <motion.button 
+                       whileHover={{ scale: 1.1 }} 
+                       whileTap={{ scale: 0.9 }}
+                       onClick={() => setSelectedGuardian(null)}
+                       className="p-2 text-slate-400 hover:text-slate-900"
+                     >
+                       <AlertCircle className="w-6 h-6" />
+                     </motion.button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 mb-8">
+                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Distance</p>
+                        <p className="text-lg font-black text-slate-900">{selectedGuardian.distance}</p>
+                     </div>
+                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                        <p className="text-lg font-black text-teal-600">{selectedGuardian.status}</p>
+                     </div>
+                     <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Battery</p>
+                        <p className="text-lg font-black text-slate-900">{selectedGuardian.battery}</p>
+                     </div>
+                  </div>
+
+                  <div className="flex gap-4">
+                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 py-4 bg-teal-500 text-slate-900 font-black text-[13px] rounded-2xl shadow-lg shadow-teal-100 flex items-center justify-center gap-3">
+                        <Phone className="w-4 h-4 fill-slate-900" /> Voice Call
+                     </motion.button>
+                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 py-4 bg-slate-900 text-white font-black text-[13px] rounded-2xl shadow-xl shadow-slate-200 flex items-center justify-center gap-3">
+                        <MessageSquare className="w-4 h-4 fill-white" /> Live Chat
+                     </motion.button>
+                  </div>
+               </motion.div>
+             )}
+           </AnimatePresence>
+        </div>
+
       </div>
-
-    </div>
+    </AppLayout>
   );
 };
 
