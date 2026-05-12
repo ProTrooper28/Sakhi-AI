@@ -17,7 +17,7 @@ const TopHelplineBar = () => {
   };
 
   return (
-    <div className="sticky top-0 z-[100] w-full bg-white/95 backdrop-blur-md border-b border-slate-100 h-9 overflow-hidden flex items-center">
+    <div className="sticky top-0 z-[100] w-full bg-[#020617]/95 backdrop-blur-md border-b border-slate-800/50 h-9 overflow-hidden flex items-center">
       <style>{`
         @keyframes ticker {
           0% { transform: translateX(0); }
@@ -37,18 +37,18 @@ const TopHelplineBar = () => {
       <div className="ticker-animate">
         {[0, 1].map((i) => (
           <div key={i} className="flex items-center gap-8">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-              <span className="w-1 h-1 rounded-full bg-teal-500 animate-pulse" />
-              Quick Help
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
+              Monitoring Active
             </span>
-            <button onClick={() => call("1091")} className="text-[10px] font-black text-slate-600 hover:text-teal-600 transition-colors uppercase tracking-tight cursor-pointer">
-              Women <span className="text-teal-600 ml-1">1091</span>
+            <button onClick={() => call("1091")} className="text-[10px] font-black text-slate-300 hover:text-teal-400 transition-colors uppercase tracking-tight cursor-pointer">
+              Women's Help <span className="text-teal-500 ml-1">1091</span>
             </button>
-            <button onClick={() => call("1098")} className="text-[10px] font-black text-slate-600 hover:text-blue-600 transition-colors uppercase tracking-tight cursor-pointer">
-              Child <span className="text-blue-600 ml-1">1098</span>
+            <button onClick={() => call("1098")} className="text-[10px] font-black text-slate-300 hover:text-blue-400 transition-colors uppercase tracking-tight cursor-pointer">
+              Child Care <span className="text-blue-500 ml-1">1098</span>
             </button>
-            <button onClick={() => call("112")} className="text-[10px] font-black text-red-600 hover:text-red-700 transition-colors uppercase tracking-tight flex items-center gap-1 cursor-pointer">
-              Emergency <span className="underline underline-offset-4 font-black bg-red-50 px-1 rounded">112</span>
+            <button onClick={() => call("112")} className="text-[10px] font-black text-red-500 hover:text-red-400 transition-colors uppercase tracking-tight flex items-center gap-1 cursor-pointer">
+              Emergency <span className="underline underline-offset-4 font-black bg-red-950/40 px-1 rounded border border-red-500/20">112</span>
             </button>
           </div>
         ))}
@@ -85,15 +85,15 @@ const MobileHeader = () => {
   }, []);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-100 md:hidden">
+    <div className="flex items-center justify-between px-4 py-3 bg-[#020617] border-b border-slate-800/50 md:hidden">
       <button
         id="mobile-menu-btn"
         onClick={() => setSidebarOpen(true)}
-        className="icon-btn w-9 h-9 text-slate-900"
+        className="icon-btn w-9 h-9 text-slate-300"
       >
         <Menu className="w-5 h-5" />
       </button>
-      <div className="font-black text-slate-900 text-sm uppercase tracking-widest" style={{ fontFamily: "Manrope, sans-serif" }}>Sakhi AI</div>
+      <div className="font-black text-slate-100 text-sm uppercase tracking-widest" style={{ fontFamily: "Manrope, sans-serif" }}>Sakhi AI</div>
 
       <div className="flex items-center gap-2">
         {/* Notification */}
@@ -151,31 +151,31 @@ const MobileHeader = () => {
 
 // ── Shared dropdown content ────────────────────────────────────────────────────
 const NotificationsContent = ({ onClose }: { onClose: () => void }) => (
-  <div>
-    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-      <span className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Notifications</span>
-      <button onClick={onClose} className="icon-btn w-6 h-6 text-slate-400 hover:text-slate-900"><X className="w-3.5 h-3.5" /></button>
+  <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800/50 rounded-2xl overflow-hidden shadow-2xl">
+    <div className="flex items-center justify-between px-4 py-4 border-b border-slate-800/50">
+      <span className="text-[11px] font-black text-slate-100 uppercase tracking-[0.2em]">Live Feed</span>
+      <button onClick={onClose} className="icon-btn w-6 h-6 text-slate-500 hover:text-white"><X className="w-3.5 h-3.5" /></button>
     </div>
-    <div className="divide-y divide-slate-50">
+    <div className="divide-y divide-slate-800/50">
       {notifications.map((n, i) => (
         <button
           key={i}
           onClick={onClose}
-          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer text-left"
+          className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-800/40 transition-colors cursor-pointer text-left"
         >
-          <div className={`w-8 h-8 rounded-xl ${n.bg} ${n.color} flex items-center justify-center flex-shrink-0`}>
+          <div className={`w-8 h-8 rounded-xl bg-slate-950/50 ${n.color} flex items-center justify-center flex-shrink-0 border border-slate-800/50`}>
             <n.icon className="w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-slate-900 text-[12px] font-bold leading-tight truncate">{n.title}</p>
-            <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-wider mt-0.5">{n.time}</p>
+            <p className="text-slate-100 text-[12px] font-black leading-tight truncate uppercase tracking-tight">{n.title}</p>
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest mt-1">{n.time}</p>
           </div>
         </button>
       ))}
     </div>
-    <div className="p-3 border-t border-slate-50">
-      <button onClick={onClose} className="w-full text-center text-[11px] font-black text-teal-600 hover:text-teal-700 uppercase tracking-widest py-1 cursor-pointer">
-        Mark all read
+    <div className="p-3 border-t border-slate-800/50">
+      <button onClick={onClose} className="w-full text-center text-[10px] font-black text-teal-500 hover:text-teal-400 uppercase tracking-[0.2em] py-2 cursor-pointer transition-all">
+        Clear All Packets
       </button>
     </div>
   </div>
@@ -184,38 +184,40 @@ const NotificationsContent = ({ onClose }: { onClose: () => void }) => (
 const ProfileContent = ({ navigate, onClose }: { navigate: (path: string) => void; onClose: () => void }) => {
   const go = (path: string) => { onClose(); navigate(path); };
   return (
-    <div>
-      <div className="px-4 py-4 border-b border-slate-100 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-slate-100">
+    <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800/50 rounded-2xl overflow-hidden shadow-2xl">
+      <div className="px-4 py-5 border-b border-slate-800/50 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-700 shadow-lg">
           <img src="https://ui-avatars.com/api/?name=Preeti&background=0F172A&color=fff" alt="User" className="w-full h-full" />
         </div>
         <div>
-          <p className="text-slate-900 text-[13px] font-black leading-none">Preeti Sharma</p>
-          <p className="text-teal-600 text-[10px] font-bold uppercase tracking-widest mt-0.5">Protected</p>
+          <p className="text-slate-100 text-[13px] font-black leading-none uppercase tracking-tight">Preeti Sharma</p>
+          <p className="text-teal-500 text-[9px] font-black uppercase tracking-[0.2em] mt-1.5 flex items-center gap-1">
+             <span className="w-1 h-1 bg-teal-500 rounded-full" /> Protected
+          </p>
         </div>
       </div>
-      <div className="py-1">
+      <div className="py-2">
         {[
           { label: "Settings", path: "/settings", icon: Settings },
-          { label: "Guardian View", path: "/guardian", icon: Shield },
+          { label: "Guardian Core", path: "/guardian", icon: Shield },
         ].map(({ label, path, icon: Icon }) => (
           <button
             key={path}
             onClick={() => go(path)}
-            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors cursor-pointer text-left"
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800/40 transition-colors cursor-pointer text-left group"
           >
-            <Icon className="w-4 h-4 text-slate-500" />
-            <span className="text-slate-800 text-[13px] font-semibold flex-1">{label}</span>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+            <Icon className="w-4 h-4 text-slate-500 group-hover:text-teal-500 transition-colors" />
+            <span className="text-slate-300 text-[12px] font-black uppercase tracking-widest flex-1 group-hover:text-slate-100">{label}</span>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-700" />
           </button>
         ))}
-        <div className="border-t border-slate-100 mt-1">
+        <div className="border-t border-slate-800/50 mt-2">
           <button
             onClick={() => go("/")}
-            className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 transition-colors cursor-pointer text-left"
+            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-500/10 transition-colors cursor-pointer text-left group"
           >
-            <LogOut className="w-4 h-4 text-red-500" />
-            <span className="text-red-600 text-[13px] font-semibold">Log Out</span>
+            <LogOut className="w-4 h-4 text-red-500/60 group-hover:text-red-500" />
+            <span className="text-red-500/80 group-hover:text-red-500 text-[12px] font-black uppercase tracking-widest">Terminate Session</span>
           </button>
         </div>
       </div>
@@ -241,7 +243,7 @@ const DesktopTopBar = () => {
   }, []);
 
   return (
-    <div className="hidden md:flex items-center justify-end gap-3 px-6 py-3 bg-white/80 backdrop-blur-sm border-b border-slate-100/60">
+    <div className="hidden md:flex items-center justify-end gap-3 px-6 py-3 bg-[#020617]/80 backdrop-blur-sm border-b border-slate-800/40">
       {/* Notification */}
       <div className="relative" ref={notifRef}>
         <button
@@ -306,7 +308,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   }, []);
 
   return (
-    <div className="page-with-sidebar bg-[#fcfcfd]">
+    <div className="page-with-sidebar bg-[#020617]">
       <Sidebar />
 
       <div className="flex flex-col flex-1 min-h-screen">

@@ -17,47 +17,48 @@ const LoginPage = () => {
 
   return (
     <div
-      className="min-h-screen flex"
-      style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f2332 100%)" }}
+      className="min-h-screen flex bg-slate-950"
     >
       {/* ── Left panel (branding) — desktop only ── */}
-      <div className="hidden lg:flex flex-col justify-between w-[480px] flex-shrink-0 p-14"
-        style={{ borderRight: "1px solid rgba(255,255,255,0.06)" }}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: "rgba(20,184,166,0.2)" }}>
-            <Shield style={{ width: 20, height: 20, color: "#14b8a6" }} />
+      <div className="hidden lg:flex flex-col justify-between w-[520px] flex-shrink-0 p-16 bg-slate-900/20 backdrop-blur-3xl"
+        style={{ borderRight: "1px solid rgba(255,255,255,0.03)" }}>
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl flex items-center justify-center border border-teal-500/20 shadow-[0_0_20px_rgba(20,184,166,0.15)]"
+            style={{ background: "rgba(20,184,166,0.05)" }}>
+            <Shield className="w-6 h-6 text-teal-500" />
           </div>
-          <span style={{ fontFamily: "Manrope,sans-serif", fontWeight: 800, color: "white", fontSize: "1.125rem" }}>
-            Sakhi AI
+          <span style={{ fontFamily: "Manrope,sans-serif" }} className="text-[14px] font-black text-slate-100 uppercase tracking-[0.25em]">
+            Sakhi Protocol
           </span>
         </div>
 
-        <div>
-          <p style={{ fontFamily: "Manrope,sans-serif", fontWeight: 800, fontSize: "2.5rem", color: "white", lineHeight: 1.1 }}>
-            Your safety,<br />
-            <span style={{ color: "#14b8a6" }}>always with you.</span>
+        <div className="relative">
+          <div className="absolute -top-32 -left-32 w-64 h-64 bg-teal-500/5 blur-[100px] rounded-full pointer-events-none" />
+          <h1 style={{ fontFamily: "Manrope,sans-serif" }} className="text-5xl font-black text-white leading-[1.05] tracking-tight uppercase">
+            Personal Security <br />
+            <span className="text-teal-500">Centralized.</span>
+          </h1>
+          <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.3em] mt-8 leading-relaxed max-w-[340px]">
+            Enterprise-grade safety companion powered by tactical intelligence and real-time encryption.
           </p>
-          <p style={{ color: "rgba(255,255,255,0.5)", marginTop: "1.25rem", lineHeight: 1.7, fontSize: "0.9375rem" }}>
-            Sakhi is a personal safety companion powered by AI — helping you stay safe, document incidents, and stay connected with people who care.
-          </p>
-          <div className="mt-10 space-y-4">
+          <div className="mt-14 space-y-6">
             {[
-              { icon: "🛡️", label: "Real-time SOS emergency alerts" },
-              { icon: "📍", label: "Live location sharing with guardians" },
-              { icon: "🤖", label: "AI companion monitoring" },
-              { icon: "🔒", label: "Evidence locker with PIN protection" },
+              { icon: Shield, label: "Real-time SOS emergency alerts", color: "text-red-500" },
+              { icon: MapPin, label: "Live location sharing with guardians", color: "text-teal-500" },
+              { icon: Lock, label: "Evidence locker with PIN protection", color: "text-blue-500" },
             ].map(f => (
-              <div key={f.label} className="flex items-center gap-3">
-                <span style={{ fontSize: "1.125rem" }}>{f.icon}</span>
-                <span style={{ color: "rgba(255,255,255,0.65)", fontSize: "0.875rem" }}>{f.label}</span>
+              <div key={f.label} className="flex items-center gap-4 group">
+                <div className={`w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center transition-all group-hover:border-slate-700`}>
+                   <f.icon className={`w-4 h-4 ${f.color}`} />
+                </div>
+                <span className="text-slate-400 font-black text-[9px] uppercase tracking-[0.2em] group-hover:text-slate-200 transition-colors">{f.label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <p style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.75rem" }}>
-          © 2025 Sakhi AI. All data is encrypted and never shared.
+        <p className="text-slate-700 font-black text-[9px] uppercase tracking-[0.3em]">
+          © 2026 SAKHI PROTOCOL • NODE: PRIMARY_ACCESS
         </p>
       </div>
 
@@ -70,26 +71,28 @@ const LoginPage = () => {
           className="w-full max-w-[400px]"
         >
           {/* Mobile logo */}
-          <div className="flex lg:hidden items-center gap-2 mb-10">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{ background: "rgba(20,184,166,0.2)" }}>
-              <Shield style={{ width: 16, height: 16, color: "#14b8a6" }} />
+          <div className="flex lg:hidden items-center gap-3 mb-12">
+            <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center">
+              <Shield className="w-5 h-5 text-teal-500" />
             </div>
-            <span style={{ fontFamily: "Manrope,sans-serif", fontWeight: 800, color: "white" }}>Sakhi AI</span>
+            <span className="text-[12px] font-black text-slate-100 uppercase tracking-[0.2em]">Sakhi Protocol</span>
           </div>
 
           {/* Heading */}
-          <div className="mb-8">
-            <p style={{ color: "#14b8a6", fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              Step {step === "identity" ? "1" : "2"} of 2
-            </p>
-            <h1 style={{ fontFamily: "Manrope,sans-serif", fontWeight: 800, color: "white", fontSize: "1.75rem", marginTop: "0.5rem" }}>
-              {step === "identity" ? "Create your profile" : "Contact details"}
+          <div className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+               <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+               <p className="text-teal-500 font-black text-[9px] uppercase tracking-[0.3em]">
+                 Phase {step === "identity" ? "01" : "02"} Initializing
+               </p>
+            </div>
+            <h1 style={{ fontFamily: "Manrope,sans-serif" }} className="text-3xl font-black text-white uppercase tracking-tight">
+              {step === "identity" ? "Identity Input" : "Node Routing"}
             </h1>
-            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.875rem", marginTop: "0.5rem" }}>
+            <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] mt-3">
               {step === "identity"
-                ? "Your identity is stored locally and never shared."
-                : "Used only for emergency notifications."}
+                ? "Locally encrypted profile creation."
+                : "Secure contact nodes for relay alerts."}
             </p>
           </div>
 
@@ -97,34 +100,30 @@ const LoginPage = () => {
             {step === "identity" ? (
               <>
                 {/* Full Name */}
-                <div>
-                  <label style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.5rem" }}>
-                    Full Name
+                <div className="space-y-2">
+                  <label className="text-slate-500 font-black text-[9px] uppercase tracking-[0.25em] ml-1">
+                    Authorized User Name
                   </label>
-                  <div className="relative">
-                    <User style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "rgba(255,255,255,0.3)" }} />
+                  <div className="relative group">
+                    <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-700 group-focus-within:text-teal-500 transition-colors" />
                     <input
                       id="name"
-                      placeholder="Preeti Sharma"
+                      placeholder="ENTER FULL NAME..."
                       value={form.name}
                       onChange={e => setForm({ ...form, name: e.target.value })}
                       required
-                      style={{
-                        width: "100%", paddingLeft: "2.75rem", paddingRight: "1rem", paddingTop: "0.75rem", paddingBottom: "0.75rem",
-                        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10,
-                        color: "white", fontSize: "0.9375rem", outline: "none",
-                      }}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-14 pr-6 py-4.5 text-[12px] font-black uppercase tracking-widest text-white outline-none focus:border-teal-500/50 transition-all placeholder:text-slate-800"
                     />
                   </div>
                 </div>
 
                 {/* Aadhaar */}
-                <div>
-                  <label style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.5rem" }}>
-                    Aadhaar Number
+                <div className="space-y-2">
+                  <label className="text-slate-500 font-black text-[9px] uppercase tracking-[0.25em] ml-1">
+                    Government ID Verification
                   </label>
-                  <div className="relative">
-                    <Lock style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "rgba(255,255,255,0.3)" }} />
+                  <div className="relative group">
+                    <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-700 group-focus-within:text-teal-500 transition-colors" />
                     <input
                       id="aadhaar"
                       type={showAadhaar ? "text" : "password"}
@@ -133,15 +132,11 @@ const LoginPage = () => {
                       value={form.aadhaar}
                       onChange={e => setForm({ ...form, aadhaar: e.target.value })}
                       required
-                      style={{
-                        width: "100%", paddingLeft: "2.75rem", paddingRight: "3rem", paddingTop: "0.75rem", paddingBottom: "0.75rem",
-                        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10,
-                        color: "white", fontSize: "0.9375rem", outline: "none",
-                      }}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-14 pr-14 py-4.5 text-[12px] font-black uppercase tracking-widest text-white outline-none focus:border-teal-500/50 transition-all placeholder:text-slate-800"
                     />
                     <button type="button" onClick={() => setShowAadhaar(v => !v)}
-                      style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", background: "none", border: "none", cursor: "pointer" }}>
-                      {showAadhaar ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+                      className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-700 hover:text-white transition-colors cursor-pointer">
+                      {showAadhaar ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
@@ -149,47 +144,39 @@ const LoginPage = () => {
             ) : (
               <>
                 {/* Mobile */}
-                <div>
-                  <label style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.5rem" }}>
-                    Mobile Number
+                <div className="space-y-2">
+                  <label className="text-slate-500 font-black text-[9px] uppercase tracking-[0.25em] ml-1">
+                    Primary Mobile Link
                   </label>
-                  <div className="relative">
-                    <Phone style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "rgba(255,255,255,0.3)" }} />
+                  <div className="relative group">
+                    <Phone className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-700 group-focus-within:text-teal-500 transition-colors" />
                     <input
                       id="mobile"
                       type="tel"
-                      placeholder="+91 98765 43210"
+                      placeholder="+91 XXXXX XXXXX"
                       value={form.mobile}
                       onChange={e => setForm({ ...form, mobile: e.target.value })}
                       required
-                      style={{
-                        width: "100%", paddingLeft: "2.75rem", paddingRight: "1rem", paddingTop: "0.75rem", paddingBottom: "0.75rem",
-                        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10,
-                        color: "white", fontSize: "0.9375rem", outline: "none",
-                      }}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-14 pr-6 py-4.5 text-[12px] font-black uppercase tracking-widest text-white outline-none focus:border-teal-500/50 transition-all placeholder:text-slate-800"
                     />
                   </div>
                 </div>
 
                 {/* Email */}
-                <div>
-                  <label style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.5rem" }}>
-                    Email Address
+                <div className="space-y-2">
+                  <label className="text-slate-500 font-black text-[9px] uppercase tracking-[0.25em] ml-1">
+                    Secure Email Node
                   </label>
-                  <div className="relative">
-                    <Mail style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "rgba(255,255,255,0.3)" }} />
+                  <div className="relative group">
+                    <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-700 group-focus-within:text-teal-500 transition-colors" />
                     <input
                       id="email"
                       type="email"
-                      placeholder="preeti@example.com"
+                      placeholder="USER@HOST.COM"
                       value={form.email}
                       onChange={e => setForm({ ...form, email: e.target.value })}
                       required
-                      style={{
-                        width: "100%", paddingLeft: "2.75rem", paddingRight: "1rem", paddingTop: "0.75rem", paddingBottom: "0.75rem",
-                        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10,
-                        color: "white", fontSize: "0.9375rem", outline: "none",
-                      }}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-14 pr-6 py-4.5 text-[12px] font-black uppercase tracking-widest text-white outline-none focus:border-teal-500/50 transition-all placeholder:text-slate-800"
                     />
                   </div>
                 </div>
@@ -197,30 +184,27 @@ const LoginPage = () => {
             )}
 
             {/* CTA */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.02, backgroundColor: "#14b8a6", color: "#000" }}
+              whileTap={{ scale: 0.98 }}
               type="submit"
-              className="w-full flex items-center justify-center gap-2 font-bold transition-all duration-250 hover:opacity-90 active:scale-95"
-              style={{
-                background: "linear-gradient(135deg, #14b8a6, #0d9488)",
-                color: "white", borderRadius: 10, padding: "0.875rem 1.5rem",
-                fontSize: "0.9375rem", marginTop: "0.75rem",
-                boxShadow: "0 4px 20px rgba(20,184,166,0.35)", border: "none", cursor: "pointer",
-              }}
+              className="w-full flex items-center justify-center gap-3 bg-teal-500 text-slate-950 font-black py-5 rounded-2xl shadow-2xl shadow-teal-500/20 uppercase tracking-[0.25em] text-[12px] transition-all cursor-pointer mt-4"
             >
-              {step === "identity" ? "Continue" : "Enter Sakhi"}
-              <ArrowRight style={{ width: 18, height: 18 }} />
-            </button>
+              {step === "identity" ? "Proceed to Routing" : "Initialize Console"}
+              <ArrowRight className="w-4 h-4" />
+            </motion.button>
 
             {step === "contact" && (
               <button type="button" onClick={() => setStep("identity")}
-                style={{ width: "100%", marginTop: "0.5rem", color: "rgba(255,255,255,0.4)", background: "none", border: "none", fontSize: "0.875rem", cursor: "pointer" }}>
-                ← Go back
+                className="w-full mt-6 text-slate-600 font-black text-[10px] uppercase tracking-widest hover:text-slate-400 transition-colors cursor-pointer">
+                ← Return to Identification
               </button>
             )}
           </form>
 
-          <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.75rem", textAlign: "center", marginTop: "2rem" }}>
-            All data is encrypted locally. We never sell or share your information.
+          <p className="text-slate-800 font-black text-[9px] uppercase tracking-[0.25em] text-center mt-12 leading-relaxed">
+            SECURE LINK ESTABLISHED • AES-256 ENCRYPTION ACTIVE <br />
+            ZERO-KNOWLEDGE DATA STORAGE PROTOCOL
           </p>
         </motion.div>
       </div>

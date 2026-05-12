@@ -56,7 +56,7 @@ export default function WearableDemoPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center py-10 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-950 flex flex-col items-center py-12 relative overflow-hidden">
       
       {/* Background ambient glow */}
       <div 
@@ -68,20 +68,20 @@ export default function WearableDemoPage() {
 
       <button
         onClick={() => navigate("/home")}
-        className="absolute top-6 left-6 text-muted-foreground flex items-center gap-2 text-sm z-10 hover:text-foreground transition-colors cursor-pointer"
+        className="absolute top-8 left-10 text-slate-500 hover:text-teal-500 flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] z-20 transition-all cursor-pointer group"
       >
-        <ArrowLeft className="w-4 h-4" /> Exit Demo
+        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to Tactical Console
       </button>
 
-      <div className="text-center mb-10 z-10">
-        <h1 className="text-xl font-bold tracking-tight text-white font-heading">Wearable Integration</h1>
-        <p className="text-sm text-gray-500 mt-1 max-w-[250px]">
-           Simulated smartwatch interface. Hold the SOS button to trigger a live emergency alert across all synced devices.
+      <div className="text-center mb-12 z-10">
+        <h1 className="text-2xl font-black tracking-tight text-white uppercase" style={{ fontFamily: "Manrope, sans-serif" }}>Hardware Node Sync</h1>
+        <p className="text-[10px] text-slate-500 mt-3 max-w-[300px] font-black uppercase tracking-[0.25em] leading-relaxed mx-auto">
+           Biometric Telemetry Link • Secure Encryption Phase: Active
         </p>
       </div>
 
       {/* Watch Hardware Frame */}
-      <div className="relative w-[320px] h-[320px] rounded-full bg-[#111] border-[12px] border-[#222] shadow-[0_0_50px_rgba(0,0,0,1)] flex items-center justify-center overflow-hidden z-10">
+      <div className="relative w-[340px] h-[340px] rounded-full bg-slate-950 border-[18px] border-slate-900 shadow-[0_0_100px_rgba(0,0,0,0.9)] flex items-center justify-center overflow-hidden z-10 after:absolute after:inset-0 after:rounded-full after:border after:border-white/10 after:pointer-events-none">
         
         {/* Watch screen wrapper */}
         <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-white text-center">
@@ -95,11 +95,11 @@ export default function WearableDemoPage() {
                     animate={{ scale: 1, opacity: 1 }}
                     className="flex flex-col items-center justify-center h-full w-full bg-red-600/20 rounded-full"
                 >
-                    <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center mb-3 animate-pulse shadow-[0_0_30px_rgba(220,38,38,0.8)]">
-                        <ShieldAlert className="w-8 h-8 text-white" />
+                    <div className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center mb-4 animate-pulse shadow-[0_0_40px_rgba(239,68,68,0.4)]">
+                        <ShieldAlert className="w-8 h-8 text-slate-950" />
                     </div>
-                    <p className="text-xl font-bold tracking-wider font-heading text-red-500 mb-1">SOS ACTIVE</p>
-                    <p className="text-[10px] text-red-300 font-mono">BROADCASTING</p>
+                    <p className="text-xl font-black tracking-[0.2em] text-red-500 mb-2">SOS ACTIVE</p>
+                    <p className="text-[9px] text-red-400 font-black uppercase tracking-[0.3em]">Telemetry Broadcast</p>
                 </motion.div>
               ) : triggering ? (
                 // TRIGGERING STATE (Holding)
@@ -118,9 +118,9 @@ export default function WearableDemoPage() {
                                 transition={{ duration: 3, ease: "linear" }}
                             />
                         </svg>
-                        <p className="text-4xl font-bold font-mono text-red-500 z-10">{countdown}</p>
+                        <p className="text-5xl font-black text-red-500 z-10 tracking-tighter">{countdown}</p>
                     </div>
-                    <p className="text-xs text-gray-400 mt-4 font-mono">HOLD TO CONFIRM</p>
+                    <p className="text-[9px] text-slate-500 mt-6 font-black uppercase tracking-[0.3em]">Confirming Threat</p>
                 </motion.div>
               ) : (
                 // STANDBY STATE
@@ -130,21 +130,21 @@ export default function WearableDemoPage() {
                     className="flex flex-col justify-center items-center h-full w-full"
                 >
                     {/* Time */}
-                    <div className="mb-4">
-                        <p className="text-4xl font-bold font-mono tracking-tight">10:42</p>
-                        <p className="text-[10px] text-gray-500 font-heading font-medium tracking-widest mt-1">FRI, OCT 27</p>
+                    <div className="mb-6">
+                        <p className="text-5xl font-black text-slate-100 tracking-tighter">10:42</p>
+                        <p className="text-[10px] text-slate-500 font-black tracking-[0.3em] uppercase mt-2">Oct 27 • Friday</p>
                     </div>
 
                     {/* Vitals & Status */}
-                    <div className="flex items-center gap-5 mb-5 px-3">
+                    <div className="flex items-center gap-6 mb-8 px-4">
                         <div className="flex flex-col items-center">
-                            <HeartPulse className={`w-4 h-4 ${pulse > 100 ? 'text-red-500 animate-pulse' : 'text-green-500'} mb-1`} />
-                            <span className="text-xs font-mono font-bold text-gray-300">{pulse}</span>
+                            <HeartPulse className={`w-4 h-4 ${pulse > 100 ? 'text-red-500 animate-pulse' : 'text-teal-500'} mb-2`} />
+                            <span className="text-[11px] font-black text-slate-300">{pulse}</span>
                         </div>
-                        <div className="w-px h-6 bg-gray-800" />
+                        <div className="w-px h-8 bg-slate-800/50" />
                         <div className="flex flex-col items-center">
-                            <MapPin className="w-4 h-4 text-blue-400 mb-1" />
-                            <span className="text-[9px] font-mono font-bold text-gray-300 uppercase tracking-widest">Rohini</span>
+                            <MapPin className="w-4 h-4 text-teal-500/50 mb-2" />
+                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">Rohini</span>
                         </div>
                     </div>
 
@@ -153,11 +153,11 @@ export default function WearableDemoPage() {
                         onPointerDown={handlePointerDown}
                         onPointerUp={handlePointerUp}
                         onPointerLeave={handlePointerUp}
-                        whileTap={{ scale: 0.9 }}
-                        className="w-[140px] py-3 rounded-full bg-red-600 shadow-[0_0_15px_rgba(220,38,38,0.4)] flex items-center justify-center gap-2 cursor-pointer select-none border border-red-500 hover:bg-red-500 transition-colors"
+                        whileTap={{ scale: 0.94 }}
+                        className="w-[180px] py-4 rounded-full bg-red-600 text-slate-950 flex items-center justify-center gap-3 cursor-pointer select-none border border-white/20 shadow-[0_0_40px_rgba(220,38,38,0.4)] hover:bg-red-500 transition-all"
                     >
-                       <ShieldAlert className="w-4 h-4 text-white" />
-                       <span className="text-sm font-bold tracking-widest font-heading text-white">SOS</span>
+                       <ShieldAlert className="w-4 h-4" />
+                       <span className="text-[11px] font-black tracking-[0.25em] uppercase">Emergency</span>
                     </motion.div>
                 </motion.div>
               )}
@@ -166,8 +166,8 @@ export default function WearableDemoPage() {
         </div>
       </div>
       
-      <p className="text-xs text-gray-600 mt-6 max-w-[200px] text-center">
-          In a real-life scenario, this interface runs directly on WearOS or Apple Watch.
+      <p className="text-[9px] text-slate-600 mt-10 max-w-[240px] text-center font-black uppercase tracking-[0.2em] leading-relaxed">
+          Operational Demo Mode • Sync Active across all Guardian nodes
       </p>
 
     </div>

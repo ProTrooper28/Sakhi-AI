@@ -129,27 +129,27 @@ const AssistantPage = () => {
 
   return (
     <AppLayout>
-      <div className="flex flex-col bg-[#fcfcfd]" style={{ height: "calc(100vh - 0px)" }}>
-        <div className="px-8 pt-10 pb-4 shrink-0 bg-[#fcfcfd]">
+      <div className="flex flex-col bg-slate-950" style={{ height: "calc(100vh - 0px)" }}>
+        <div className="px-8 pt-10 pb-4 shrink-0">
           <div className="flex justify-between items-start w-full">
             <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
-              <p className="text-slate-500 text-[14px] font-medium">Good evening,</p>
-              <h1 className="text-3xl font-bold text-slate-900 mt-1 tracking-tight">Hi, Sarah</h1>
+              <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Operational Link Active</p>
+              <h1 className="text-3xl font-black text-slate-100 mt-2 tracking-tight uppercase" style={{ fontFamily: "Manrope, sans-serif" }}>Console: Preeti</h1>
             </motion.div>
             <motion.div 
               animate={{ 
                 scale: [1, 1.02, 1],
-                backgroundColor: mode === "emergency" ? "#fef2f2" : "#ffffff"
+                backgroundColor: mode === "emergency" ? "rgba(239, 68, 68, 0.1)" : "rgba(20, 184, 166, 0.05)"
               }}
               transition={{ repeat: Infinity, duration: 3 }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full border ${mode === "emergency" ? "border-red-100 text-red-600" : "border-green-100 text-slate-600"} shadow-[0_4px_20px_rgba(34,197,94,0.1)] transition-colors`}
+              className={`flex items-center gap-3 px-5 py-2.5 rounded-full border ${mode === "emergency" ? "border-red-500/30 text-red-500" : "border-teal-500/20 text-teal-500"} shadow-2xl transition-colors`}
             >
-              <motion.div 
+                <motion.div 
                 animate={{ opacity: [1, 0.4, 1] }}
                 transition={{ repeat: Infinity, duration: 2 }}
-                className={`w-2.5 h-2.5 rounded-full ${mode === "emergency" ? "bg-red-500" : "bg-green-500"}`}
+                className={`w-2 h-2 rounded-full ${mode === "emergency" ? "bg-red-500" : "bg-teal-500"}`}
               />
-              <span className="text-[13px] font-bold">Mood: {mode === "emergency" ? "Alert" : "Calm"}</span>
+              <span className="text-[11px] font-black uppercase tracking-widest">{mode === "emergency" ? "Mode: Emergency" : "Mode: Tactical"}</span>
             </motion.div>
           </div>
         </div>
@@ -165,15 +165,15 @@ const AssistantPage = () => {
                 className={`flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div className="flex flex-col max-w-[85%]">
-                  <div className={`flex items-start gap-3 px-5 py-4 text-[14.5px] font-medium leading-relaxed ${
-                    msg.role === "user" ? "bg-[#dbeafe] text-[#334155] rounded-[24px] rounded-br-[8px] shadow-sm ml-auto" :
-                    msg.isTyping ? "bg-[#f3f4f6] text-[#64748b] rounded-[24px] rounded-bl-[8px] shadow-sm italic" :
-                    mode === "emergency" ? "bg-red-50 text-red-900 border border-red-100 rounded-[24px] rounded-bl-[8px] shadow-sm" :
-                    "bg-[#f3f4f6] text-[#334155] rounded-[24px] rounded-bl-[8px] shadow-sm"
+                  <div className={`flex items-start gap-4 px-6 py-4.5 text-[14px] font-black tracking-tight leading-relaxed ${
+                    msg.role === "user" ? "bg-teal-500 text-slate-950 rounded-[28px] rounded-br-[4px] shadow-lg ml-auto uppercase" :
+                    msg.isTyping ? "bg-slate-900/40 text-slate-500 rounded-[28px] rounded-bl-[4px] border border-slate-800/50" :
+                    mode === "emergency" ? "bg-red-500/10 text-red-400 border border-red-500/30 rounded-[28px] rounded-bl-[4px] shadow-2xl" :
+                    "bg-slate-900/60 text-slate-100 rounded-[28px] rounded-bl-[4px] border border-slate-800/50 shadow-xl"
                   }`}>
                     {msg.role === "assistant" && idx > 0 && !msg.isTyping && (
-                       <div className="w-8 h-8 rounded-full bg-black flex items-center justify-center shrink-0 mt-0.5">
-                         <Asterisk className="w-5 h-5 text-white" />
+                       <div className="w-8 h-8 rounded-full bg-teal-500/10 border border-teal-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                         <Asterisk className="w-4 h-4 text-teal-500" />
                        </div>
                     )}
                     {msg.isTyping ? (
@@ -188,18 +188,18 @@ const AssistantPage = () => {
                   </div>
 
                   {msg.role === "assistant" && idx === 0 && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="flex gap-3 mt-4 ml-1">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }} className="flex gap-3 mt-5 ml-2">
                       {[
-                        { icon: MapPin, label: "Share Location", onClick: () => navigate("/risk-map"), color: "text-slate-700", bg: "bg-white" },
-                        { icon: Shield, label: "Contact Guardian", onClick: () => dispatch("Call my guardian"), color: "text-slate-700", bg: "bg-white" },
-                        { icon: AlertTriangle, label: "Trigger SOS", onClick: triggerSOS, color: "text-red-500", bg: "bg-red-50" }
+                        { icon: MapPin, label: "Sync Location", onClick: () => navigate("/risk-map"), color: "text-slate-300", bg: "bg-slate-900/60" },
+                        { icon: Shield, label: "Contact Guardian", onClick: () => dispatch("Call my guardian"), color: "text-slate-300", bg: "bg-slate-900/60" },
+                        { icon: AlertTriangle, label: "Trigger SOS", onClick: triggerSOS, color: "text-red-500", bg: "bg-red-500/10" }
                       ].map((btn, i) => (
                         <motion.button 
                           key={i} 
                           whileHover={{ scale: 1.05, y: -2 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={btn.onClick} 
-                          className={`flex items-center gap-1.5 px-4 py-2 rounded-full border border-slate-100 shadow-sm text-[11px] font-bold ${btn.color} ${btn.bg} transition-all`}
+                          className={`flex items-center gap-2 px-5 py-2.5 rounded-full border border-slate-800/50 shadow-xl text-[10px] font-black uppercase tracking-widest ${btn.color} ${btn.bg} transition-all`}
                         >
                           <btn.icon className="w-3.5 h-3.5" /> {btn.label}
                         </motion.button>
@@ -212,36 +212,36 @@ const AssistantPage = () => {
           </AnimatePresence>
         </div>
 
-        <div className="shrink-0 px-8 pb-6 bg-[#fcfcfd]">
+        <div className="shrink-0 px-8 pb-8">
           <div className="flex items-center gap-4">
             <motion.button 
               whileHover={{ scale: 1.1, rotate: 90 }}
               whileTap={{ scale: 0.9 }}
               onClick={triggerSOS}
-              className="w-[46px] h-[46px] rounded-full bg-[#ef4444] text-white flex items-center justify-center shrink-0 shadow-[0_4px_15px_rgba(239,68,68,0.3)] transition-transform"
+              className="w-[52px] h-[52px] rounded-full bg-red-500 text-slate-950 flex items-center justify-center shrink-0 shadow-[0_0_30px_rgba(239,68,68,0.3)] transition-all"
             >
-              <Asterisk className="w-6 h-6" />
+              <Asterisk className="w-7 h-7" />
             </motion.button>
 
-            <div className="flex-1 relative flex items-center bg-white border border-slate-200 rounded-full shadow-sm px-5 py-3 focus-within:ring-2 focus-within:ring-slate-100 transition-all">
-              <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") dispatch(input); }} placeholder="Talk to Sakhi..." disabled={isProcessing} className="flex-1 bg-transparent outline-none text-[14px] text-slate-700 font-medium placeholder:text-slate-400" />
-              <div className="flex items-center gap-3 shrink-0 text-slate-400">
+            <div className="flex-1 relative flex items-center bg-slate-900/60 border border-slate-800/50 rounded-full shadow-2xl px-6 py-4 focus-within:border-teal-500/30 transition-all">
+              <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") dispatch(input); }} placeholder="Input command or query..." disabled={isProcessing} className="flex-1 bg-transparent outline-none text-[13px] text-slate-100 font-black uppercase tracking-widest placeholder:text-slate-700" />
+              <div className="flex items-center gap-4 shrink-0 text-slate-500">
                 <motion.button
                   whileHover={{ scale: 1.2 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={startVoiceInput}
                   className={`transition-colors cursor-pointer rounded-full p-1 ${
-                    isListening ? "text-red-500 animate-pulse" : "hover:text-slate-600"
+                    isListening ? "text-red-500 animate-pulse" : "hover:text-teal-500"
                   }`}
                   title={isListening ? "Listening..." : "Voice input"}
                 >
-                  <Mic className="w-[18px] h-[18px]" />
+                  <Mic className="w-[20px] h-[20px]" />
                 </motion.button>
-                <motion.button whileHover={{ scale: 1.2, color: "#0f172a" }} onClick={() => dispatch(input)} disabled={!input.trim() || isProcessing} className="transition-colors cursor-pointer"><Send className="w-[18px] h-[18px]" /></motion.button>
+                <motion.button whileHover={{ scale: 1.2, color: "#14b8a6" }} onClick={() => dispatch(input)} disabled={!input.trim() || isProcessing} className="transition-colors cursor-pointer"><Send className="w-[20px] h-[20px]" /></motion.button>
               </div>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-1.5 mt-4 text-[10px] font-medium text-slate-400"><Lock className="w-3 h-3" /><span>Conversations are encrypted and monitored for your safety</span></div>
+          <div className="flex items-center justify-center gap-2 mt-5 text-[9px] font-black uppercase tracking-[0.2em] text-slate-600"><Lock className="w-3 h-3 text-teal-500/50" /><span>Encrypted Tactical Link • Real-time Monitoring Active</span></div>
         </div>
       </div>
     </AppLayout>

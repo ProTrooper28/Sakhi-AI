@@ -19,14 +19,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 
 const navItems = [
-  { icon: LayoutDashboard, label: "Home",             path: "/home" },
-  { icon: AlertOctagon,    label: "SOS Settings",     path: "/sos" },
+  { icon: LayoutDashboard, label: "Dashboard",        path: "/home" },
+  { icon: Shield,          label: "Guardian Core",    path: "/guardian-live" },
+  { icon: AlertOctagon,    label: "SOS Protocols",    path: "/sos" },
   { icon: Archive,         label: "Evidence Locker",  path: "/evidence-locker" },
-  { icon: FileWarning,     label: "Anonymous Reports",path: "/report" },
+  { icon: FileWarning,     label: "Report Portal",    path: "/report" },
   { icon: MessageSquare,   label: "AI Companion",     path: "/assistant" },
-  { icon: Map,             label: "Location Tracking",path: "/location" },
-  { icon: Watch,           label: "Wearable Device",  path: "/wearable" },
-  { icon: Settings,        label: "Settings",         path: "/settings" },
+  { icon: Map,             label: "Live Tracking",    path: "/location" },
+  { icon: Watch,           label: "Hardware Hub",     path: "/wearable" },
+  { icon: Settings,        label: "Configuration",    path: "/settings" },
 ];
 
 const Sidebar = () => {
@@ -52,20 +53,19 @@ const Sidebar = () => {
       <div className="flex items-center justify-between px-6 py-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center"
-            style={{ background: "rgba(20,184,166,0.2)" }}
+            className="w-10 h-10 rounded-xl flex items-center justify-center border border-teal-500/20 bg-teal-500/10 shadow-[0_0_15px_rgba(20,184,166,0.1)]"
           >
-            <Shield className="w-5 h-5 text-teal-400" />
+            <Shield className="w-5 h-5 text-teal-500" />
           </div>
           <div>
             <p
-              className="font-bold text-white leading-none"
-              style={{ fontFamily: "Manrope, sans-serif", fontSize: "1rem" }}
+              className="font-black text-slate-100 leading-none tracking-tight uppercase"
+              style={{ fontFamily: "Manrope, sans-serif", fontSize: "0.9rem" }}
             >
-              Sakhi AI
+              Sakhi Ops
             </p>
-            <p className="text-[10px] text-white/40 mt-0.5 tracking-widest uppercase">
-              Safety Companion
+            <p className="text-[9px] text-slate-500 mt-1.5 tracking-[0.2em] font-black uppercase">
+              Command Center
             </p>
           </div>
         </div>
@@ -79,22 +79,21 @@ const Sidebar = () => {
       {/* ── Status pill ── */}
       <div className="px-6 py-4">
         <div
-          className="flex items-center gap-2 px-3 py-2 rounded-lg"
-          style={{ background: "rgba(20,184,166,0.1)", border: "1px solid rgba(20,184,166,0.2)" }}
+          className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-slate-950/50 border border-slate-800/50 shadow-inner"
         >
-          <span
-            className="w-2 h-2 rounded-full bg-teal-400"
-            style={{ animation: "dot-pulse 2s ease-in-out infinite" }}
-          />
-          <span className="text-teal-400 text-[11px] font-semibold tracking-wider uppercase">
-            Monitoring Active
+          <div className="relative">
+            <span className="block w-2 h-2 rounded-full bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.6)]" />
+            <span className="absolute inset-0 w-2 h-2 rounded-full bg-teal-500 animate-ping opacity-40" />
+          </div>
+          <span className="text-slate-400 text-[10px] font-black tracking-[0.15em] uppercase">
+            Systems: Optimal
           </span>
         </div>
       </div>
 
       {/* ── Navigation ── */}
-      <nav className="flex-1 px-3 pb-4 space-y-1 overflow-y-auto">
-        <p className="section-label px-3 pb-2 text-white/30">Navigation</p>
+      <nav className="flex-1 px-3 pb-4 space-y-0.5 overflow-y-auto custom-scrollbar">
+        <p className="px-4 pt-6 pb-2 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Operational Console</p>
         {navItems.slice(0, 2).map((item) => {
           const active =
             location.pathname === item.path ||
@@ -112,7 +111,7 @@ const Sidebar = () => {
           );
         })}
 
-        <p className="section-label px-3 pt-4 pb-2 text-white/30">Safety Tools</p>
+        <p className="px-4 pt-8 pb-2 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Defense Modules</p>
         {navItems.slice(2, 8).map((item) => {
           const active =
             location.pathname === item.path ||
@@ -130,7 +129,7 @@ const Sidebar = () => {
           );
         })}
 
-        <p className="section-label px-3 pt-4 pb-2 text-white/30">Account</p>
+        <p className="px-4 pt-8 pb-2 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">System Config</p>
         {navItems.slice(8).map((item) => {
           const active = location.pathname === item.path;
           const Icon = item.icon;
@@ -148,24 +147,25 @@ const Sidebar = () => {
       </nav>
 
       {/* ── User footer ── */}
-      <div className="px-4 py-4 border-t border-white/10">
-        <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.05)" }}>
+      <div className="px-4 py-6 border-t border-slate-800/50">
+        <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-950/40 border border-slate-800/30 group">
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-            style={{ background: "rgba(20,184,166,0.3)" }}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-[13px] font-black text-slate-900 flex-shrink-0 bg-teal-500 shadow-lg shadow-teal-500/10"
           >
             P
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white text-xs font-semibold truncate">Preeti Sharma</p>
-            <p className="text-white/40 text-[10px] truncate">Protected</p>
+            <p className="text-slate-100 text-[12px] font-black truncate uppercase tracking-tight">Preeti S.</p>
+            <p className="text-teal-500 text-[9px] font-black truncate uppercase tracking-widest mt-1 flex items-center gap-1">
+               <span className="w-1 h-1 bg-teal-500 rounded-full" /> Level 4
+            </p>
           </div>
           <button
             onClick={() => handleNavClick("/")}
-            className="text-white/40 hover:text-white/70 transition-colors"
-            title="Log out"
+            className="p-2 text-slate-600 hover:text-red-500 transition-all cursor-pointer"
+            title="Terminate Session"
           >
-            <LogOut style={{ width: 14, height: 14 }} />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>
