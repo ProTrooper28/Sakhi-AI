@@ -69,9 +69,53 @@
     --sidebar-width: 280px;
   }
 
-  /* Dark mode keeps light theme (design is light-only per Stitch spec) */
-}
+  .dark {
+    /* BACKGROUND: Primary: #0B1220, Cards: #111827 */
+    --background: 220 48% 8%;       /* #0B1220 */
+    --foreground: 0 0% 100%;        /* white */
 
+    --card: 221 39% 11%;            /* #111827 */
+    --card-foreground: 0 0% 100%;
+
+    --popover: 221 39% 11%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 0 0% 100%;
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 215 28% 17%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 215 28% 17%;
+    --muted-foreground: 215 16% 67%; /* muted gray */
+
+    --accent: 174 72% 35%;           /* slightly muted teal */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 28% 17%;
+    --input: 215 28% 17%;
+    --ring: 222 47% 11%;
+
+    --sos: 0 84% 60%;
+    --sos-foreground: 0 0% 100%;
+
+    --safe: 142 71% 40%;
+    --safe-foreground: 0 0% 100%;
+
+    --teal: 174 72% 35%;
+    --teal-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --sidebar-bg: 220 48% 8%;
+    --sidebar-fg: 220 20% 88%;
+    --sidebar-active: 174 72% 35%;
+  }
+}
 @layer base {
   * {
     @apply border-border;
@@ -125,14 +169,16 @@
     background-color: hsl(var(--card));
     border: 1px solid hsl(var(--border));
     border-radius: 1rem;
-    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
   }
 
   .card-surface-sm {
     background-color: hsl(var(--card));
     border: 1px solid hsl(var(--border));
     border-radius: 0.75rem;
-    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
   }
 
   /* ── Section label ── */
@@ -320,22 +366,23 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 0.75rem 1.5rem;
-    background-color: hsl(var(--teal));
+    background: linear-gradient(180deg, hsl(var(--teal)), hsl(174 72% 32%));
     color: white;
     font-family: var(--font-sans);
     font-weight: 600;
     font-size: 0.875rem;
-    border: none;
+    border: 1px solid hsl(174 72% 30%);
     border-radius: 0.5rem;
     cursor: pointer;
-    transition: background-color 0.25s ease-out, transform 0.1s;
+    transition: all 0.25s ease-out;
     white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(20, 184, 166, 0.25);
   }
 
   .btn-teal:hover {
-    background-color: hsl(174 62% 34%);
+    background: linear-gradient(180deg, hsl(174 62% 38%), hsl(174 72% 28%));
     transform: scale(1.02);
-    box-shadow: 0 4px 12px rgba(20, 184, 166, 0.2);
+    box-shadow: 0 0 20px rgba(20, 184, 166, 0.4);
   }
 
   .btn-teal:active {
@@ -592,13 +639,18 @@
     position: absolute;
     top: calc(100% + 10px);
     right: 0;
-    background: white;
-    border: 1px solid hsl(var(--border));
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid hsl(var(--border) / 0.5);
     border-radius: 1rem;
-    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
+    box-shadow: 0 16px 50px rgba(15, 23, 42, 0.15);
     min-width: 220px;
     z-index: 9999;
     overflow: hidden;
+  }
+  .dark .dropdown-panel {
+    background: rgba(17, 24, 39, 0.85);
   }
 
   /* Toggle pill interactive */

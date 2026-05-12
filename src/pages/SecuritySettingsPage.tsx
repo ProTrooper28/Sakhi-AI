@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Shield, Lock, Bell, Fingerprint, Eye, EyeOff, Phone, ChevronRight, AlertTriangle, Check, X } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useNavigate } from "react-router-dom";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const sections = [
   {
@@ -82,11 +83,14 @@ export default function SecuritySettingsPage() {
     <AppLayout>
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
         {/* Header */}
-        <div className="mb-8">
-          <h1 style={{ fontFamily: "Manrope,sans-serif", fontSize: "1.75rem", fontWeight: 700 }} className="text-foreground">
-            Security Settings
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">Manage your safety preferences and account protection.</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 style={{ fontFamily: "Manrope,sans-serif", fontSize: "1.75rem", fontWeight: 700 }} className="text-foreground">
+              Security Settings
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">Manage your safety preferences and account protection.</p>
+          </div>
+          <ThemeToggle />
         </div>
 
         <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 360px" }}>

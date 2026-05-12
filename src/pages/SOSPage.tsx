@@ -95,19 +95,19 @@ const SOSPage = () => {
   // ── ACTIVE FULL-SCREEN STATE ────────────────────────────────────────────────
   if (sosState.active) {
     return (
-      <div className="fixed inset-0 z-50 overflow-hidden bg-[#Fdf5f5] text-slate-800 flex flex-col items-center pt-16 pb-32">
+      <div className="fixed inset-0 z-50 overflow-hidden bg-[#Fdf5f5] dark:bg-[#0B1220] text-slate-800 dark:text-white flex flex-col items-center pt-16 pb-32">
         {/* State Change Transition Overlay */}
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
-          className="absolute inset-0 bg-red-600/5 pointer-events-none"
+          className="absolute inset-0 bg-red-600/10 pointer-events-none"
         />
 
         {/* Main Content container (No more global shake) */}
         <div className="w-full h-full flex flex-col items-center overflow-y-auto relative z-10">
           {/* Background Radial Glow */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(239,68,68,0.15)_0%,_rgba(253,245,245,0)_70%)] pointer-events-none" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(239,68,68,0.15)_0%,_rgba(253,245,245,0)_70%)] dark:bg-[radial-gradient(ellipse_at_center,_rgba(239,68,68,0.25)_0%,_rgba(11,18,32,0)_70%)] pointer-events-none" />
 
           {/* Top Header */}
           <motion.div 
@@ -157,24 +157,30 @@ const SOSPage = () => {
             <motion.div 
               animate={{ 
                 x: [-0.5, 0.5, -0.5, 0.5, 0],
-                rotate: [-0.5, 0.5, -0.5, 0.5, 0]
+                rotate: [-0.5, 0.5, -0.5, 0.5, 0],
+                scale: [1, 1.05, 1],
+                boxShadow: [
+                  "0 10px 50px rgba(239,68,68,0.5)",
+                  "0 10px 80px rgba(239,68,68,0.8)",
+                  "0 10px 50px rgba(239,68,68,0.5)"
+                ]
               }}
-              transition={{ repeat: Infinity, duration: 0.15 }}
+              transition={{ repeat: Infinity, duration: 0.15, scale: { duration: 1.5, repeat: Infinity }, boxShadow: { duration: 1.5, repeat: Infinity } }}
               style={{ transformOrigin: "center" }}
-              className="relative w-[170px] h-[170px] rounded-full bg-[#A30000] flex flex-col items-center justify-center shadow-[0_10px_50px_rgba(239,68,68,0.5)] border-[6px] border-red-50 overflow-hidden"
+              className="relative w-[170px] h-[170px] rounded-full bg-gradient-to-b from-[#EF4444] to-[#991B1B] flex flex-col items-center justify-center border-4 border-red-200/50 shadow-2xl overflow-hidden"
             >
                {/* Gradient overlay on button */}
-               <div className="absolute inset-0 bg-gradient-to-b from-red-600 to-[#900000]" />
+               <div className="absolute inset-0 bg-red-600/30 mix-blend-overlay" />
                <motion.span 
-                 animate={{ scale: [1, 1.08, 1] }}
-                 transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-                 className="relative z-10 text-white text-[38px] font-black leading-none mb-1 shadow-sm" 
+                 animate={{ scale: [1, 1.1, 1] }}
+                 transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                 className="relative z-10 text-white text-[42px] font-black leading-none mb-1 drop-shadow-lg" 
                  style={{ fontFamily: "Manrope, sans-serif" }}
                >
                  SOS
                </motion.span>
-               <span className="relative z-10 text-white text-[17px] font-bold tracking-widest leading-none mb-3 shadow-sm">ACTIVATED</span>
-               <span className="relative z-10 text-red-200 text-[7px] font-bold tracking-wider text-center uppercase leading-tight max-w-[90px]">Emergency Protocols In Progress</span>
+               <span className="relative z-10 text-white text-[17px] font-black tracking-widest leading-none mb-2 drop-shadow-md">ACTIVATED</span>
+               <span className="relative z-10 text-red-100 text-[8px] font-bold tracking-wider text-center uppercase leading-tight max-w-[100px]">Emergency Protocols In Progress</span>
             </motion.div>
           </div>
 
@@ -401,31 +407,32 @@ const SOSPage = () => {
             <motion.div 
                animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.1, 0.3] }}
                transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-               className="absolute w-[280px] h-[280px] rounded-full bg-red-50 border border-red-100" 
+               className="absolute w-[280px] h-[280px] rounded-full bg-red-50 border border-red-100 dark:bg-red-900/20 dark:border-red-900/30" 
             />
             <motion.div 
                animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.05, 0.2] }}
                transition={{ repeat: Infinity, duration: 4, ease: "easeInOut", delay: 0.5 }}
-               className="absolute w-[360px] h-[360px] rounded-full border border-red-50" 
+               className="absolute w-[360px] h-[360px] rounded-full border border-red-50 dark:border-red-900/20" 
             />
             
             <motion.button 
               onClick={triggerSOS}
-              whileHover={{ scale: 1.05, backgroundColor: "#c52525" }}
-              whileTap={{ scale: 0.9, backgroundColor: "#991b1b" }}
+              whileHover={{ scale: 1.05, filter: "brightness(1.1)" }}
+              whileTap={{ scale: 0.95 }}
               animate={{ 
-                scale: [1, 1.03, 1],
+                scale: [1, 1.05, 1],
                 boxShadow: [
-                  "0 15px 40px rgba(218,41,41,0.2)",
-                  "0 15px 60px rgba(218,41,41,0.4)",
-                  "0 15px 40px rgba(218,41,41,0.2)"
+                  "0 0 20px rgba(220, 38, 38, 0.4)",
+                  "0 0 50px rgba(220, 38, 38, 0.7)",
+                  "0 0 20px rgba(220, 38, 38, 0.4)"
                 ]
               }}
-              transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-              className="relative z-10 w-52 h-52 rounded-full bg-[#da2929] flex flex-col items-center justify-center border-8 border-white shadow-xl transition-colors"
+              transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+              className="relative z-10 w-52 h-52 rounded-full bg-gradient-to-b from-[#DC2626] to-[#7F1D1D] flex flex-col items-center justify-center border-4 border-white/20 shadow-2xl overflow-hidden cursor-pointer"
             >
-              <span style={{ fontFamily: "Manrope, sans-serif" }} className="text-white text-[60px] font-black leading-none mb-1">SOS</span>
-              <span className="text-white font-black text-[10px] tracking-[0.2em] uppercase opacity-80">Tap to Trigger</span>
+              <div className="absolute inset-0 bg-red-600/20 mix-blend-overlay pointer-events-none" />
+              <span style={{ fontFamily: "Manrope, sans-serif" }} className="relative z-10 text-white text-[64px] font-black leading-none mb-1 drop-shadow-md">SOS</span>
+              <span className="relative z-10 text-white font-bold text-[11px] tracking-[0.2em] uppercase drop-shadow-sm">HOLD TO TRIGGER</span>
             </motion.button>
           </div>
 
