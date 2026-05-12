@@ -1,6 +1,6 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Shield, ArrowRight, Eye, EyeOff, Lock, User, Phone, Mail } from "lucide-react";
+import { Shield, ArrowRight, Eye, EyeOff, Lock, User, Phone, Mail, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const LoginPage = () => {

@@ -1,3 +1,4 @@
+import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, Map, MessageSquare, ShieldCheck, Asterisk } from "lucide-react";
 import { useApp } from "@/context/AppContext";
