@@ -96,36 +96,36 @@ const ReportReviewPage = () => {
 
   return (
     <AppLayout>
-      <div className="flex flex-col min-h-screen bg-background">
+      <div className="flex flex-col min-h-screen bg-[#fcfcfd]">
         {/* Top Header */}
-        <div className="flex items-center justify-between px-8 py-6 border-b border-slate-800/50 bg-slate-900/20 backdrop-blur-md shrink-0">
-          <motion.div initial={{ opacity: 0, x: -15 }} animate={{ opacity: 1, x: 0 }}>
-             <h1 className="text-2xl font-black text-slate-100 leading-tight tracking-tight uppercase" style={{ fontFamily: "Manrope, sans-serif" }}>Incident Review</h1>
-             <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-2">AI Credibility Assessment • Secure Link Active</p>
-          </motion.div>
+        <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 bg-white shrink-0">
+          <div>
+             <h1 className="text-2xl font-bold text-slate-900 leading-tight" style={{ fontFamily: "Manrope, sans-serif" }}>Anonymous Reporting</h1>
+             <p className="text-[13px] text-slate-500 font-medium">Secure, encrypted, and untraceable incident logging.</p>
+          </div>
           <div className="flex items-center gap-5">
-             <motion.button whileHover={{ scale: 1.1 }} className="text-slate-600 hover:text-white transition-colors"><Bell className="w-5 h-5" /></motion.button>
-             <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-slate-950 font-black shadow-lg">
-                P
+             <Bell className="w-5 h-5 text-slate-600" />
+             <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden">
+                <img src="https://ui-avatars.com/api/?name=User&background=0F172A&color=fff" alt="User" />
              </div>
           </div>
         </div>
 
-        <div className="flex flex-col flex-1 p-8 items-center justify-start relative bg-background overflow-y-auto">
+        <div className="flex flex-col flex-1 p-8 items-center justify-start relative bg-[#fcfcfd] overflow-y-auto">
           
           {/* Progress Tracker */}
           <div className="w-full max-w-4xl flex items-center justify-start gap-4 mb-10">
              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-teal-500 text-slate-950 text-[10px] font-black flex items-center justify-center shadow-lg"><Check className="w-3 h-3" /></div>
+                <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 text-[10px] font-bold flex items-center justify-center"><Check className="w-3 h-3" /></div>
              </div>
-             <div className="w-12 h-px bg-slate-800" />
+             <div className="w-12 h-[2px] bg-slate-200 mx-2" />
              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-teal-500 text-slate-950 text-[10px] font-black flex items-center justify-center shadow-lg"><Check className="w-3 h-3" /></div>
+                <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 text-[10px] font-bold flex items-center justify-center"><Check className="w-3 h-3" /></div>
              </div>
-             <div className="w-12 h-px bg-slate-800" />
+             <div className="w-12 h-[2px] bg-slate-200 mx-2" />
              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-teal-500 text-slate-950 text-[11px] font-black flex items-center justify-center shadow-lg uppercase">3</div>
-                <span className="text-[11px] font-black text-slate-100 uppercase tracking-widest ml-1">Protocol Review</span>
+                <div className="w-6 h-6 rounded-full bg-black text-white text-[10px] font-bold flex items-center justify-center">3</div>
+                <span className="text-[13px] font-bold text-slate-900">Review & Submit</span>
              </div>
           </div>
 
@@ -135,47 +135,48 @@ const ReportReviewPage = () => {
              <div className="flex-1 space-y-6">
                 
                 {/* AI Summary */}
-                 <div className="bg-slate-900/40 backdrop-blur-md rounded-[28px] border border-teal-500/20 shadow-2xl p-8 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-teal-500/5 blur-3xl -translate-y-8 translate-x-8 pointer-events-none group-hover:bg-teal-500/10 transition-colors" />
-                    
-                    <div className="flex items-center gap-3 mb-6">
-                       <Shield className="w-5 h-5 text-teal-500" />
-                       <span className="text-[14px] font-black text-slate-100 uppercase tracking-[0.1em]">Sakhi Tactical Intelligence</span>
-                       <span className="ml-auto text-[9px] bg-teal-500/10 text-teal-500 border border-teal-500/20 px-3 py-1.5 rounded-full font-black uppercase tracking-widest">AI Evaluated</span>
-                    </div>
-                    <p className="text-[13px] leading-relaxed text-slate-300 font-black uppercase tracking-tight relative z-10 mb-6">{summary}</p>
-                    <div className="flex items-center gap-3 pt-6 border-t border-slate-800/50 relative z-10">
-                       <Gavel className="w-4 h-4 text-slate-600" />
-                       <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Classification:</span>
-                       <span className="text-[10px] font-black text-teal-500 uppercase tracking-[0.2em]">{legalCategory}</span>
-                    </div>
-                 </div>
+                <div className="bg-gradient-to-br from-indigo-50 to-white rounded-[24px] border border-indigo-100 shadow-sm p-6 relative overflow-hidden">
+                   <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-indigo-500/5 blur-2xl -translate-y-8 translate-x-8 pointer-events-none" />
+                   
+                   <div className="flex items-center gap-2 mb-4">
+                      <Shield className="w-5 h-5 text-indigo-600" />
+                      <span className="text-[15px] font-bold text-slate-900">Sakhi AI Summary</span>
+                      <span className="ml-auto text-[10px] bg-indigo-100 text-indigo-700 px-2.5 py-1 rounded-full font-bold">AI Generated</span>
+                   </div>
+                   <p className="text-[13px] leading-relaxed text-slate-700 relative z-10 mb-4">{summary}</p>
+                   <div className="flex items-center gap-2 pt-4 border-t border-indigo-100/50 relative z-10">
+                      <Gavel className="w-4 h-4 text-slate-500" />
+                      <span className="text-[12px] font-medium text-slate-500">Legal Category:</span>
+                      <span className="text-[12px] font-bold text-indigo-700">{legalCategory}</span>
+                   </div>
+                </div>
 
                 {/* Report Details */}
-                 <div className="bg-slate-900/20 rounded-[28px] border border-slate-800/50 shadow-xl p-8">
-                    <div className="flex items-center gap-3 mb-6">
-                       <FileText className="w-5 h-5 text-slate-500" />
-                       <span className="text-[14px] font-black text-slate-100 uppercase tracking-[0.1em]">Packet Narrative</span>
-                    </div>
-                    <p className="text-[13px] leading-relaxed text-slate-400 font-black uppercase tracking-tight mb-8">{report.description}</p>
-                                      <div className="flex flex-wrap gap-3 pt-6 border-t border-slate-800/50">
-                       <div className="flex items-center gap-2 text-[9px] font-black text-slate-500 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 uppercase tracking-widest">
-                          <Clock className="w-3.5 h-3.5" /> {reportTime}
-                       </div>
-                       {report.location && (
-                          <div className="flex items-center gap-2 text-[9px] font-black text-slate-500 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 uppercase tracking-widest">
-                             <MapPin className="w-3.5 h-3.5" /> {report.location}
-                          </div>
-                       )}
-                       <div className="flex items-center gap-2 text-[9px] font-black text-slate-100 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 uppercase tracking-widest">
-                          {report.reportType === "cyber" ? "Cyber Vector" : "Physical Threat"}
-                       </div>
-                       {report.anonymous && (
-                          <div className="flex items-center gap-2 text-[9px] font-black text-teal-500 bg-teal-500/5 px-3 py-1.5 rounded-lg border border-teal-500/20 uppercase tracking-widest">
-                             Encrypted
-                          </div>
-                       )}
-                    </div>
+                <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] p-6">
+                   <div className="flex items-center gap-2 mb-4">
+                      <FileText className="w-5 h-5 text-slate-900" />
+                      <span className="text-[15px] font-bold text-slate-900">Incident Details</span>
+                   </div>
+                   <p className="text-[13px] leading-relaxed text-slate-600 mb-5">{report.description}</p>
+                   
+                   <div className="flex flex-wrap gap-3 pt-4 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg">
+                         <Clock className="w-3.5 h-3.5" /> {reportTime}
+                      </div>
+                      {report.location && (
+                         <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg">
+                            <MapPin className="w-3.5 h-3.5" /> {report.location}
+                         </div>
+                      )}
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg">
+                         {report.reportType === "cyber" ? "Cyber Threat" : "Physical Incident"}
+                      </div>
+                      {report.anonymous && (
+                         <div className="flex items-center gap-1.5 text-[11px] font-bold text-teal-700 bg-teal-50 px-3 py-1.5 rounded-lg border border-teal-100">
+                            Anonymous
+                         </div>
+                      )}
+                   </div>
 
                    {/* Attached Files */}
                    {report.evidence.length > 0 && (
@@ -206,47 +207,48 @@ const ReportReviewPage = () => {
              <div className="w-full md:w-[320px] shrink-0 space-y-6">
                 
                 {/* Credibility */}
-                 <div className="bg-slate-900/40 backdrop-blur-md rounded-[28px] border border-slate-800 shadow-2xl p-8">
-                    <div className="flex items-center gap-3 mb-6">
-                       <BarChart3 className="w-5 h-5 text-slate-500" />
-                       <span className="text-[14px] font-black text-slate-100 uppercase tracking-[0.1em]">Node Verification</span>
-                    </div>
-                    
-                    <div className="flex items-end justify-between mb-4">
-                       <span className={`text-3xl font-black uppercase tracking-tighter ${cred.color}`}>{cred.level}</span>
-                       <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-1">{cred.detail}</span>
-                    </div>
-                                      {/* Animated progress bar */}
-                    <div className="h-2 rounded-full bg-slate-950 overflow-hidden mb-6 border border-slate-800/50">
-                       <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${cred.pct}%` }}
-                          transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
-                          className={`h-full rounded-full ${cred.bg} shadow-[0_0_15px_rgba(20,184,166,0.3)]`}
-                       />
-                    </div>
-                    
-                    <p className="text-[10px] text-slate-600 leading-relaxed font-black uppercase tracking-widest">
-                       {cred.level === "Low"    && "Additional telemetry objects required to strengthen validation."}
-                       {cred.level === "Medium" && "Initial validation successful. Inject more assets for high-tier trust."}
-                       {cred.level === "High"   && "Full packet validation confirmed. Evidence density optimal."}
-                    </p>
-                 </div>
+                <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] p-6">
+                   <div className="flex items-center gap-2 mb-4">
+                      <BarChart3 className="w-5 h-5 text-slate-900" />
+                      <span className="text-[15px] font-bold text-slate-900">Credibility Score</span>
+                   </div>
+                   
+                   <div className="flex items-end justify-between mb-3">
+                      <span className={`text-3xl font-black ${cred.color}`}>{cred.level}</span>
+                      <span className="text-[11px] font-medium text-slate-500 mb-1">{cred.detail}</span>
+                   </div>
+                   
+                   {/* Animated progress bar */}
+                   <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden mb-4">
+                      <motion.div
+                         initial={{ width: 0 }}
+                         animate={{ width: `${cred.pct}%` }}
+                         transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+                         className={`h-full rounded-full ${cred.bg}`}
+                      />
+                   </div>
+                   
+                   <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                      {cred.level === "Low"    && "Add photos, screenshots, or recordings to increase credibility."}
+                      {cred.level === "Medium" && "Good start. Adding more evidence will strengthen your case."}
+                      {cred.level === "High"   && "Strong case. Multiple pieces of evidence significantly help."}
+                   </p>
+                </div>
 
                 {/* Actions */}
-                 <div className="bg-slate-900/40 backdrop-blur-md rounded-[28px] border border-slate-800 shadow-2xl p-8">
-                    <div className="flex items-center gap-3 mb-6">
-                       <CheckCircle className="w-5 h-5 text-teal-500" />
-                       <span className="text-[14px] font-black text-slate-100 uppercase tracking-[0.1em]">Protocol Actions</span>
-                    </div>
- 
-                    <div className="space-y-3">
-                       <button 
-                         onClick={handleAnonymousSave} 
-                         className="w-full bg-teal-500 hover:bg-teal-400 text-slate-950 px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-xl shadow-teal-500/10"
-                       >
-                         <BookLock className="w-4 h-4" /> Finalize Encrypted Packet
-                       </button>
+                <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] p-6">
+                   <div className="flex items-center gap-2 mb-5">
+                      <CheckCircle className="w-5 h-5 text-slate-900" />
+                      <span className="text-[15px] font-bold text-slate-900">Final Actions</span>
+                   </div>
+
+                   <div className="space-y-3">
+                      <button 
+                        onClick={handleAnonymousSave} 
+                        className="w-full bg-[#0f172a] hover:bg-black text-white px-5 py-3.5 rounded-xl text-[13px] font-bold transition-colors flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <BookLock className="w-4 h-4" /> Save as Anonymous Report
+                      </button>
 
                       {report.evidence.length === 0 && (
                          <button 
