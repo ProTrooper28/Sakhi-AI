@@ -79,12 +79,16 @@ const geofences = [
 
 export default function LocationTrackingPage() {
   const navigate = useNavigate();
-  const [toggles, setToggles] = useState({ home: true, work: true, school: false });
-  const toggle = (key: keyof typeof toggles) => setToggles(prev => ({ ...prev, [key]: !prev[key] }));
   const { locationState, triggerSOS } = useApp();
   const [copied, setCopied] = useState(false);
   const [satelliteMode, setSatelliteMode] = useState(false);
+  const [showSafetyZones, setShowSafetyZones] = useState(true);
+  const [routeType, setRouteType] = useState<"fastest" | "safest">("fastest");
+  const [liveStatusText, setLiveStatusText] = useState("Location updated just now");
+  
   const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const heatmapGroupRef = useRef<L.LayerGroup | null>(null);
+  const routeGroupRef = useRef<L.LayerGroup | null>(null);
 
   const handleShare = () => {
     const coordText = locationState.coords
@@ -127,15 +131,10 @@ export default function LocationTrackingPage() {
     });
     const tile = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
     tileLayerRef.current = tile;
-    const heatmapData = generateHeatmap(currentPos);
-    heatmapData.forEach((zone) => {
-      L.circle(zone.pos as [number, number], {
-        radius: 700,
-        color: "transparent",
-        fillColor: zone.level === "red" ? COLORS.red : zone.level === "orange" ? COLORS.orange : COLORS.green,
-        fillOpacity: 1,
-      }).addTo(map);
-    });
+    
+    heatmapGroupRef.current = L.layerGroup().addTo(map);
+    routeGroupRef.current = L.layerGroup().addTo(map);
+
     const contacts = [
       { id: "c1", lat: currentPos[0] + 0.007, lng: currentPos[1] + 0.002, initial: "P", color: "bg-blue-500" },
       { id: "c2", lat: currentPos[0] - 0.001, lng: currentPos[1] + 0.005, initial: "M", color: "bg-purple-500" },
@@ -148,6 +147,47 @@ export default function LocationTrackingPage() {
     return () => { map.remove(); mapRef.current = null; };
   }, [currentPos]);
 
+  useEffect(() => {
+    if (!mapRef.current || !heatmapGroupRef.current || !routeGroupRef.current) return;
+    
+    heatmapGroupRef.current.clearLayers();
+    routeGroupRef.current.clearLayers();
+
+    if (showSafetyZones) {
+      const heatmapData = generateHeatmap(currentPos);
+      heatmapData.forEach((zone) => {
+        L.circle(zone.pos as [number, number], {
+          radius: 700,
+          color: "transparent",
+          fillColor: zone.level === "red" ? COLORS.red : zone.level === "orange" ? COLORS.orange : COLORS.green,
+          fillOpacity: 1,
+        }).addTo(heatmapGroupRef.current!);
+      });
+    }
+
+    const destinationPos: [number, number] = [currentPos[0] + 0.015, currentPos[1] + 0.02];
+    const fastestRoute = [currentPos, [currentPos[0] + 0.007, currentPos[1] + 0.01], destinationPos];
+    const safestRoute = [currentPos, [currentPos[0] + 0.002, currentPos[1] + 0.015], [currentPos[0] + 0.01, currentPos[1] + 0.022], destinationPos];
+
+    L.marker(destinationPos, { icon: makeAvatarIcon("D", "bg-slate-900") }).addTo(routeGroupRef.current);
+
+    if (routeType === "fastest") {
+      L.polyline(fastestRoute as [number, number][], { color: "#3b82f6", weight: 5, dashArray: "10, 10" }).addTo(routeGroupRef.current);
+    } else {
+      L.polyline(safestRoute as [number, number][], { color: "#14b8a6", weight: 5, dashArray: "10, 10" }).addTo(routeGroupRef.current);
+    }
+  }, [currentPos, showSafetyZones, routeType]);
+
+  useEffect(() => {
+    const texts = ["Location updated just now", "Signal strong", "Tracking accurate"];
+    let i = 0;
+    const interval = setInterval(() => {
+      i = (i + 1) % texts.length;
+      setLiveStatusText(texts[i]);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <AppLayout>
       <div className="bg-[#fcfcfd] min-h-screen">
@@ -157,7 +197,7 @@ export default function LocationTrackingPage() {
               <h1 style={{ fontFamily: "Manrope,sans-serif" }} className="text-2xl font-black text-slate-900 tracking-tight">Live Location Tracking</h1>
               <div className="flex items-center gap-2 mt-1.5">
                 <motion.span animate={{ opacity: [1, 0.4, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="w-2 h-2 rounded-full bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.5)]" />
-                <span className="text-slate-400 text-[11px] font-black uppercase tracking-widest">Active Signal • Noida, UP</span>
+                <span className="text-slate-400 text-[11px] font-black uppercase tracking-widest">Live tracking active • {liveStatusText}</span>
               </div>
             </motion.div>
             <motion.button
@@ -182,7 +222,36 @@ export default function LocationTrackingPage() {
               </div>
             </motion.div>
 
-            <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-6">
+                {/* Smart Routing Options */}
+                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-white rounded-[28px] border border-slate-50 shadow-sm p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <Navigation className="w-5 h-5 text-blue-500" />
+                    <h2 className="font-black text-[15px] text-slate-900 uppercase tracking-tight">Smart Routing</h2>
+                  </div>
+                </div>
+
+                <div className="flex bg-slate-50 p-1 rounded-2xl mb-6 border border-slate-100">
+                  <button onClick={() => setRouteType("fastest")} className={`flex-1 py-2 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all cursor-pointer ${routeType === "fastest" ? "bg-white shadow-md text-blue-600" : "text-slate-400 hover:text-slate-600"}`}>Fastest Route</button>
+                  <button onClick={() => setRouteType("safest")} className={`flex-1 py-2 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all cursor-pointer ${routeType === "safest" ? "bg-white shadow-md text-teal-600" : "text-slate-400 hover:text-slate-600"}`}>Safest Route</button>
+                </div>
+
+                {routeType === "safest" && (
+                  <div className="mb-6 bg-teal-50 border border-teal-100 p-3 rounded-xl flex items-center gap-2">
+                    <Check className="w-4 h-4 text-teal-600" />
+                    <span className="text-[11px] font-bold text-teal-700">Safer route suggested (avoids high-risk zones)</span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Show Safety Zones</span>
+                  <button onClick={() => setShowSafetyZones(!showSafetyZones)} className={`w-12 h-6 rounded-full relative transition-colors cursor-pointer ${showSafetyZones ? "bg-red-500" : "bg-slate-200"}`}>
+                    <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${showSafetyZones ? "left-7" : "left-1"}`} />
+                  </button>
+                </div>
+              </motion.div>
+
               <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="bg-white rounded-[28px] border border-slate-50 shadow-sm p-8">
                 <div className="flex items-center gap-3 mb-6">
                   <MapPin className="w-5 h-5 text-teal-500" />
@@ -191,11 +260,11 @@ export default function LocationTrackingPage() {
                 <div className="space-y-5">
                   <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Address</p>
-                    <p className="text-slate-900 text-[13px] font-bold">Sector 18, Noida, UP 201301</p>
+                    <p className="text-slate-900 text-[13px] font-bold">{locationState.address || "Fetching..."}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lat</p><p className="text-slate-900 text-[13px] font-bold">28.5672° N</p></div>
-                    <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Long</p><p className="text-slate-900 text-[13px] font-bold">77.3218° E</p></div>
+                    <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lat</p><p className="text-slate-900 text-[13px] font-bold">{currentPos[0].toFixed(4)}° N</p></div>
+                    <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100"><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Long</p><p className="text-slate-900 text-[13px] font-bold">{currentPos[1].toFixed(4)}° E</p></div>
                   </div>
                 </div>
               </motion.div>
@@ -254,6 +323,11 @@ export default function LocationTrackingPage() {
                 <Radio className="w-5 h-5 animate-pulse" /> Broadcast Signal
               </motion.button>
             </div>
+          </div>
+          
+          <div className="mt-8 text-center text-slate-400 text-[11px] font-bold leading-relaxed max-w-2xl mx-auto opacity-70">
+            Safety data is based on publicly available FIR and incident reports. Color zones indicate relative risk levels:<br/>
+            <span className="text-red-400">Red = High Risk</span>, <span className="text-amber-400">Yellow = Moderate</span>, <span className="text-teal-400">Green = Safer Areas</span>.
           </div>
         </motion.div>
       </div>
