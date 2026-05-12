@@ -246,6 +246,8 @@
 
   .btn-primary:hover {
     background-color: hsl(215 28% 17%);
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
   }
 
   .btn-primary:active {
@@ -273,10 +275,12 @@
 
   .btn-sos:hover {
     background-color: hsl(0 72% 50%);
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
   }
 
   .btn-sos:active {
-    transform: scale(0.97);
+    transform: scale(0.98);
   }
 
   /* ── Secondary / ghost button ── */
@@ -301,6 +305,12 @@
   .btn-secondary:hover {
     border-color: hsl(var(--primary) / 0.4);
     background-color: hsl(var(--muted));
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+  }
+
+  .btn-secondary:active {
+    transform: scale(0.98);
   }
 
   /* ── Teal / AI action button ── */
@@ -324,6 +334,12 @@
 
   .btn-teal:hover {
     background-color: hsl(174 62% 34%);
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(20, 184, 166, 0.2);
+  }
+
+  .btn-teal:active {
+    transform: scale(0.98);
   }
 
   /* ── Input field ── */
@@ -408,6 +424,8 @@
   .sidebar-item:hover {
     background-color: rgba(255, 255, 255, 0.08);
     color: white;
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 
   .sidebar-item.active {
@@ -466,9 +484,6 @@
 
   /* Mobile: stack sidebar below (hidden) */
   @media (max-width: 768px) {
-    .sidebar {
-      display: none;
-    }
     .main-content {
       padding: 1.25rem 1rem 7rem;
     }
@@ -523,5 +538,80 @@
 
   .bg-gradient-navy {
     background: linear-gradient(135deg, hsl(var(--primary)), hsl(215 28% 17%));
+  }
+
+  /* ── Global interactive feedback ── */
+  button,
+  [role="button"],
+  .cursor-pointer {
+    cursor: pointer;
+  }
+
+  /* Hover lift + shadow for card-like buttons */
+  .interactive-card {
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .interactive-card:hover {
+    transform: scale(1.02);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+  }
+  .interactive-card:active {
+    transform: scale(0.98);
+  }
+
+  /* Sidebar item extra feedback */
+  .sidebar-item {
+    transition: all 0.2s ease;
+  }
+  .sidebar-item:active {
+    transform: scale(0.98);
+  }
+
+  /* Notification / profile icon hover ring */
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 9999px;
+    transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+    border: none;
+    background: transparent;
+  }
+  .icon-btn:hover {
+    background-color: rgba(15, 23, 42, 0.06);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+    transform: scale(1.02);
+  }
+  .icon-btn:active {
+    transform: scale(0.98);
+  }
+
+  /* Dropdown panel */
+  .dropdown-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    background: white;
+    border: 1px solid hsl(var(--border));
+    border-radius: 1rem;
+    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
+    min-width: 220px;
+    z-index: 9999;
+    overflow: hidden;
+  }
+
+  /* Toggle pill interactive */
+  .toggle-pill {
+    cursor: pointer;
+    transition: background-color 0.25s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .toggle-pill:hover {
+    opacity: 0.85;
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+  }
+  .toggle-pill:active {
+    transform: scale(0.98);
   }
 }

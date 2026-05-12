@@ -67,8 +67,8 @@ export default function WearableDemoPage() {
       />
 
       <button
-        onClick={() => navigate("/")}
-        className="absolute top-6 left-6 text-muted-foreground flex items-center gap-2 text-sm z-10 hover:text-foreground transition-colors"
+        onClick={() => navigate("/home")}
+        className="absolute top-6 left-6 text-muted-foreground flex items-center gap-2 text-sm z-10 hover:text-foreground transition-colors cursor-pointer"
       >
         <ArrowLeft className="w-4 h-4" /> Exit Demo
       </button>

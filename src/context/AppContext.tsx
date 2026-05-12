@@ -60,6 +60,8 @@ type AppContextType = {
   triggerSOS: () => void;
   cancelSOS: () => void;
   requestLocation: () => void;
+  isSidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -257,6 +259,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return id;
   };
 
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
   const getReport = (id: string) => reports.find((r) => r.id === id);
 
   return (
@@ -265,6 +268,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         reports, evidenceLocker, sosState, locationState,
         addReport, updateReport, addEvidence, getReport,
         triggerSOS, cancelSOS, requestLocation,
+        isSidebarOpen, setSidebarOpen
       }}
     >
       {children}

@@ -1,11 +1,17 @@
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mic, EyeOff, Eye, Phone, MapPin, Video, Watch, Users, ShieldAlert, CheckCircle2, Navigation, Bell, Shield, Asterisk } from "lucide-react";
+import { Mic, EyeOff, Eye, Phone, MapPin, Video, Watch, Users, ShieldAlert, CheckCircle2, Navigation, Bell, Shield, Asterisk, ArrowLeft } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
+import { useNavigate } from "react-router-dom";
 
 const SOSPage = () => {
   const { sosState, triggerSOS, cancelSOS, addEvidence, locationState } = useApp();
+  const navigate = useNavigate();
+
+  // Option card toggle state
+  const [options, setOptions] = useState({ silent: false, voice: false, wearable: true, guardian: false });
+  const toggleOption = (key: keyof typeof options) => setOptions(prev => ({ ...prev, [key]: !prev[key] }));
 
   // Native MediaRecorder State
   const [isMediaRecording, setIsMediaRecording] = useState(false);
@@ -98,12 +104,8 @@ const SOSPage = () => {
           className="absolute inset-0 bg-red-600/5 pointer-events-none"
         />
 
-        {/* Vibration / Micro-shake container */}
-        <motion.div 
-          animate={{ x: [-1, 1, -1, 1, 0] }}
-          transition={{ repeat: Infinity, duration: 0.2 }}
-          className="w-full h-full flex flex-col items-center overflow-y-auto relative z-10"
-        >
+        {/* Main Content container (No more global shake) */}
+        <div className="w-full h-full flex flex-col items-center overflow-y-auto relative z-10">
           {/* Background Radial Glow */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(239,68,68,0.15)_0%,_rgba(253,245,245,0)_70%)] pointer-events-none" />
 
@@ -124,8 +126,8 @@ const SOSPage = () => {
             <p className="text-[13px] text-slate-500 font-medium">Transmitting real-time data to security teams</p>
           </motion.div>
 
-          {/* Central SOS Button Active */}
-          <div className="relative z-10 flex flex-col items-center justify-center mb-10">
+          {/* Central SOS Button Active Area */}
+          <div className="relative z-10 flex flex-col items-center justify-center mb-10 w-full">
             {/* Ripples */}
             <AnimatePresence>
                {[0, 1, 2].map((i) => (
@@ -150,18 +152,16 @@ const SOSPage = () => {
               transition={{ repeat: Infinity, duration: 20, ease: "linear" }}
               className="absolute w-[260px] h-[260px] rounded-full border-[1.5px] border-dashed border-red-300/80" 
             />
-            {/* Inner solid ring */}
-            <motion.div 
-               animate={{ scale: [1, 1.05, 1] }}
-               transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-               className="absolute w-[220px] h-[220px] rounded-full border border-red-200" 
-            />
             
+            {/* Central SOS Button with Stable Shake */}
             <motion.div 
-              initial={{ scale: 0.5 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", damping: 15 }}
-              className="w-[170px] h-[170px] rounded-full bg-[#A30000] flex flex-col items-center justify-center shadow-[0_10px_50px_rgba(239,68,68,0.5)] border-[6px] border-red-50 relative overflow-hidden"
+              animate={{ 
+                x: [-0.5, 0.5, -0.5, 0.5, 0],
+                rotate: [-0.5, 0.5, -0.5, 0.5, 0]
+              }}
+              transition={{ repeat: Infinity, duration: 0.15 }}
+              style={{ transformOrigin: "center" }}
+              className="relative w-[170px] h-[170px] rounded-full bg-[#A30000] flex flex-col items-center justify-center shadow-[0_10px_50px_rgba(239,68,68,0.5)] border-[6px] border-red-50 overflow-hidden"
             >
                {/* Gradient overlay on button */}
                <div className="absolute inset-0 bg-gradient-to-b from-red-600 to-[#900000]" />
@@ -339,20 +339,20 @@ const SOSPage = () => {
              <motion.button 
                whileHover={{ scale: 1.05 }}
                whileTap={{ scale: 0.95 }}
-               className="bg-[#C82121] hover:bg-[#A30000] text-white font-black tracking-widest text-[12px] px-10 py-4 rounded-2xl shadow-xl shadow-red-100 flex items-center gap-3 transition-colors"
+               onClick={() => window.location.href = "tel:100"}
+               className="bg-[#C82121] hover:bg-[#A30000] text-white font-black tracking-widest text-[12px] px-10 py-4 rounded-2xl shadow-xl shadow-red-100 flex items-center gap-3 transition-colors cursor-pointer"
              >
                 <Phone className="w-5 h-5 fill-current" /> CALL POLICE
              </motion.button>
              <motion.button 
-               onLongPress={cancelSOS}
                whileTap={{ scale: 0.95 }}
-               onClick={() => {}} // Handle tap vs long press if needed
-               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black tracking-widest text-[12px] px-10 py-4 rounded-2xl transition-colors"
+               onClick={cancelSOS}
+               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black tracking-widest text-[12px] px-10 py-4 rounded-2xl transition-colors cursor-pointer"
              >
-                CANCEL (HOLD)
+                CANCEL SOS
              </motion.button>
           </motion.div>
-        </motion.div>
+        </div>
       </div>
     );
   }
@@ -363,13 +363,16 @@ const SOSPage = () => {
       <div className="flex flex-col h-full bg-[#fcfcfd]">
         {/* Top Header */}
         <div className="flex items-center justify-between px-8 py-6 border-b border-slate-50 bg-white shrink-0">
-          <h1 className="text-xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "Manrope, sans-serif" }}>Emergency Assistance</h1>
-          <div className="flex items-center gap-6">
-             <button className="text-slate-400 hover:text-slate-900 transition-colors"><Bell className="w-5 h-5" /></button>
-             <button className="text-slate-400 hover:text-slate-900 transition-colors"><Shield className="w-5 h-5" /></button>
-             <div className="w-9 h-9 rounded-full bg-slate-900 border-2 border-white shadow-sm overflow-hidden">
-                <img src="https://ui-avatars.com/api/?name=User&background=0F172A&color=fff" alt="User" />
-             </div>
+          <div className="flex items-center gap-3">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate("/home")}
+              className="icon-btn w-8 h-8 text-slate-500 hover:text-slate-900 mr-1"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </motion.button>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "Manrope, sans-serif" }}>Emergency Assistance</h1>
           </div>
         </div>
 
@@ -440,38 +443,44 @@ const SOSPage = () => {
             className="grid grid-cols-2 gap-5 w-full max-w-[750px] relative z-10 mb-16"
           >
             {[
-              { icon: EyeOff, title: "Silent Mode", desc: "Send alerts without sound or visual indication", toggle: true },
-              { icon: Mic, title: "Voice Trigger", desc: "Activate SOS using your secure voice command" },
-              { icon: Watch, title: "Wearable Sync", desc: "Trigger SOS from your connected smart ring" },
-              { icon: Eye, title: "Guardian View", desc: "Preview what contacts see during an alert" },
-            ].map((opt, i) => (
-              <motion.div 
-                key={i}
+              { icon: EyeOff, title: "Silent Mode", desc: "Send alerts without sound or visual indication", key: "silent" as const },
+              { icon: Mic,    title: "Voice Trigger", desc: "Activate SOS using your secure voice command", key: "voice" as const },
+              { icon: Watch,  title: "Wearable Sync", desc: "Trigger SOS from your connected smart ring", key: "wearable" as const },
+              { icon: Eye,    title: "Guardian View", desc: "Preview what contacts see during an alert", key: "guardian" as const },
+            ].map((opt) => (
+              <motion.button
+                key={opt.key}
                 variants={{
                   hidden: { opacity: 0, y: 15 },
                   visible: { opacity: 1, y: 0 }
                 }}
-                whileHover={{ y: -3, shadow: "0 10px 25px rgba(0,0,0,0.03)" }}
-                className="bg-white rounded-[28px] p-6 flex items-start gap-5 shadow-[0_4px_20px_rgba(0,0,0,0.02)] border border-slate-50 transition-all cursor-pointer"
+                whileHover={{ y: -3 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => toggleOption(opt.key)}
+                className={`bg-white rounded-[28px] p-6 flex items-start gap-5 shadow-[0_4px_20px_rgba(0,0,0,0.02)] border transition-all cursor-pointer text-left ${
+                  options[opt.key] ? "border-teal-200 shadow-teal-50" : "border-slate-50"
+                }`}
               >
-                 <div className="w-12 h-12 rounded-[20px] bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100 text-slate-400">
+                 <div className={`w-12 h-12 rounded-[20px] flex items-center justify-center shrink-0 border transition-colors ${
+                   options[opt.key] ? "bg-teal-50 border-teal-100 text-teal-500" : "bg-slate-50 border-slate-100 text-slate-400"
+                 }`}>
                    <opt.icon className="w-5 h-5" />
                  </div>
                  <div className="flex-1 pt-1">
                     <div className="flex items-center justify-between mb-2">
                        <h3 className="text-[14px] font-black text-slate-900 leading-none">{opt.title}</h3>
-                       {opt.toggle && (
-                          <div className="w-8 h-4.5 bg-slate-100 rounded-full relative shadow-inner">
-                             <motion.div 
-                               animate={{ x: 2 }}
-                               className="w-3.5 h-3.5 bg-white rounded-full absolute left-0 top-0.5 shadow-sm" 
-                             />
-                          </div>
-                       )}
+                       {/* Toggle pill */}
+                       <div className={`w-9 h-5 rounded-full relative transition-colors duration-200 ${
+                         options[opt.key] ? "bg-teal-500" : "bg-slate-200"
+                       }`}>
+                         <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                           options[opt.key] ? "translate-x-4" : "translate-x-0.5"
+                         }`} />
+                       </div>
                     </div>
                     <p className="text-[12px] text-slate-400 font-bold leading-relaxed">{opt.desc}</p>
                  </div>
-              </motion.div>
+              </motion.button>
             ))}
           </motion.div>
 

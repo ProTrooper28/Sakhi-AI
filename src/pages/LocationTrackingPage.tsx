@@ -2,10 +2,11 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin, Navigation, Users, Clock, AlertTriangle,
-  Layers, ZoomIn, ZoomOut, Home, Briefcase, GraduationCap, Share2, Radio, Asterisk
+  Layers, ZoomIn, ZoomOut, Home, Briefcase, GraduationCap, Share2, Radio, Check
 } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
+import { useNavigate } from "react-router-dom";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -77,9 +78,37 @@ const geofences = [
 ];
 
 export default function LocationTrackingPage() {
+  const navigate = useNavigate();
   const [toggles, setToggles] = useState({ home: true, work: true, school: false });
   const toggle = (key: keyof typeof toggles) => setToggles(prev => ({ ...prev, [key]: !prev[key] }));
   const { locationState, triggerSOS } = useApp();
+  const [copied, setCopied] = useState(false);
+  const [satelliteMode, setSatelliteMode] = useState(false);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+
+  const handleShare = () => {
+    const coordText = locationState.coords
+      ? `${locationState.coords.lat.toFixed(5)}, ${locationState.coords.lng.toFixed(5)}`
+      : "28.56720, 77.32180";
+    navigator.clipboard.writeText(`My live location: ${coordText}`).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleZoomIn  = () => mapRef.current?.zoomIn();
+  const handleZoomOut = () => mapRef.current?.zoomOut();
+  const handleLayers  = () => {
+    if (!mapRef.current) return;
+    setSatelliteMode(prev => {
+      const next = !prev;
+      if (tileLayerRef.current) mapRef.current!.removeLayer(tileLayerRef.current);
+      const url = next
+        ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+      tileLayerRef.current = L.tileLayer(url).addTo(mapRef.current!);
+      return next;
+    });
+  };
 
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -96,7 +125,8 @@ export default function LocationTrackingPage() {
       zoomControl: false,
       attributionControl: false,
     });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
+    const tile = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
+    tileLayerRef.current = tile;
     const heatmapData = generateHeatmap(currentPos);
     heatmapData.forEach((zone) => {
       L.circle(zone.pos as [number, number], {
@@ -130,8 +160,15 @@ export default function LocationTrackingPage() {
                 <span className="text-slate-400 text-[11px] font-black uppercase tracking-widest">Active Signal • Noida, UP</span>
               </div>
             </motion.div>
-            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-slate-900 text-white text-[13px] font-black hover:bg-black transition-colors shadow-xl shadow-slate-200">
-              <Share2 className="w-4 h-4" /> Share Location
+            <motion.button
+              whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              onClick={handleShare}
+              className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[13px] font-black transition-colors shadow-xl cursor-pointer ${
+                copied ? "bg-teal-600 text-white shadow-teal-100" : "bg-slate-900 text-white hover:bg-black shadow-slate-200"
+              }`}
+            >
+              {copied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+              {copied ? "Copied!" : "Share Location"}
             </motion.button>
           </div>
 
@@ -139,9 +176,9 @@ export default function LocationTrackingPage() {
             <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[32px] border border-slate-50 shadow-[0_4px_30px_rgba(0,0,0,0.02)] overflow-hidden relative flex flex-col sticky top-8" style={{ minHeight: "calc(100vh - 180px)" }}>
               <div ref={containerRef} className="absolute inset-0 z-0 bg-slate-50" />
               <div className="absolute bottom-8 right-8 flex flex-col gap-3 z-[400]">
-                <motion.button whileHover={{ scale: 1.1 }} className="w-12 h-12 bg-white rounded-2xl shadow-xl border border-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all"><ZoomIn className="w-6 h-6" /></motion.button>
-                <motion.button whileHover={{ scale: 1.1 }} className="w-12 h-12 bg-white rounded-2xl shadow-xl border border-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all"><Layers className="w-6 h-6" /></motion.button>
-                <motion.button whileHover={{ scale: 1.1 }} className="w-12 h-12 bg-white rounded-2xl shadow-xl border border-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all"><ZoomOut className="w-6 h-6" /></motion.button>
+                <motion.button onClick={handleZoomIn}  whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-12 h-12 bg-white rounded-2xl shadow-xl border border-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all cursor-pointer"><ZoomIn className="w-6 h-6" /></motion.button>
+                <motion.button onClick={handleLayers} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className={`w-12 h-12 rounded-2xl shadow-xl border flex items-center justify-center transition-all cursor-pointer ${ satelliteMode ? "bg-slate-900 border-slate-900 text-white" : "bg-white border-slate-50 text-slate-400 hover:text-slate-900" }`}><Layers className="w-6 h-6" /></motion.button>
+                <motion.button onClick={handleZoomOut} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-12 h-12 bg-white rounded-2xl shadow-xl border border-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all cursor-pointer"><ZoomOut className="w-6 h-6" /></motion.button>
               </div>
             </motion.div>
 
@@ -171,14 +208,20 @@ export default function LocationTrackingPage() {
                 </div>
                 <div className="space-y-5">
                   {guardiansList.map((g, i)=>(
-                    <motion.div whileHover={{ x: 4 }} key={i} className="flex items-center gap-4">
+                    <motion.button
+                      whileHover={{ x: 4 }}
+                      whileTap={{ scale: 0.97 }}
+                      key={i}
+                      onClick={() => navigate("/guardian")}
+                      className="w-full flex items-center gap-4 cursor-pointer text-left"
+                    >
                       <div className={`w-10 h-10 rounded-xl ${g.color} flex items-center justify-center font-black text-[12px] shadow-lg`}>{g.initials}</div>
                       <div className="flex-1 min-w-0">
                         <p className="text-slate-900 text-[13px] font-black truncate">{g.name}</p>
                         <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Active {g.since}</p>
                       </div>
                       <div className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
-                    </motion.div>
+                    </motion.button>
                   ))}
                 </div>
               </motion.div>

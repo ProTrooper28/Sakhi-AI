@@ -81,7 +81,26 @@ const AssistantPage = () => {
     { id: "init", role: "assistant", content: "I'm here with you. I've increased my sensitivity to environmental sounds and am monitoring your path via GPS. How can I help make you feel more secure?" }
   ]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const startVoiceInput = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { alert("Voice input not supported in this browser."); return; }
+    const recognition = new SR();
+    recognition.lang = "en-IN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    setIsListening(true);
+    recognition.start();
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setInput(transcript);
+      setIsListening(false);
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+  };
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages, isProcessing]);
 
@@ -207,8 +226,18 @@ const AssistantPage = () => {
             <div className="flex-1 relative flex items-center bg-white border border-slate-200 rounded-full shadow-sm px-5 py-3 focus-within:ring-2 focus-within:ring-slate-100 transition-all">
               <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") dispatch(input); }} placeholder="Talk to Sakhi..." disabled={isProcessing} className="flex-1 bg-transparent outline-none text-[14px] text-slate-700 font-medium placeholder:text-slate-400" />
               <div className="flex items-center gap-3 shrink-0 text-slate-400">
-                <motion.button whileHover={{ scale: 1.2, color: "#334155" }} className="transition-colors"><Mic className="w-[18px] h-[18px]" /></motion.button>
-                <motion.button whileHover={{ scale: 1.2, color: "#0f172a" }} onClick={() => dispatch(input)} disabled={!input.trim() || isProcessing} className="transition-colors"><Send className="w-[18px] h-[18px]" /></motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.2 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={startVoiceInput}
+                  className={`transition-colors cursor-pointer rounded-full p-1 ${
+                    isListening ? "text-red-500 animate-pulse" : "hover:text-slate-600"
+                  }`}
+                  title={isListening ? "Listening..." : "Voice input"}
+                >
+                  <Mic className="w-[18px] h-[18px]" />
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.2, color: "#0f172a" }} onClick={() => dispatch(input)} disabled={!input.trim() || isProcessing} className="transition-colors cursor-pointer"><Send className="w-[18px] h-[18px]" /></motion.button>
               </div>
             </div>
           </div>

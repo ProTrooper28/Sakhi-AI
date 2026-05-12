@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lock, Unlock, Shield, Calendar, MapPin, Eye, Download, Trash2, ShieldCheck, MoreVertical, Search, Filter, Grid, List as ListIcon, FileVideo, FileAudio, FileText } from "lucide-react";
+import { Lock, Unlock, Shield, Calendar, MapPin, Eye, Download, Trash2, ShieldCheck, MoreVertical, Search, Filter, Grid, List as ListIcon, FileVideo, FileAudio, FileText, Clock, X, ChevronRight } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -7,6 +7,26 @@ const EvidenceLockerPage = () => {
   const [isLocked, setIsLocked] = useState(true);
   const [pin, setPin] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [filterActive, setFilterActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleDownload = (item: any) => {
+    if (item.fileUrl) {
+      const a = document.createElement("a");
+      a.href = item.fileUrl;
+      a.download = item.name;
+      a.click();
+    } else {
+      alert(`Downloading: ${item.name}`);
+    }
+  };
+
+  const filteredList = (list: any[]) => {
+    if (!searchQuery.trim()) return list;
+    return list.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.location.toLowerCase().includes(searchQuery.toLowerCase()));
+  };
 
   const evidenceList = [
     { id: 1, type: "video", name: "SOS_Incident_001.mp4", date: "Oct 24, 2023", time: "22:15", size: "4.2 MB", location: "Sector 18, Noida", icon: FileVideo, color: "text-blue-500", bg: "bg-blue-50" },
@@ -122,51 +142,99 @@ const EvidenceLockerPage = () => {
            <div className="flex flex-col md:flex-row gap-4 mb-10">
               <div className="flex-1 relative group">
                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
-                 <input 
-                   placeholder="Search files by name, location or date..." 
+                 <input
+                   value={searchQuery}
+                   onChange={e => setSearchQuery(e.target.value)}
+                   placeholder="Search files by name, location or date..."
                    className="w-full bg-white border border-slate-100 rounded-2xl py-4 pl-14 pr-4 text-[14px] font-bold text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-50 transition-all shadow-sm"
                  />
               </div>
-              <button className="px-6 bg-white border border-slate-100 rounded-2xl flex items-center gap-3 text-slate-500 font-bold text-[13px] hover:bg-slate-50 transition-colors shadow-sm">
-                 <Filter className="w-4 h-4" /> Filter
+              <button
+                onClick={() => setFilterActive(v => !v)}
+                className={`px-6 border rounded-2xl flex items-center gap-3 font-bold text-[13px] transition-colors shadow-sm cursor-pointer ${
+                  filterActive ? "bg-slate-900 border-slate-900 text-white" : "bg-white border-slate-100 text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                 <Filter className="w-4 h-4" /> {filterActive ? "Filtered" : "Filter"}
               </button>
            </div>
 
            {/* Grid Layout */}
            <div className={`grid gap-6 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"}`}>
              <AnimatePresence>
-               {evidenceList.map((item, i) => (
-                 <motion.div 
+               {filteredList(evidenceList).map((item, i) => (
+                 <motion.div
                    key={item.id}
                    initial={{ opacity: 0, y: 20 }}
                    animate={{ opacity: 1, y: 0 }}
                    transition={{ delay: i * 0.1 }}
-                   whileHover={{ y: -5, shadow: "0 15px 30px rgba(0,0,0,0.05)" }}
-                   className="bg-white rounded-[32px] p-8 border border-slate-50 shadow-sm flex flex-col group transition-all"
+                   whileHover={{ y: -5 }}
+                   className="bg-white rounded-[32px] p-8 border border-slate-50 shadow-sm flex flex-col group transition-all relative"
                  >
                    <div className="flex justify-between items-start mb-6">
                       <div className={`w-14 h-14 rounded-2xl ${item.bg} ${item.color} flex items-center justify-center shadow-sm`}>
                          <item.icon className="w-7 h-7" />
                       </div>
-                      <button className="text-slate-300 hover:text-slate-900 transition-colors"><MoreVertical className="w-5 h-5" /></button>
+                      <div className="relative">
+                        <button
+                          onClick={() => setOpenMenuId(openMenuId === item.id ? null : item.id)}
+                          className="text-slate-300 hover:text-slate-900 transition-colors cursor-pointer p-1 rounded-lg hover:bg-slate-50"
+                        >
+                          <MoreVertical className="w-5 h-5" />
+                        </button>
+                        <AnimatePresence>
+                          {openMenuId === item.id && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.9, y: -4 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.9, y: -4 }}
+                              className="absolute right-0 top-8 bg-white border border-slate-100 rounded-2xl shadow-xl z-50 overflow-hidden min-w-[140px]"
+                            >
+                              {[
+                                { label: "View", icon: Eye, action: () => { setSelectedItem(item); setOpenMenuId(null); } },
+                                { label: "Download", icon: Download, action: () => { handleDownload(item); setOpenMenuId(null); } },
+                                { label: "Delete", icon: Trash2, action: () => { setOpenMenuId(null); alert("File deleted"); }, danger: true },
+                              ].map(m => (
+                                <button
+                                  key={m.label}
+                                  onClick={m.action}
+                                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-[12px] font-bold transition-colors cursor-pointer ${
+                                    m.danger ? "text-red-500 hover:bg-red-50" : "text-slate-700 hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <m.icon className="w-3.5 h-3.5" /> {m.label}
+                                </button>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                    </div>
-                   
+
                    <h3 className="text-[15px] font-black text-slate-900 mb-1 truncate">{item.name}</h3>
                    <div className="flex items-center gap-4 text-[11px] font-bold text-slate-400 mb-6 uppercase tracking-wider">
                       <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {item.date}</span>
                       <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {item.time}</span>
                    </div>
-                   
+
                    <div className="mt-auto pt-6 border-t border-slate-50 flex flex-col gap-3">
                       <div className="flex items-center gap-2 text-slate-500 mb-2">
                          <MapPin className="w-3.5 h-3.5" />
                          <span className="text-[12px] font-bold">{item.location}</span>
                       </div>
                       <div className="flex gap-3">
-                         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="flex-1 py-3 bg-slate-50 text-slate-700 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-100 transition-all">
+                         <motion.button
+                           whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                           onClick={() => setSelectedItem(item)}
+                           className="flex-1 py-3 bg-slate-50 text-slate-700 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-100 transition-all cursor-pointer"
+                         >
                             <Eye className="w-3.5 h-3.5" /> View
                          </motion.button>
-                         <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="flex-1 py-3 bg-slate-50 text-slate-700 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-100 transition-all">
+                         <motion.button
+                           whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                           onClick={() => handleDownload(item)}
+                           className="flex-1 py-3 bg-slate-50 text-slate-700 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-100 transition-all cursor-pointer"
+                         >
                             <Download className="w-3.5 h-3.5" /> Save
                          </motion.button>
                       </div>
@@ -175,6 +243,64 @@ const EvidenceLockerPage = () => {
                ))}
              </AnimatePresence>
            </div>
+
+           {/* Detail Modal */}
+           <AnimatePresence>
+             {selectedItem && (
+               <motion.div
+                 initial={{ opacity: 0 }}
+                 animate={{ opacity: 1 }}
+                 exit={{ opacity: 0 }}
+                 onClick={() => setSelectedItem(null)}
+                 className="fixed inset-0 z-[9999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6"
+               >
+                 <motion.div
+                   initial={{ opacity: 0, scale: 0.92, y: 20 }}
+                   animate={{ opacity: 1, scale: 1, y: 0 }}
+                   exit={{ opacity: 0, scale: 0.92, y: 20 }}
+                   onClick={e => e.stopPropagation()}
+                   className="bg-white rounded-[32px] p-10 max-w-md w-full shadow-2xl"
+                 >
+                   <div className="flex items-start justify-between mb-6">
+                     <div className={`w-16 h-16 rounded-2xl ${selectedItem.bg} ${selectedItem.color} flex items-center justify-center shadow-sm`}>
+                       <selectedItem.icon className="w-8 h-8" />
+                     </div>
+                     <button onClick={() => setSelectedItem(null)} className="icon-btn w-8 h-8 text-slate-400 hover:text-slate-900">
+                       <X className="w-4 h-4" />
+                     </button>
+                   </div>
+                   <h2 className="text-[18px] font-black text-slate-900 mb-1">{selectedItem.name}</h2>
+                   <p className="text-slate-400 text-[12px] font-bold uppercase tracking-widest mb-6">{selectedItem.size} • {selectedItem.type.toUpperCase()}</p>
+                   <div className="space-y-3 mb-8">
+                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
+                       <Calendar className="w-4 h-4 text-slate-400" />
+                       <span className="text-slate-700 text-[13px] font-bold">{selectedItem.date} at {selectedItem.time}</span>
+                     </div>
+                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
+                       <MapPin className="w-4 h-4 text-slate-400" />
+                       <span className="text-slate-700 text-[13px] font-bold">{selectedItem.location}</span>
+                     </div>
+                   </div>
+                   <div className="flex gap-3">
+                     <motion.button
+                       whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                       onClick={() => handleDownload(selectedItem)}
+                       className="flex-1 py-4 bg-slate-900 text-white font-black text-[13px] rounded-2xl shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                     >
+                       <Download className="w-4 h-4" /> Download
+                     </motion.button>
+                     <motion.button
+                       whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                       onClick={() => setSelectedItem(null)}
+                       className="px-6 py-4 bg-slate-100 text-slate-700 font-black text-[13px] rounded-2xl cursor-pointer"
+                     >
+                       Close
+                     </motion.button>
+                   </div>
+                 </motion.div>
+               </motion.div>
+             )}
+           </AnimatePresence>
         </div>
       </div>
     </AppLayout>

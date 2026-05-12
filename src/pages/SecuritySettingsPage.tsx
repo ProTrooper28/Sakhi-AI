@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { Shield, Lock, Bell, Fingerprint, Eye, EyeOff, Phone, ChevronRight, AlertTriangle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Shield, Lock, Bell, Fingerprint, Eye, EyeOff, Phone, ChevronRight, AlertTriangle, Check, X } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
+import { useNavigate } from "react-router-dom";
 
 const sections = [
   {
@@ -34,14 +35,48 @@ const sections = [
 ];
 
 export default function SecuritySettingsPage() {
+  const navigate = useNavigate();
   const [toggles, setToggles] = useState<Record<string, boolean>>({
     pin: true, bio: true, lock: false, silent: false, sms: true, shake: true,
     stealth: false, anon: true, fakeoff: false,
   });
   const [showPin, setShowPin] = useState(false);
-  const [pin, setPin] = useState("••••");
+  const [pin, setPin] = useState("1234");
+  const [editingPin, setEditingPin] = useState(false);
+  const [newPin, setNewPin] = useState("");
+  const [confirmDanger, setConfirmDanger] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
 
   const toggle = (key: string) => setToggles(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const handleChangePin = () => {
+    if (editingPin) {
+      if (newPin.length >= 4) {
+        setPin(newPin);
+        setNewPin("");
+        setEditingPin(false);
+        showToast("PIN updated successfully");
+      } else {
+        showToast("PIN must be at least 4 digits");
+      }
+    } else {
+      setEditingPin(true);
+    }
+  };
+
+  const handleDangerAction = (action: string) => {
+    if (confirmDanger === action) {
+      setConfirmDanger(null);
+      showToast(`${action} completed`);
+    } else {
+      setConfirmDanger(action);
+    }
+  };
 
   return (
     <AppLayout>
@@ -74,7 +109,7 @@ export default function SecuritySettingsPage() {
                       </div>
                       <button
                         onClick={() => toggle(item.key)}
-                        className={`w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 mt-0.5 relative ${toggles[item.key] ? "bg-teal-500" : "bg-slate-200"}`}
+                        className={`toggle-pill w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 mt-0.5 relative ${toggles[item.key] ? "bg-teal-500" : "bg-slate-200"}`}
                       >
                         <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${toggles[item.key] ? "translate-x-5" : "translate-x-0.5"}`} />
                       </button>
@@ -97,24 +132,38 @@ export default function SecuritySettingsPage() {
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="section-label mb-2 block">Current PIN</label>
+                  <label className="section-label mb-2 block">{editingPin ? "New PIN" : "Current PIN"}</label>
                   <div className="relative">
                     <input
                       type={showPin ? "text" : "password"}
-                      value={pin}
-                      readOnly
+                      value={editingPin ? newPin : pin}
+                      onChange={e => editingPin ? setNewPin(e.target.value) : undefined}
+                      readOnly={!editingPin}
+                      maxLength={8}
+                      placeholder={editingPin ? "Enter new PIN" : "Enter PIN"}
                       className="input-soft pr-10"
-                      placeholder="Enter PIN"
                     />
                     <button
                       onClick={() => setShowPin(!showPin)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                     >
                       {showPin ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
                     </button>
                   </div>
                 </div>
-                <button className="btn-primary w-full">Change PIN</button>
+                <div className="flex gap-2">
+                  <button onClick={handleChangePin} className="btn-primary flex-1">
+                    {editingPin ? "Save PIN" : "Change PIN"}
+                  </button>
+                  {editingPin && (
+                    <button
+                      onClick={() => { setEditingPin(false); setNewPin(""); }}
+                      className="btn-secondary px-4"
+                    >
+                      <X style={{ width: 14, height: 14 }} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -130,16 +179,20 @@ export default function SecuritySettingsPage() {
                 { initials: "M", name: "Mom (Sunita)", phone: "+91 98100 00001", color: "bg-blue-100 text-blue-700" },
                 { initials: "P", name: "Priya Kapoor", phone: "+91 98100 00002", color: "bg-purple-100 text-purple-700" },
               ].map(c => (
-                <div key={c.name} className="flex items-center gap-3 py-3 border-b border-border last:border-0">
+                <button
+                  key={c.name}
+                  onClick={() => window.location.href = `tel:${c.phone.replace(/\s/g, "")}`}
+                  className="w-full flex items-center gap-3 py-3 border-b border-border last:border-0 hover:bg-slate-50 transition-colors cursor-pointer text-left rounded-lg px-1"
+                >
                   <div className={`w-9 h-9 rounded-full ${c.color} flex items-center justify-center font-bold text-sm flex-shrink-0`}>{c.initials}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-foreground text-sm font-semibold">{c.name}</p>
                     <p className="text-muted-foreground text-xs">{c.phone}</p>
                   </div>
-                  <ChevronRight style={{ width: 16, height: 16 }} className="text-muted-foreground" />
-                </div>
+                  <Phone style={{ width: 14, height: 14 }} className="text-teal-500" />
+                </button>
               ))}
-              <button className="btn-secondary w-full mt-4">Manage Contacts</button>
+              <button onClick={() => navigate("/guardian")} className="btn-secondary w-full mt-4">Manage Contacts</button>
             </div>
 
             {/* Danger zone */}
@@ -150,12 +203,32 @@ export default function SecuritySettingsPage() {
               </div>
               <p className="text-muted-foreground text-xs mb-4">These actions are irreversible. Proceed with caution.</p>
               <div className="space-y-3">
-                <button className="btn-secondary w-full text-sm" style={{ color: "hsl(var(--sos))", borderColor: "hsl(var(--sos)/0.3)" }}>
-                  Clear All Evidence Data
-                </button>
-                <button className="btn-secondary w-full text-sm" style={{ color: "hsl(var(--sos))", borderColor: "hsl(var(--sos)/0.3)" }}>
-                  Reset Account
-                </button>
+                {[
+                  { label: "Clear All Evidence Data", key: "clear-evidence" },
+                  { label: "Reset Account", key: "reset-account" },
+                ].map(({ label, key }) => (
+                  <div key={key}>
+                    <button
+                      onClick={() => handleDangerAction(label)}
+                      className="btn-secondary w-full text-sm cursor-pointer"
+                      style={{ color: "hsl(var(--sos))", borderColor: "hsl(var(--sos)/0.3)" }}
+                    >
+                      {confirmDanger === label ? "Tap again to confirm" : label}
+                    </button>
+                    <AnimatePresence>
+                      {confirmDanger === label && (
+                        <motion.p
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="text-red-500 text-[11px] font-bold mt-1 ml-1"
+                        >
+                          ⚠ This cannot be undone. Tap button again to confirm.
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -173,6 +246,21 @@ export default function SecuritySettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* Toast Notification */}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
+              className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[9999] bg-slate-900 text-white text-[13px] font-bold px-6 py-3 rounded-2xl shadow-xl flex items-center gap-2"
+            >
+              <Check className="w-4 h-4 text-teal-400" />
+              {toast}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </AppLayout>
   );
