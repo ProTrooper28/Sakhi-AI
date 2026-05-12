@@ -3,7 +3,9 @@ import { Lock, Unlock, Shield, Calendar, MapPin, Eye, Download, Trash2, ShieldCh
 import AppLayout from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { useApp } from "@/context/AppContext";
 const EvidenceLockerPage = () => {
+  const { evidenceLocker, sosState } = useApp();
   const [isLocked, setIsLocked] = useState(true);
   const [pin, setPin] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -29,11 +31,46 @@ const EvidenceLockerPage = () => {
   };
 
   const evidenceList = [
-    { id: 1, type: "video", name: "SOS_Incident_001.mp4", date: "Oct 24, 2023", time: "22:15", size: "4.2 MB", location: "Sector 18, Noida", icon: FileVideo, color: "text-blue-500", bg: "bg-blue-50" },
-    { id: 2, type: "audio", name: "Voice_Log_Oct23.wav", date: "Oct 23, 2023", time: "18:45", size: "1.8 MB", location: "Cyber Hub, Gurgaon", icon: FileAudio, color: "text-teal-500", bg: "bg-teal-50" },
-    { id: 3, type: "report", name: "Harassment_Report_Final.pdf", date: "Oct 20, 2023", time: "14:20", size: "0.5 MB", location: "MG Road, Pune", icon: FileText, color: "text-orange-500", bg: "bg-orange-50" },
-    { id: 4, type: "video", name: "Evidence_Clip_394.mp4", date: "Oct 18, 2023", time: "23:55", size: "12.4 MB", location: "Indiranagar, Bangalore", icon: FileVideo, color: "text-blue-500", bg: "bg-blue-50" },
+    { id: 1, type: "video", name: "SOS_Incident_001.mp4", date: "Oct 24, 2023", time: "22:15", size: "4.2 MB", location: "Sector 18, Noida", icon: FileVideo, color: "text-blue-500", bg: "bg-blue-50", fileUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" },
+    { id: 2, type: "audio", name: "Voice_Log_Oct23.wav", date: "Oct 23, 2023", time: "18:45", size: "1.8 MB", location: "Cyber Hub, Gurgaon", icon: FileAudio, color: "text-teal-500", bg: "bg-teal-50", fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+    { id: 3, type: "report", name: "Harassment_Report_Final.pdf", date: "Oct 20, 2023", time: "14:20", size: "0.5 MB", location: "MG Road, Pune", icon: FileText, color: "text-orange-500", bg: "bg-orange-50", textContent: "INCIDENT REPORT\n\nDate: Oct 20, 2023\nLocation: MG Road, Pune\n\nDescription:\nUser reported feeling unsafe due to an unidentified individual following them for approximately 15 minutes near MG Road metro station. SOS was triggered at 14:20, automatically recording 3 minutes of audio evidence. Emergency contacts were notified instantly. The individual departed when the user entered a crowded cafe.\n\nStatus: Resolved - Guardian Network verified user reached home safely." },
+    { id: 4, type: "video", name: "Evidence_Clip_394.mp4", date: "Oct 18, 2023", time: "23:55", size: "12.4 MB", location: "Indiranagar, Bangalore", icon: FileVideo, color: "text-blue-500", bg: "bg-blue-50" }, // Intentionally left without fileUrl to test fallback
   ];
+
+  const dynamicEvidence = evidenceLocker.map(item => {
+    const d = new Date(item.timestamp);
+    const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+    
+    let icon = FileVideo;
+    let color = "text-blue-500";
+    let bg = "bg-blue-50";
+    let type = "video";
+    
+    if (item.type === "report-media" || item.fileType?.includes("audio")) {
+      icon = FileAudio;
+      color = "text-teal-500";
+      bg = "bg-teal-50";
+      type = "audio";
+    }
+
+    return {
+      id: item.id,
+      type: type,
+      name: item.name,
+      date: dateStr,
+      time: timeStr,
+      size: sosState.active && item.id.startsWith("ev_sos_") ? "LIVE" : "Unknown Size",
+      location: item.location || "Unknown Location",
+      icon: icon,
+      color: color,
+      bg: bg,
+      fileUrl: item.fileUrl,
+      isLive: sosState.active && item.id.startsWith("ev_sos_") && (Date.now() - d.getTime() < 86400000)
+    };
+  });
+
+  const allEvidence = [...dynamicEvidence, ...evidenceList];
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,7 +199,7 @@ const EvidenceLockerPage = () => {
            {/* Grid Layout */}
            <div className={`grid gap-6 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"}`}>
              <AnimatePresence>
-               {filteredList(evidenceList).map((item, i) => (
+               {filteredList(allEvidence).map((item, i) => (
                  <motion.div
                    key={item.id}
                    initial={{ opacity: 0, y: 20 }}
@@ -211,7 +248,14 @@ const EvidenceLockerPage = () => {
                       </div>
                    </div>
 
-                   <h3 className="text-[15px] font-black text-slate-900 mb-1 truncate">{item.name}</h3>
+                   <div className="flex items-start justify-between mb-1">
+                     <h3 className="text-[15px] font-black text-slate-900 truncate pr-2">{item.name}</h3>
+                     {item.isLive && (
+                       <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-[9px] font-black tracking-widest shrink-0 animate-pulse">
+                         <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> RECORDING...
+                       </span>
+                     )}
+                   </div>
                    <div className="flex items-center gap-4 text-[11px] font-bold text-slate-400 mb-6 uppercase tracking-wider">
                       <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {item.date}</span>
                       <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {item.time}</span>
@@ -244,7 +288,7 @@ const EvidenceLockerPage = () => {
              </AnimatePresence>
            </div>
 
-           {/* Detail Modal */}
+           {/* Preview Modal */}
            <AnimatePresence>
              {selectedItem && (
                <motion.div
@@ -252,49 +296,66 @@ const EvidenceLockerPage = () => {
                  animate={{ opacity: 1 }}
                  exit={{ opacity: 0 }}
                  onClick={() => setSelectedItem(null)}
-                 className="fixed inset-0 z-[9999] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-6"
+                 className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 md:p-6"
                >
                  <motion.div
-                   initial={{ opacity: 0, scale: 0.92, y: 20 }}
+                   initial={{ opacity: 0, scale: 0.95, y: 20 }}
                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                   exit={{ opacity: 0, scale: 0.92, y: 20 }}
+                   exit={{ opacity: 0, scale: 0.95, y: 20 }}
                    onClick={e => e.stopPropagation()}
-                   className="bg-white rounded-[32px] p-10 max-w-md w-full shadow-2xl"
+                   className="bg-[#0B1220] rounded-3xl overflow-hidden w-full max-w-4xl shadow-2xl border border-slate-800 flex flex-col max-h-[90vh]"
                  >
-                   <div className="flex items-start justify-between mb-6">
-                     <div className={`w-16 h-16 rounded-2xl ${selectedItem.bg} ${selectedItem.color} flex items-center justify-center shadow-sm`}>
-                       <selectedItem.icon className="w-8 h-8" />
+                   {/* Modal Header */}
+                   <div className="flex items-center justify-between p-4 md:p-5 border-b border-slate-800 bg-slate-900/50">
+                     <div className="flex items-center gap-3">
+                       <selectedItem.icon className="w-5 h-5 text-slate-400" />
+                       <h2 className="text-sm md:text-base font-bold text-slate-200 truncate">{selectedItem.name}</h2>
                      </div>
-                     <button onClick={() => setSelectedItem(null)} className="icon-btn w-8 h-8 text-slate-400 hover:text-slate-900">
+                     <button onClick={() => setSelectedItem(null)} className="p-2 text-slate-400 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 rounded-full cursor-pointer">
                        <X className="w-4 h-4" />
                      </button>
                    </div>
-                   <h2 className="text-[18px] font-black text-slate-900 mb-1">{selectedItem.name}</h2>
-                   <p className="text-slate-400 text-[12px] font-bold uppercase tracking-widest mb-6">{selectedItem.size} • {selectedItem.type.toUpperCase()}</p>
-                   <div className="space-y-3 mb-8">
-                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
-                       <Calendar className="w-4 h-4 text-slate-400" />
-                       <span className="text-slate-700 text-[13px] font-bold">{selectedItem.date} at {selectedItem.time}</span>
-                     </div>
-                     <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl">
-                       <MapPin className="w-4 h-4 text-slate-400" />
-                       <span className="text-slate-700 text-[13px] font-bold">{selectedItem.location}</span>
-                     </div>
+
+                   {/* Preview Content Area */}
+                   <div className="flex-1 p-6 flex flex-col items-center justify-center min-h-[300px] bg-[#050B14] overflow-y-auto">
+                     {selectedItem.fileUrl || selectedItem.textContent ? (
+                       selectedItem.type === "video" ? (
+                         <video src={selectedItem.fileUrl} controls autoPlay className="max-w-full rounded-xl shadow-lg border border-slate-800 max-h-[60vh] outline-none" />
+                       ) : selectedItem.type === "audio" ? (
+                         <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 w-full max-w-md flex flex-col items-center gap-6 shadow-xl">
+                           <div className="w-16 h-16 rounded-full bg-teal-500/10 flex items-center justify-center">
+                             <FileAudio className="w-8 h-8 text-teal-500" />
+                           </div>
+                           <audio src={selectedItem.fileUrl} controls autoPlay className="w-full" />
+                         </div>
+                       ) : selectedItem.type === "report" ? (
+                         <div className="bg-white p-8 md:p-12 rounded-xl text-slate-800 max-w-2xl w-full mx-auto shadow-lg text-sm leading-relaxed whitespace-pre-wrap font-medium">
+                           {selectedItem.textContent}
+                         </div>
+                       ) : (
+                         <div className="text-slate-400 font-bold">Unsupported file format</div>
+                       )
+                     ) : (
+                       <div className="flex flex-col items-center text-slate-500">
+                         <selectedItem.icon className="w-16 h-16 mb-4 opacity-50" />
+                         <p className="text-lg font-black tracking-wide">Preview not available</p>
+                         <p className="text-xs font-bold mt-2 opacity-60 max-w-xs text-center leading-relaxed">This file has been securely encrypted and must be downloaded to view.</p>
+                       </div>
+                     )}
                    </div>
-                   <div className="flex gap-3">
+
+                   {/* Metadata & Actions Footer */}
+                   <div className="p-4 md:p-5 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
+                     <div className="flex gap-4">
+                       <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{selectedItem.size}</span>
+                       <span className="text-xs font-bold text-slate-400 uppercase tracking-widest hidden md:inline">{selectedItem.date}</span>
+                     </div>
                      <motion.button
                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
                        onClick={() => handleDownload(selectedItem)}
-                       className="flex-1 py-4 bg-slate-900 text-white font-black text-[13px] rounded-2xl shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                       className="px-6 py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg flex items-center gap-2 transition-colors cursor-pointer"
                      >
-                       <Download className="w-4 h-4" /> Download
-                     </motion.button>
-                     <motion.button
-                       whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                       onClick={() => setSelectedItem(null)}
-                       className="px-6 py-4 bg-slate-100 text-slate-700 font-black text-[13px] rounded-2xl cursor-pointer"
-                     >
-                       Close
+                       <Download className="w-4 h-4" /> Download Original
                      </motion.button>
                    </div>
                  </motion.div>

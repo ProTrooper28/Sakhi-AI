@@ -223,6 +223,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem(STORAGE_KEY_SOS, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY_SOS }));
     setSOSState(next);
+
+    // Automatically generate a real-time evidence recording entry
+    const now = new Date();
+    setEvidenceLocker(prev => [
+      {
+        id: `ev_sos_${now.getTime()}`,
+        type: "sos-recording",
+        name: `SOS_Incident_${now.getTime()}.mp4`,
+        fileUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        timestamp: now.toISOString(),
+        location: activeAddress,
+        fileType: "video/mp4",
+      },
+      ...prev
+    ]);
     
     // Automatically open the Guardian view in a separate emergency window
     window.open("/guardian", "_blank", "width=420,height=850,top=100,left=100");
