@@ -8,14 +8,13 @@ import { useApp } from "@/context/AppContext";
 // Custom Marker for User
 const createUserMarker = () => L.divIcon({
   className: "custom-user-marker",
-  html: `<div class="relative">
-          <div class="absolute inset-0 w-8 h-8 bg-teal-500/30 rounded-full animate-ping"></div>
-          <div class="relative w-8 h-8 bg-teal-600 rounded-full border-2 border-white shadow-lg flex items-center justify-center">
-            <div class="w-3 h-3 bg-white rounded-full"></div>
+  html: `<div class="relative flex items-center justify-center w-full h-full">
+          <div class="absolute w-16 h-16 bg-red-500/40 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
+          <div class="relative w-6 h-6 bg-red-600 rounded-full border-2 border-white flex items-center justify-center z-10 shadow-sm">
           </div>
          </div>`,
-  iconSize: [32, 32],
-  iconAnchor: [16, 16]
+  iconSize: [80, 80],
+  iconAnchor: [40, 40]
 });
 
 // Custom Marker for Guardians
@@ -35,6 +34,9 @@ const GuardianPage = () => {
   const [selectedGuardian, setSelectedGuardian] = useState<any>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [jitter, setJitter] = useState({ lat: 0, lng: 0 });
+  const liveUpdates = ["Location refreshed", "Connection stable", "Updating...", "Signal strong"];
+  const [liveStatusText, setLiveStatusText] = useState(liveUpdates[0]);
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
@@ -86,17 +88,37 @@ const GuardianPage = () => {
     };
   }, []); // Run once on mount
 
-  // Sync user marker position
+  // Sync user marker position with jitter
   useEffect(() => {
     if (userMarkerRef.current && mapRef.current) {
-      const userLat = sosState.active ? sosState.coords.lat : (locationState.coords?.lat || 28.5355);
-      const userLng = sosState.active ? sosState.coords.lng : (locationState.coords?.lng || 77.3910);
+      const userLat = (sosState.active ? sosState.coords.lat : (locationState.coords?.lat || 28.5355)) + jitter.lat;
+      const userLng = (sosState.active ? sosState.coords.lng : (locationState.coords?.lng || 77.3910)) + jitter.lng;
       userMarkerRef.current.setLatLng([userLat, userLng]);
       if (sosState.active) {
-        mapRef.current.setView([userLat, userLng], 16);
+        mapRef.current.setView([userLat, userLng], 16, { animate: true, duration: 1.5 });
       }
     }
-  }, [sosState.active, sosState.coords, locationState.coords]);
+  }, [sosState.active, sosState.coords, locationState.coords, jitter]);
+
+  // Live Jitter and Status Text Simulator
+  useEffect(() => {
+    if (sosState.active) {
+      const jitterId = setInterval(() => {
+        setJitter({ 
+          lat: (Math.random() - 0.5) * 0.0003, 
+          lng: (Math.random() - 0.5) * 0.0003 
+        });
+      }, 3000);
+
+      let textIndex = 0;
+      const textId = setInterval(() => {
+        textIndex = (textIndex + 1) % liveUpdates.length;
+        setLiveStatusText(liveUpdates[textIndex]);
+      }, 4000);
+
+      return () => { clearInterval(jitterId); clearInterval(textId); };
+    }
+  }, [sosState.active]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -125,11 +147,7 @@ const GuardianPage = () => {
   }, [sosState.active, sosState.triggeredAt]);
 
   return (
-    <div className={`flex flex-col md:flex-row h-screen w-screen overflow-hidden transition-colors duration-500 ${sosState.active ? "bg-red-50 dark:bg-red-950/20" : "bg-[#fcfcfd]"}`}>
-      
-      {sosState.active && (
-        <div className="absolute inset-0 border-[6px] border-red-500/50 pointer-events-none z-[999] animate-pulse" />
-      )}
+    <div className={`flex flex-col md:flex-row h-screen w-screen overflow-hidden ${sosState.active ? "bg-red-50" : "bg-[#fcfcfd]"}`}>
         
         {/* ── Left Sidebar (List) ── */}
         <motion.div 
@@ -191,53 +209,77 @@ const GuardianPage = () => {
                    animate={{ opacity: 1, x: 0 }}
                    className="p-4"
                  >
-                    <div className="bg-red-600 text-white p-5 rounded-3xl shadow-[0_10px_40px_rgba(220,38,38,0.4)] mb-6 relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-full h-1 bg-white/30" />
+                    <div className="bg-red-600 text-white p-5 rounded-3xl border border-red-500 shadow-md mb-6 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-white/20" />
                       <div className="flex items-center gap-3 mb-2">
-                        <AlertTriangle className="w-6 h-6 animate-pulse" />
-                        <h2 className="font-black text-lg tracking-wide uppercase">🚨 Emergency Alert Received</h2>
+                        <div className="w-2 h-2 bg-white rounded-full" />
+                        <h2 className="font-black text-lg tracking-wide uppercase">Emergency Alert Received</h2>
                       </div>
                       <p className="text-red-100 font-bold text-sm mb-4">User is In Danger</p>
                       
                       <div className="space-y-3">
                         <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl">
                           <span className="text-xs font-bold text-red-100 uppercase tracking-wider">Time Elapsed</span>
-                          <span className="text-xl font-black">{timeElapsed}</span>
+                          <motion.span key={timeElapsed} initial={{ scale: 0.95 }} animate={{ scale: 1 }} transition={{ duration: 0.2 }} className="text-xl font-black font-mono tracking-wider inline-block origin-right">{timeElapsed}</motion.span>
                         </div>
                         <div className="flex flex-col gap-1 bg-black/20 p-3 rounded-xl">
-                          <span className="text-xs font-bold text-red-100 uppercase tracking-wider">Last Known Location</span>
+                          <span className="text-xs font-bold text-red-100 uppercase tracking-wider flex justify-between">
+                            Last Known Location
+                            <span className="text-red-300">Just now</span>
+                          </span>
                           <span className="text-sm font-bold truncate">{sosState.location || locationState.address || "Fetching..."}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-4 mb-8 pl-2 border-l-2 border-red-200 ml-3">
-                      {[
-                        { text: "Alert received", delay: 0 },
-                        { text: "Location tracking active", delay: 1 },
-                        { text: "Audio/video recording active", delay: 2 },
-                      ].map((update, i) => (
-                        <motion.div 
-                          key={i}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: update.delay }}
-                          className="flex items-center gap-3 relative"
-                        >
-                          <div className="absolute -left-[14px] w-2.5 h-2.5 bg-red-500 rounded-full ring-4 ring-white" />
-                          <span className="text-sm font-bold text-slate-700">{update.text}</span>
-                        </motion.div>
-                      ))}
+                    <div className="flex items-center justify-between mb-4 px-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDuration: "1s" }} />
+                        <span className="text-[11px] font-black uppercase tracking-widest text-slate-900">LIVE</span>
+                      </div>
+                      <AnimatePresence mode="wait">
+                        <motion.span key={liveStatusText} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[11px] font-bold text-slate-500">
+                          {liveStatusText}
+                        </motion.span>
+                      </AnimatePresence>
+                    </div>
+
+                    <div className="space-y-4 mb-8 pl-4 border-l-2 border-slate-200 ml-2">
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="relative">
+                        <div className="absolute -left-[23px] top-1 w-3 h-3 bg-red-500 rounded-full ring-4 ring-white" />
+                        <span className="text-sm font-bold text-slate-900 block leading-none">Alert received</span>
+                        <span className="text-[10px] text-slate-500 font-bold uppercase mt-1 block">✔ Verified</span>
+                      </motion.div>
+                      
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="relative">
+                        <div className="absolute -left-[23px] top-1 w-3 h-3 bg-teal-500 rounded-full ring-4 ring-white" />
+                        <span className="text-sm font-bold text-slate-900 block leading-none">Location tracking active</span>
+                        <span className="text-[10px] text-teal-600 font-bold uppercase mt-1 block">Just now</span>
+                      </motion.div>
+
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }} className="relative bg-slate-50 p-3 rounded-xl border border-slate-100 mt-3">
+                        <div className="absolute -left-[35px] top-4 w-3 h-3 bg-blue-500 rounded-full ring-4 ring-white" />
+                        <div className="flex items-center gap-2 mb-2">
+                           <div className="flex items-end gap-0.5 h-4">
+                             <motion.div animate={{ height: ["4px", "12px", "4px"] }} transition={{ repeat: Infinity, duration: 0.8 }} className="w-1 bg-blue-500 rounded-full" />
+                             <motion.div animate={{ height: ["8px", "16px", "8px"] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-1 bg-blue-500 rounded-full" />
+                             <motion.div animate={{ height: ["12px", "6px", "12px"] }} transition={{ repeat: Infinity, duration: 1.0 }} className="w-1 bg-blue-500 rounded-full" />
+                             <motion.div animate={{ height: ["6px", "14px", "6px"] }} transition={{ repeat: Infinity, duration: 0.7 }} className="w-1 bg-blue-500 rounded-full" />
+                           </div>
+                           <span className="text-sm font-bold text-slate-900 leading-none">Live audio streaming...</span>
+                        </div>
+                        <span className="text-[10px] text-blue-600 font-bold uppercase mt-1 block">2s ago</span>
+                      </motion.div>
                     </div>
 
                     <div className="space-y-3">
-                      <motion.button onClick={() => handleAction("Calling User...")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-slate-900 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+                      <motion.button onClick={() => handleAction("Calling User...")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-slate-900 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-[0_0_20px_rgba(15,23,42,0.4)] transition-all cursor-pointer">
                         <Phone className="w-4 h-4" /> Call User
                       </motion.button>
-                      <motion.button onClick={() => { if(mapRef.current) mapRef.current.setView([sosState.coords.lat, sosState.coords.lng], 16); handleAction("Viewing Live Location"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-blue-600 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+                      <motion.button onClick={() => { if(mapRef.current) mapRef.current.setView([userMarkerRef.current?.getLatLng().lat || sosState.coords.lat, userMarkerRef.current?.getLatLng().lng || sosState.coords.lng], 16); handleAction("Viewing Live Location"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-blue-600 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all cursor-pointer">
                         <Navigation className="w-4 h-4" /> View Live Location
                       </motion.button>
-                      <motion.button onClick={() => handleAction("Notifying Authorities...")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-red-100 text-red-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 cursor-pointer">
+                      <motion.button onClick={() => handleAction("Notifying Authorities...")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-red-100 text-red-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-red-200 transition-colors cursor-pointer">
                         <Shield className="w-4 h-4" /> Notify Authorities
                       </motion.button>
                     </div>

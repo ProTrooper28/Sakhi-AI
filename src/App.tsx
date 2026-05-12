@@ -36,7 +36,7 @@ const App = () => (
             <Route path="/report-review/:id" element={<ReportReviewPage />} />
             <Route path="/evidence-locker" element={<EvidenceLockerPage />} />
             <Route path="/risk-map" element={<RiskMapPage />} />
-            <Route path="/guardian" element={<GuardianPage />} />
+            <Route path="/guardian-live" element={<GuardianPage />} />
             <Route path="/wearable" element={<WearableDemoPage />} />
             <Route path="/location" element={<LocationTrackingPage />} />
             <Route path="/settings" element={<SecuritySettingsPage />} />

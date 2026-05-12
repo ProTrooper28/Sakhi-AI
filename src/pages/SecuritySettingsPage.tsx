@@ -197,7 +197,7 @@ export default function SecuritySettingsPage() {
                 </button>
               ))}
               <button 
-                onClick={() => window.open("/guardian", "_blank", "width=420,height=850,top=100,left=100")} 
+                onClick={() => window.open("/guardian-live", "_blank", "width=420,height=850,top=100,left=100")} 
                 className="btn-secondary w-full mt-4 flex items-center justify-center gap-2"
               >
                 <Eye style={{ width: 16, height: 16 }} /> Open Guardian Preview
