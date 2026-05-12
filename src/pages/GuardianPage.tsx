@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { MapPin, Shield, Phone, MessageSquare, AlertCircle, Clock, Navigation, CheckCircle2, MoreVertical, Menu, Search, Filter, RefreshCw, Radio, Users } from "lucide-react";
+import { MapPin, Shield, Phone, MessageSquare, AlertCircle, Clock, Navigation, CheckCircle2, MoreVertical, Menu, Search, Filter, RefreshCw, Radio, Users, AlertTriangle } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import AppLayout from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
+import { useApp } from "@/context/AppContext";
 
 // Custom Marker for User
 const createUserMarker = () => L.divIcon({
@@ -30,11 +31,14 @@ const createGuardianMarker = (color: string) => L.divIcon({
 });
 
 const GuardianPage = () => {
+  const { sosState, locationState } = useApp();
   const [activeTab, setActiveTab] = useState<"active" | "requests">("active");
   const [selectedGuardian, setSelectedGuardian] = useState<any>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
 
   const guardians = [
     { id: 1, name: "Priya Sharma", role: "Primary Guardian", status: "Online", distance: "0.8 km", battery: "84%", lat: 28.5355, lng: 77.3910, color: "bg-teal-600", lastSeen: "Just now" },
@@ -60,7 +64,10 @@ const GuardianPage = () => {
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
 
     // User Marker
-    L.marker([28.5355, 77.3910], { icon: createUserMarker() }).addTo(map);
+    const userLat = sosState.active ? sosState.coords.lat : (locationState.coords?.lat || 28.5355);
+    const userLng = sosState.active ? sosState.coords.lng : (locationState.coords?.lng || 77.3910);
+    const uMarker = L.marker([userLat, userLng], { icon: createUserMarker() }).addTo(map);
+    userMarkerRef.current = uMarker;
 
     // Guardian Markers
     guardians.forEach(g => {
@@ -78,16 +85,53 @@ const GuardianPage = () => {
         mapRef.current = null;
       }
     };
-  }, []);
+  }, []); // Run once on mount
+
+  // Sync user marker position
+  useEffect(() => {
+    if (userMarkerRef.current && mapRef.current) {
+      const userLat = sosState.active ? sosState.coords.lat : (locationState.coords?.lat || 28.5355);
+      const userLng = sosState.active ? sosState.coords.lng : (locationState.coords?.lng || 77.3910);
+      userMarkerRef.current.setLatLng([userLat, userLng]);
+      if (sosState.active) {
+        mapRef.current.setView([userLat, userLng], 16);
+      }
+    }
+  }, [sosState.active, sosState.coords, locationState.coords]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => setIsRefreshing(false), 1500);
   };
 
+  const handleAction = (msg: string) => {
+    setActionFeedback(msg);
+    setTimeout(() => setActionFeedback(null), 3000);
+  };
+
+  const calculateTimeElapsed = () => {
+    if (!sosState.triggeredAt) return "00:00";
+    const diff = Math.floor((new Date().getTime() - new Date(sosState.triggeredAt).getTime()) / 1000);
+    const m = Math.floor(diff / 60).toString().padStart(2, "0");
+    const s = (diff % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  };
+
+  const [timeElapsed, setTimeElapsed] = useState("00:00");
+  useEffect(() => {
+    if (sosState.active) {
+      const id = setInterval(() => setTimeElapsed(calculateTimeElapsed()), 1000);
+      return () => clearInterval(id);
+    }
+  }, [sosState.active, sosState.triggeredAt]);
+
   return (
     <AppLayout>
-      <div className="flex flex-col md:flex-row h-screen bg-[#fcfcfd] overflow-hidden">
+      <div className={`flex flex-col md:flex-row h-screen overflow-hidden transition-colors duration-500 ${sosState.active ? "bg-red-50 dark:bg-red-950/20" : "bg-[#fcfcfd]"}`}>
+        
+        {sosState.active && (
+          <div className="absolute inset-0 border-[6px] border-red-500/50 pointer-events-none z-[999] animate-pulse" />
+        )}
         
         {/* ── Left Sidebar (List) ── */}
         <motion.div 
@@ -119,28 +163,89 @@ const GuardianPage = () => {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex px-6 md:px-8 mt-4 md:mt-6 gap-6 border-b border-slate-50">
-             <button 
-               onClick={() => setActiveTab("active")}
-               className={`pb-4 text-[11px] md:text-[13px] font-black tracking-widest uppercase transition-all relative ${activeTab === "active" ? "text-slate-900" : "text-slate-400 hover:text-slate-600"}`}
-             >
-               Active (3)
-               {activeTab === "active" && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900 rounded-t-full" />}
-             </button>
-             <button 
-               onClick={() => setActiveTab("requests")}
-               className={`pb-4 text-[11px] md:text-[13px] font-black tracking-widest uppercase transition-all relative ${activeTab === "requests" ? "text-slate-900" : "text-slate-400 hover:text-slate-600"}`}
-             >
-               Requests
-               {activeTab === "requests" && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900 rounded-t-full" />}
-             </button>
-          </div>
+          {/* Tabs - Hidden if SOS is active */}
+          {!sosState.active && (
+            <div className="flex px-6 md:px-8 mt-4 md:mt-6 gap-6 border-b border-slate-50">
+               <button 
+                 onClick={() => setActiveTab("active")}
+                 className={`pb-4 text-[11px] md:text-[13px] font-black tracking-widest uppercase transition-all relative ${activeTab === "active" ? "text-slate-900" : "text-slate-400 hover:text-slate-600"}`}
+               >
+                 Active (3)
+                 {activeTab === "active" && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900 rounded-t-full" />}
+               </button>
+               <button 
+                 onClick={() => setActiveTab("requests")}
+                 className={`pb-4 text-[11px] md:text-[13px] font-black tracking-widest uppercase transition-all relative ${activeTab === "requests" ? "text-slate-900" : "text-slate-400 hover:text-slate-600"}`}
+               >
+                 Requests
+                 {activeTab === "requests" && <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900 rounded-t-full" />}
+               </button>
+            </div>
+          )}
 
-          {/* Guardian List */}
+          {/* Guardian List or SOS Alert Status */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-32 md:pb-4">
-             <AnimatePresence>
-               {activeTab === "active" ? (
+             <AnimatePresence mode="wait">
+               {sosState.active ? (
+                 <motion.div
+                   key="sos-alert"
+                   initial={{ opacity: 0, x: -20 }}
+                   animate={{ opacity: 1, x: 0 }}
+                   className="p-4"
+                 >
+                    <div className="bg-red-600 text-white p-5 rounded-3xl shadow-[0_10px_40px_rgba(220,38,38,0.4)] mb-6 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-white/30" />
+                      <div className="flex items-center gap-3 mb-2">
+                        <AlertTriangle className="w-6 h-6 animate-pulse" />
+                        <h2 className="font-black text-lg tracking-wide uppercase">🚨 Emergency Alert Received</h2>
+                      </div>
+                      <p className="text-red-100 font-bold text-sm mb-4">User is In Danger</p>
+                      
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl">
+                          <span className="text-xs font-bold text-red-100 uppercase tracking-wider">Time Elapsed</span>
+                          <span className="text-xl font-black">{timeElapsed}</span>
+                        </div>
+                        <div className="flex flex-col gap-1 bg-black/20 p-3 rounded-xl">
+                          <span className="text-xs font-bold text-red-100 uppercase tracking-wider">Last Known Location</span>
+                          <span className="text-sm font-bold truncate">{sosState.location || locationState.address || "Fetching..."}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 mb-8 pl-2 border-l-2 border-red-200 ml-3">
+                      {[
+                        { text: "Alert received", delay: 0 },
+                        { text: "Location tracking active", delay: 1 },
+                        { text: "Audio/video recording active", delay: 2 },
+                      ].map((update, i) => (
+                        <motion.div 
+                          key={i}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: update.delay }}
+                          className="flex items-center gap-3 relative"
+                        >
+                          <div className="absolute -left-[14px] w-2.5 h-2.5 bg-red-500 rounded-full ring-4 ring-white" />
+                          <span className="text-sm font-bold text-slate-700">{update.text}</span>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-3">
+                      <motion.button onClick={() => handleAction("Calling User...")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-slate-900 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+                        <Phone className="w-4 h-4" /> Call User
+                      </motion.button>
+                      <motion.button onClick={() => { if(mapRef.current) mapRef.current.setView([sosState.coords.lat, sosState.coords.lng], 16); handleAction("Viewing Live Location"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-blue-600 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg cursor-pointer">
+                        <Navigation className="w-4 h-4" /> View Live Location
+                      </motion.button>
+                      <motion.button onClick={() => handleAction("Notifying Authorities...")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-red-100 text-red-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 cursor-pointer">
+                        <Shield className="w-4 h-4" /> Notify Authorities
+                      </motion.button>
+                    </div>
+
+                 </motion.div>
+               ) : activeTab === "active" ? (
                  guardians.map((g, i) => (
                    <motion.div 
                      key={g.id}
@@ -206,9 +311,41 @@ const GuardianPage = () => {
            {/* Floating Map Controls */}
            <div className="absolute top-6 right-6 z-[400] flex flex-col gap-3">
               <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-10 h-10 md:w-12 md:h-12 bg-white rounded-2xl border border-slate-100 shadow-xl flex items-center justify-center text-slate-900"><RefreshCw className="w-5 h-5" /></motion.button>
-              <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-10 h-10 md:w-12 md:h-12 bg-white rounded-2xl border border-slate-100 shadow-xl flex items-center justify-center text-slate-900"><Radio className="w-5 h-5" /></motion.button>
+              <div className="relative">
+                {sosState.active && <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />}
+                <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className={`w-10 h-10 md:w-12 md:h-12 ${sosState.active ? "bg-red-500 text-white" : "bg-white text-slate-900"} rounded-2xl border border-slate-100 shadow-xl flex items-center justify-center`}><Radio className="w-5 h-5" /></motion.button>
+              </div>
               <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-10 h-10 md:w-12 md:h-12 bg-slate-900 rounded-2xl border border-white shadow-xl flex items-center justify-center text-white"><Shield className="w-5 h-5" /></motion.button>
            </div>
+
+           {/* Top Floating Live Status (SOS) */}
+           <AnimatePresence>
+             {sosState.active && (
+               <motion.div 
+                 initial={{ y: -50, opacity: 0 }}
+                 animate={{ y: 0, opacity: 1 }}
+                 exit={{ y: -50, opacity: 0 }}
+                 className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] bg-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-3 border-2 border-red-100"
+               >
+                 <div className="w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse" />
+                 <span className="font-black text-sm tracking-widest text-slate-900 uppercase">LIVE TRACKING</span>
+               </motion.div>
+             )}
+           </AnimatePresence>
+
+           {/* Action Feedback Toast */}
+           <AnimatePresence>
+             {actionFeedback && (
+               <motion.div 
+                 initial={{ y: 50, opacity: 0, scale: 0.9 }}
+                 animate={{ y: 0, opacity: 1, scale: 1 }}
+                 exit={{ y: 50, opacity: 0, scale: 0.9 }}
+                 className="absolute bottom-32 left-1/2 -translate-x-1/2 z-[500] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl font-black text-sm"
+               >
+                 {actionFeedback}
+               </motion.div>
+             )}
+           </AnimatePresence>
 
            {/* Bottom Floating Stats Panel */}
            <AnimatePresence>
