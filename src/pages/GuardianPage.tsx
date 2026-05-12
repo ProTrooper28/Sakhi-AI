@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { MapPin, Shield, Phone, MessageSquare, AlertCircle, Clock, Navigation, CheckCircle2, MoreVertical, Menu, Search, Filter, RefreshCw, Radio, Users, AlertTriangle } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import AppLayout from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
 import { useApp } from "@/context/AppContext";
 
@@ -126,12 +125,11 @@ const GuardianPage = () => {
   }, [sosState.active, sosState.triggeredAt]);
 
   return (
-    <AppLayout>
-      <div className={`flex flex-col md:flex-row h-screen overflow-hidden transition-colors duration-500 ${sosState.active ? "bg-red-50 dark:bg-red-950/20" : "bg-[#fcfcfd]"}`}>
-        
-        {sosState.active && (
-          <div className="absolute inset-0 border-[6px] border-red-500/50 pointer-events-none z-[999] animate-pulse" />
-        )}
+    <div className={`flex flex-col md:flex-row h-screen w-screen overflow-hidden transition-colors duration-500 ${sosState.active ? "bg-red-50 dark:bg-red-950/20" : "bg-[#fcfcfd]"}`}>
+      
+      {sosState.active && (
+        <div className="absolute inset-0 border-[6px] border-red-500/50 pointer-events-none z-[999] animate-pulse" />
+      )}
         
         {/* ── Left Sidebar (List) ── */}
         <motion.div 
@@ -404,8 +402,7 @@ const GuardianPage = () => {
            </AnimatePresence>
         </div>
 
-      </div>
-    </AppLayout>
+    </div>
   );
 };
 

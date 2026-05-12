@@ -209,7 +209,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => { if (unsub) unsub(); }
   }, [requestLocation]);
 
-  // ── SOS Actions ──
   const triggerSOS = useCallback(() => {
     const activeCoords = locationState.coords || DEFAULT_SOS_STATE.coords;
     const activeAddress = locationState.address || DEFAULT_SOS_STATE.location;
@@ -224,6 +223,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem(STORAGE_KEY_SOS, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY_SOS }));
     setSOSState(next);
+    
+    // Automatically open the Guardian view in a separate emergency window
+    window.open("/guardian", "_blank", "width=420,height=850,top=100,left=100");
   }, [locationState.coords, locationState.address]);
 
   const cancelSOS = useCallback(() => {

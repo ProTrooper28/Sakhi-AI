@@ -196,7 +196,12 @@ export default function SecuritySettingsPage() {
                   <Phone style={{ width: 14, height: 14 }} className="text-teal-500" />
                 </button>
               ))}
-              <button onClick={() => navigate("/guardian")} className="btn-secondary w-full mt-4">Manage Contacts</button>
+              <button 
+                onClick={() => window.open("/guardian", "_blank", "width=420,height=850,top=100,left=100")} 
+                className="btn-secondary w-full mt-4 flex items-center justify-center gap-2"
+              >
+                <Eye style={{ width: 16, height: 16 }} /> Open Guardian Preview
+              </button>
             </div>
 
             {/* Danger zone */}

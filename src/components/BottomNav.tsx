@@ -5,9 +5,8 @@ import { motion } from "framer-motion";
 
 const navItems = [
   { icon: Home,         path: "/home",           label: "Home" },
-  { icon: Map,          path: "/risk-map",        label: "Map" },
+  { icon: Map,          path: "/location",        label: "Map" },
   { icon: MessageSquare,path: "/assistant",       label: "AI Chat" },
-  { icon: ShieldCheck,  path: "/guardian",        label: "Guardian" },
 ];
 
 const BottomNav = () => {

@@ -21,7 +21,6 @@ import { useEffect, useState } from "react";
 const navItems = [
   { icon: LayoutDashboard, label: "Home",             path: "/home" },
   { icon: AlertOctagon,    label: "SOS Settings",     path: "/sos" },
-  { icon: Users,           label: "Guardian View",    path: "/guardian" },
   { icon: Archive,         label: "Evidence Locker",  path: "/evidence-locker" },
   { icon: FileWarning,     label: "Anonymous Reports",path: "/report" },
   { icon: MessageSquare,   label: "AI Companion",     path: "/assistant" },
