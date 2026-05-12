@@ -39,7 +39,7 @@ const TopHelplineBar = () => {
           <div key={i} className="flex items-center gap-8">
             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
-              Monitoring Active
+              Safety Monitoring Active
             </span>
             <button onClick={() => call("1091")} className="text-[10px] font-black text-slate-300 hover:text-teal-400 transition-colors uppercase tracking-tight cursor-pointer">
               Women's Help <span className="text-teal-500 ml-1">1091</span>
@@ -60,9 +60,9 @@ const TopHelplineBar = () => {
 // ── Notifications Panel ────────────────────────────────────────────────────────
 const notifications = [
   { icon: CheckCircle2, color: "text-teal-600", bg: "bg-teal-50", title: "Reached Home Safely", time: "Just now" },
-  { icon: Shield, color: "text-blue-600", bg: "bg-blue-50", title: "Guardian Session Started", time: "5m ago" },
-  { icon: AlertOctagon, color: "text-red-500", bg: "bg-red-50", title: "SOS Test Completed", time: "1h ago" },
-  { icon: MapPin, color: "text-indigo-600", bg: "bg-indigo-50", title: "Location shared with Priya", time: "Yesterday" },
+  { icon: Shield, color: "text-blue-600", bg: "bg-blue-50", title: "Safety Session Started", time: "5m ago" },
+  { icon: AlertOctagon, color: "text-red-500", bg: "bg-red-50", title: "Emergency Test Done", time: "1h ago" },
+  { icon: MapPin, color: "text-indigo-600", bg: "bg-indigo-50", title: "Location shared", time: "Yesterday" },
 ];
 
 // ── Mobile Header (with notification + profile) ────────────────────────────────
@@ -153,7 +153,7 @@ const MobileHeader = () => {
 const NotificationsContent = ({ onClose }: { onClose: () => void }) => (
   <div className="bg-slate-900/90 backdrop-blur-xl border border-slate-800/50 rounded-2xl overflow-hidden shadow-2xl">
     <div className="flex items-center justify-between px-4 py-4 border-b border-slate-800/50">
-      <span className="text-[11px] font-black text-slate-100 uppercase tracking-[0.2em]">Live Feed</span>
+      <span className="text-[11px] font-black text-slate-100 uppercase tracking-[0.2em]">Recent Updates</span>
       <button onClick={onClose} className="icon-btn w-6 h-6 text-slate-500 hover:text-white"><X className="w-3.5 h-3.5" /></button>
     </div>
     <div className="divide-y divide-slate-800/50">
@@ -175,7 +175,7 @@ const NotificationsContent = ({ onClose }: { onClose: () => void }) => (
     </div>
     <div className="p-3 border-t border-slate-800/50">
       <button onClick={onClose} className="w-full text-center text-[10px] font-black text-teal-500 hover:text-teal-400 uppercase tracking-[0.2em] py-2 cursor-pointer transition-all">
-        Clear All Packets
+        Clear All Updates
       </button>
     </div>
   </div>
@@ -199,7 +199,7 @@ const ProfileContent = ({ navigate, onClose }: { navigate: (path: string) => voi
       <div className="py-2">
         {[
           { label: "Settings", path: "/settings", icon: Settings },
-          { label: "Guardian Core", path: "/guardian", icon: Shield },
+          { label: "Your Contacts", path: "/guardian", icon: Shield },
         ].map(({ label, path, icon: Icon }) => (
           <button
             key={path}
@@ -217,7 +217,7 @@ const ProfileContent = ({ navigate, onClose }: { navigate: (path: string) => voi
             className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-500/10 transition-colors cursor-pointer text-left group"
           >
             <LogOut className="w-4 h-4 text-red-500/60 group-hover:text-red-500" />
-            <span className="text-red-500/80 group-hover:text-red-500 text-[12px] font-black uppercase tracking-widest">Terminate Session</span>
+            <span className="text-red-500/80 group-hover:text-red-500 text-[12px] font-black uppercase tracking-widest">Logout</span>
           </button>
         </div>
       </div>

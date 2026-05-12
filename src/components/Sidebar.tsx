@@ -20,14 +20,14 @@ import { useEffect, useState } from "react";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard",        path: "/home" },
-  { icon: Shield,          label: "Guardian Core",    path: "/guardian-live" },
-  { icon: AlertOctagon,    label: "SOS Protocols",    path: "/sos" },
-  { icon: Archive,         label: "Evidence Locker",  path: "/evidence-locker" },
-  { icon: FileWarning,     label: "Report Portal",    path: "/report" },
-  { icon: MessageSquare,   label: "AI Companion",     path: "/assistant" },
-  { icon: Map,             label: "Live Tracking",    path: "/location" },
-  { icon: Watch,           label: "Hardware Hub",     path: "/wearable" },
-  { icon: Settings,        label: "Configuration",    path: "/settings" },
+  { icon: Shield,          label: "Your Contacts",    path: "/guardian-live" },
+  { icon: AlertOctagon,    label: "Emergency Settings", path: "/sos" },
+  { icon: Archive,         label: "Evidence Vault",   path: "/evidence-locker" },
+  { icon: FileWarning,     label: "Submit Report",    path: "/report" },
+  { icon: MessageSquare,   label: "Safety Chat",      path: "/assistant" },
+  { icon: Map,             label: "Live Map",         path: "/location" },
+  { icon: Watch,           label: "Safety Band",      path: "/wearable" },
+  { icon: Settings,        label: "Settings",         path: "/settings" },
 ];
 
 const Sidebar = () => {
@@ -62,10 +62,10 @@ const Sidebar = () => {
               className="font-black text-slate-100 leading-none tracking-tight uppercase"
               style={{ fontFamily: "Manrope, sans-serif", fontSize: "0.9rem" }}
             >
-              Sakhi Ops
+              Sakhi Safety
             </p>
             <p className="text-[9px] text-slate-500 mt-1.5 tracking-[0.2em] font-black uppercase">
-              Command Center
+              Safety Center
             </p>
           </div>
         </div>
@@ -86,14 +86,14 @@ const Sidebar = () => {
             <span className="absolute inset-0 w-2 h-2 rounded-full bg-teal-500 animate-ping opacity-40" />
           </div>
           <span className="text-slate-400 text-[10px] font-black tracking-[0.15em] uppercase">
-            Systems: Optimal
+            All systems ready
           </span>
         </div>
       </div>
 
       {/* ── Navigation ── */}
       <nav className="flex-1 px-3 pb-4 space-y-0.5 overflow-y-auto custom-scrollbar">
-        <p className="px-4 pt-6 pb-2 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Operational Console</p>
+        <p className="px-4 pt-6 pb-2 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Your Dashboard</p>
         {navItems.slice(0, 2).map((item) => {
           const active =
             location.pathname === item.path ||
@@ -111,7 +111,7 @@ const Sidebar = () => {
           );
         })}
 
-        <p className="px-4 pt-8 pb-2 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Defense Modules</p>
+        <p className="px-4 pt-8 pb-2 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Protection</p>
         {navItems.slice(2, 8).map((item) => {
           const active =
             location.pathname === item.path ||
@@ -129,7 +129,7 @@ const Sidebar = () => {
           );
         })}
 
-        <p className="px-4 pt-8 pb-2 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">System Config</p>
+        <p className="px-4 pt-8 pb-2 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Preferences</p>
         {navItems.slice(8).map((item) => {
           const active = location.pathname === item.path;
           const Icon = item.icon;
@@ -157,13 +157,13 @@ const Sidebar = () => {
           <div className="flex-1 min-w-0">
             <p className="text-slate-100 text-[12px] font-black truncate uppercase tracking-tight">Preeti S.</p>
             <p className="text-teal-500 text-[9px] font-black truncate uppercase tracking-widest mt-1 flex items-center gap-1">
-               <span className="w-1 h-1 bg-teal-500 rounded-full" /> Level 4
+               <span className="w-1 h-1 bg-teal-500 rounded-full" /> Protected
             </p>
           </div>
           <button
             onClick={() => handleNavClick("/")}
             className="p-2 text-slate-600 hover:text-red-500 transition-all cursor-pointer"
-            title="Terminate Session"
+            title="Logout"
           >
             <LogOut className="w-4 h-4" />
           </button>

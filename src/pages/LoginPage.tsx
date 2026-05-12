@@ -28,24 +28,24 @@ const LoginPage = () => {
             <Shield className="w-6 h-6 text-teal-500" />
           </div>
           <span style={{ fontFamily: "Manrope,sans-serif" }} className="text-[14px] font-black text-slate-100 uppercase tracking-[0.25em]">
-            Sakhi Protocol
+            Sakhi Safety
           </span>
         </div>
 
         <div className="relative">
           <div className="absolute -top-32 -left-32 w-64 h-64 bg-teal-500/5 blur-[100px] rounded-full pointer-events-none" />
           <h1 style={{ fontFamily: "Manrope,sans-serif" }} className="text-5xl font-black text-white leading-[1.05] tracking-tight uppercase">
-            Personal Security <br />
-            <span className="text-teal-500">Centralized.</span>
+            Your Personal <br />
+            <span className="text-teal-500">Safety System.</span>
           </h1>
           <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.3em] mt-8 leading-relaxed max-w-[340px]">
-            Enterprise-grade safety companion powered by tactical intelligence and real-time encryption.
+            A simple, powerful safety companion designed to keep you and your loved ones safe at all times.
           </p>
           <div className="mt-14 space-y-6">
             {[
-              { icon: Shield, label: "Real-time SOS emergency alerts", color: "text-red-500" },
-              { icon: MapPin, label: "Live location sharing with guardians", color: "text-teal-500" },
-              { icon: Lock, label: "Evidence locker with PIN protection", color: "text-blue-500" },
+              { icon: Shield, label: "Instant help when you need it most", color: "text-red-500" },
+              { icon: MapPin, label: "Share your location with trusted people", color: "text-teal-500" },
+              { icon: Lock, label: "Your information is safe and private", color: "text-blue-500" },
             ].map(f => (
               <div key={f.label} className="flex items-center gap-4 group">
                 <div className={`w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center transition-all group-hover:border-slate-700`}>
@@ -58,7 +58,7 @@ const LoginPage = () => {
         </div>
 
         <p className="text-slate-700 font-black text-[9px] uppercase tracking-[0.3em]">
-          © 2026 SAKHI PROTOCOL • NODE: PRIMARY_ACCESS
+          © 2026 SAKHI SAFETY • ALWAYS WITH YOU
         </p>
       </div>
 
@@ -75,7 +75,7 @@ const LoginPage = () => {
             <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center">
               <Shield className="w-5 h-5 text-teal-500" />
             </div>
-            <span className="text-[12px] font-black text-slate-100 uppercase tracking-[0.2em]">Sakhi Protocol</span>
+            <span className="text-[12px] font-black text-slate-100 uppercase tracking-[0.2em]">Sakhi Safety</span>
           </div>
 
           {/* Heading */}
@@ -83,16 +83,16 @@ const LoginPage = () => {
             <div className="flex items-center gap-2 mb-4">
                <motion.div animate={{ opacity: [1, 0.4, 1] }} transition={{ repeat: Infinity, duration: 2 }} className="w-1.5 h-1.5 rounded-full bg-teal-500" />
                <p className="text-teal-500 font-black text-[9px] uppercase tracking-[0.3em]">
-                 Phase {step === "identity" ? "01" : "02"} Initializing
+                 Step {step === "identity" ? "01" : "02"} • {step === "identity" ? "Your Details" : "Safety Network"}
                </p>
             </div>
             <h1 style={{ fontFamily: "Manrope,sans-serif" }} className="text-3xl font-black text-white uppercase tracking-tight">
-              {step === "identity" ? "Identity Input" : "Node Routing"}
+              {step === "identity" ? "Let's Get Started" : "Emergency Contacts"}
             </h1>
             <p className="text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] mt-3">
               {step === "identity"
-                ? "Locally encrypted profile creation."
-                : "Secure contact nodes for relay alerts."}
+                ? "Tell us a bit about yourself so we can keep you safe."
+                : "Who should we contact if you need help?"}
             </p>
           </div>
 
@@ -102,13 +102,13 @@ const LoginPage = () => {
                 {/* Full Name */}
                 <div className="space-y-2">
                   <label className="text-slate-500 font-black text-[9px] uppercase tracking-[0.25em] ml-1">
-                    Authorized User Name
+                    Your Full Name
                   </label>
                   <div className="relative group">
                     <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-700 group-focus-within:text-teal-500 transition-colors" />
                     <input
                       id="name"
-                      placeholder="ENTER FULL NAME..."
+                      placeholder="NAME..."
                       value={form.name}
                       onChange={e => setForm({ ...form, name: e.target.value })}
                       required
@@ -120,7 +120,7 @@ const LoginPage = () => {
                 {/* Aadhaar */}
                 <div className="space-y-2">
                   <label className="text-slate-500 font-black text-[9px] uppercase tracking-[0.25em] ml-1">
-                    Government ID Verification
+                    Government ID (Private)
                   </label>
                   <div className="relative group">
                     <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-700 group-focus-within:text-teal-500 transition-colors" />
@@ -146,7 +146,7 @@ const LoginPage = () => {
                 {/* Mobile */}
                 <div className="space-y-2">
                   <label className="text-slate-500 font-black text-[9px] uppercase tracking-[0.25em] ml-1">
-                    Primary Mobile Link
+                    Your Phone Number
                   </label>
                   <div className="relative group">
                     <Phone className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-700 group-focus-within:text-teal-500 transition-colors" />
@@ -165,14 +165,14 @@ const LoginPage = () => {
                 {/* Email */}
                 <div className="space-y-2">
                   <label className="text-slate-500 font-black text-[9px] uppercase tracking-[0.25em] ml-1">
-                    Secure Email Node
+                    Your Email Address
                   </label>
                   <div className="relative group">
                     <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-700 group-focus-within:text-teal-500 transition-colors" />
                     <input
                       id="email"
                       type="email"
-                      placeholder="USER@HOST.COM"
+                      placeholder="EMAIL@EXAMPLE.COM"
                       value={form.email}
                       onChange={e => setForm({ ...form, email: e.target.value })}
                       required
@@ -190,21 +190,21 @@ const LoginPage = () => {
               type="submit"
               className="w-full flex items-center justify-center gap-3 bg-teal-500 text-slate-950 font-black py-5 rounded-2xl shadow-2xl shadow-teal-500/20 uppercase tracking-[0.25em] text-[12px] transition-all cursor-pointer mt-4"
             >
-              {step === "identity" ? "Proceed to Routing" : "Initialize Console"}
+              {step === "identity" ? "Continue" : "Let's Go"}
               <ArrowRight className="w-4 h-4" />
             </motion.button>
 
             {step === "contact" && (
               <button type="button" onClick={() => setStep("identity")}
                 className="w-full mt-6 text-slate-600 font-black text-[10px] uppercase tracking-widest hover:text-slate-400 transition-colors cursor-pointer">
-                ← Return to Identification
+                ← Go Back
               </button>
             )}
           </form>
 
           <p className="text-slate-800 font-black text-[9px] uppercase tracking-[0.25em] text-center mt-12 leading-relaxed">
-            SECURE LINK ESTABLISHED • AES-256 ENCRYPTION ACTIVE <br />
-            ZERO-KNOWLEDGE DATA STORAGE PROTOCOL
+            Your data is private, secure, and always protected. <br />
+            Only you and your contacts can see your information.
           </p>
         </motion.div>
       </div>
