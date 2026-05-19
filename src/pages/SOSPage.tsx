@@ -222,7 +222,24 @@ const SOSPage = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaChunksRef = useRef<Blob[]>([]);
-  const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Real-time SOS Timer (Stable, non-drifting)
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (sosState.active && sosState.triggeredAt) {
+      const startTime = new Date(sosState.triggeredAt).getTime();
+      
+      const updateTimer = () => {
+        setRecordingDuration(Math.floor((Date.now() - startTime) / 1000));
+      };
+      
+      updateTimer(); // Initial update
+      interval = setInterval(updateTimer, 1000);
+    } else {
+      setRecordingDuration(0);
+    }
+    return () => clearInterval(interval);
+  }, [sosState.active, sosState.triggeredAt]);
 
   // Format MM:SS
   const formatDuration = (secs: number) => {
@@ -238,10 +255,7 @@ const SOSPage = () => {
       if (mediaStreamRef.current) {
           mediaStreamRef.current.getTracks().forEach(track => track.stop());
       }
-      if (durationTimerRef.current) clearInterval(durationTimerRef.current);
-      
       setIsMediaRecording(false);
-      setRecordingDuration(0);
   };
 
   useEffect(() => {
@@ -277,10 +291,6 @@ const SOSPage = () => {
                 mediaRecorderRef.current = recorder;
                 recorder.start();
                 setIsMediaRecording(true);
-                
-                durationTimerRef.current = setInterval(() => {
-                    setRecordingDuration(d => d + 1);
-                }, 1000);
 
             } catch (err) {
                 console.error("Media permission denied", err);
