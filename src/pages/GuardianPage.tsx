@@ -49,10 +49,13 @@ const GuardianPage = () => {
   const safetyZoneLayers = useRef<L.Circle[]>([]);
   const routeLayer = useRef<L.Polyline | null>(null);
 
+  const userLat = sosState.active ? sosState.coords.lat : (locationState.coords?.lat || 28.5355);
+  const userLng = sosState.active ? sosState.coords.lng : (locationState.coords?.lng || 77.3910);
+
   const guardians = [
-    { id: 1, name: "Priya Sharma", role: "Primary Guardian", status: "Online", distance: "0.8 km", battery: "84%", lat: 28.5355, lng: 77.3910, color: "bg-teal-600", lastSeen: "Just now" },
-    { id: 2, name: "Rahul Singh", role: "Emergency Contact", status: "En Route", distance: "1.2 km", battery: "92%", lat: 28.5450, lng: 77.4000, color: "bg-blue-600", lastSeen: "2m ago" },
-    { id: 3, name: "Security Team", role: "Response Team", status: "Monitoring", distance: "2.5 km", battery: "100%", lat: 28.5200, lng: 77.3800, color: "bg-slate-900", lastSeen: "Live" }
+    { id: 1, name: "Priya Sharma", role: "Primary Guardian", status: "Online", distance: "0.8 km", battery: "84%", lat: userLat + 0.005, lng: userLng - 0.005, color: "bg-teal-600", lastSeen: "Just now" },
+    { id: 2, name: "Rahul Singh", role: "Emergency Contact", status: "En Route", distance: "1.2 km", battery: "92%", lat: userLat - 0.008, lng: userLng + 0.006, color: "bg-blue-600", lastSeen: "2m ago" },
+    { id: 3, name: "Security Team", role: "Response Team", status: "Monitoring", distance: "2.5 km", battery: "100%", lat: userLat + 0.015, lng: userLng + 0.012, color: "bg-slate-900", lastSeen: "Live" }
   ];
 
   useEffect(() => {
@@ -64,7 +67,7 @@ const GuardianPage = () => {
     }
 
     const map = L.map(mapContainerRef.current, {
-      center: [28.5355, 77.3910],
+      center: [userLat, userLng],
       zoom: 14,
       zoomControl: false,
       attributionControl: false
@@ -73,8 +76,6 @@ const GuardianPage = () => {
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
 
     // User Marker
-    const userLat = sosState.active ? sosState.coords.lat : (locationState.coords?.lat || 28.5355);
-    const userLng = sosState.active ? sosState.coords.lng : (locationState.coords?.lng || 77.3910);
     const uMarker = L.marker([userLat, userLng], { icon: createUserMarker() }).addTo(map);
     userMarkerRef.current = uMarker;
 
@@ -86,11 +87,40 @@ const GuardianPage = () => {
       });
     });
 
+    // Custom Help Markers
+    const createHelpMarker = (color: string, iconHtml: string) => L.divIcon({
+      className: "custom-help-marker",
+      html: `<div class="relative w-8 h-8 ${color} rounded-full border-2 border-white shadow-lg flex items-center justify-center">${iconHtml}</div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16]
+    });
+
+    const hospitalIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>`;
+    const policeIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
+
+    const helpPoints = [
+      { name: "City Hospital", type: "hospital", lat: userLat + 0.003, lng: userLng + 0.004, distance: "350m", icon: hospitalIcon, color: "bg-emerald-500 text-white" },
+      { name: "General Hospital", type: "hospital", lat: userLat - 0.005, lng: userLng - 0.002, distance: "550m", icon: hospitalIcon, color: "bg-emerald-500 text-white" },
+      { name: "Central Police Station", type: "police", lat: userLat + 0.002, lng: userLng - 0.006, distance: "400m", icon: policeIcon, color: "bg-blue-500 text-white" },
+      { name: "District Police Station", type: "police", lat: userLat - 0.007, lng: userLng + 0.003, distance: "800m", icon: policeIcon, color: "bg-blue-500 text-white" }
+    ];
+
+    helpPoints.forEach(hp => {
+      const marker = L.marker([hp.lat, hp.lng], { icon: createHelpMarker(hp.color, hp.icon) }).addTo(map);
+      marker.bindPopup(`
+        <div class="text-center font-sans p-1">
+          <div class="font-black text-sm text-slate-800">${hp.name}</div>
+          <div class="text-xs text-slate-500 font-bold mb-2">${hp.distance} away</div>
+          <button class="bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-md w-full shadow-md">Navigate</button>
+        </div>
+      `);
+    });
+
     // Add Safety Zones
     const zones = [
-      { lat: 28.5355, lng: 77.3910, radius: 400, color: "#10b981", fillColor: "#10b981", fillOpacity: 0.1 }, // Green (Safe)
-      { lat: 28.5420, lng: 77.3950, radius: 600, color: "#eab308", fillColor: "#eab308", fillOpacity: 0.1 }, // Yellow (Moderate)
-      { lat: 28.5280, lng: 77.3850, radius: 500, color: "#ef4444", fillColor: "#ef4444", fillOpacity: 0.1 }  // Red (High Risk)
+      { lat: userLat + 0.002, lng: userLng - 0.002, radius: 400, color: "#10b981", fillColor: "#10b981", fillOpacity: 0.15 }, // Green (Safe)
+      { lat: userLat - 0.004, lng: userLng + 0.003, radius: 600, color: "#eab308", fillColor: "#eab308", fillOpacity: 0.15 }, // Yellow (Moderate)
+      { lat: userLat + 0.005, lng: userLng + 0.005, radius: 500, color: "#ef4444", fillColor: "#ef4444", fillOpacity: 0.15 }  // Red (High Risk)
     ];
 
     zones.forEach(z => {
@@ -512,8 +542,9 @@ const GuardianPage = () => {
         </motion.div>
 
         {/* ── Right Content (Map) ── */}
-        <div className="flex-1 relative min-h-[300px] md:min-h-0">
-           <div ref={mapContainerRef} className="w-full h-full" />
+        <div className="flex-1 relative min-h-[300px] md:min-h-0 bg-slate-100 overflow-hidden">
+           <div ref={mapContainerRef} className="w-full h-full relative z-0" />
+           <div className="absolute inset-0 pointer-events-none z-10 shadow-[inset_0_0_100px_rgba(0,0,0,0.1)]" />
 
            {/* Floating Map Controls */}
            <div className="absolute top-6 right-6 z-[400] flex flex-col gap-3">
@@ -525,20 +556,31 @@ const GuardianPage = () => {
               <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-10 h-10 md:w-12 md:h-12 bg-slate-900 rounded-2xl border border-white shadow-xl flex items-center justify-center text-white"><Shield className="w-5 h-5" /></motion.button>
            </div>
 
-           {/* Top Floating Live Status (SOS) */}
-           <AnimatePresence>
-             {sosState.active && (
+           {/* Top Floating Live Status (Always active) */}
+           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] flex flex-col items-center gap-2">
+             <motion.div 
+               initial={{ y: -50, opacity: 0 }}
+               animate={{ y: 0, opacity: 1 }}
+               className={`px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-3 border-2 ${sosState.active ? "bg-white border-red-100" : "bg-slate-900 border-slate-700"}`}
+             >
+               <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${sosState.active ? "bg-red-600" : "bg-emerald-400"}`} />
+               <span className={`font-black text-sm tracking-widest uppercase ${sosState.active ? "text-slate-900" : "text-white"}`}>
+                 {sosState.active ? "LIVE EMERGENCY TRACKING" : "LIVE TRACKING ACTIVE"}
+               </span>
+             </motion.div>
+
+             {!sosState.active && (
                <motion.div 
-                 initial={{ y: -50, opacity: 0 }}
-                 animate={{ y: 0, opacity: 1 }}
-                 exit={{ y: -50, opacity: 0 }}
-                 className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] bg-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-3 border-2 border-red-100"
+                 initial={{ opacity: 0, y: -10 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 transition={{ delay: 0.2 }}
+                 className="bg-white/90 backdrop-blur-md px-4 py-1.5 rounded-full shadow-lg border border-slate-200 flex items-center gap-2"
                >
-                 <div className="w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse" />
-                 <span className="font-black text-sm tracking-widest text-slate-900 uppercase">LIVE TRACKING</span>
+                 <Shield className="w-3.5 h-3.5 text-blue-600" />
+                 <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">Nearest help: 350m away</span>
                </motion.div>
              )}
-           </AnimatePresence>
+           </div>
 
            {/* Action Feedback Toast */}
            <AnimatePresence>
