@@ -474,11 +474,28 @@ const SOSPage = () => {
   }
 
   // ── STANDBY STATE ───────────────────────────────────────────────────────────
+  const isSilent = options.silent;
+
   return (
     <AppLayout>
+      {/* Silent Mode global overlay — fixed, pointer-events-none so everything stays clickable */}
+      <AnimatePresence>
+        {isSilent && (
+          <motion.div
+            key="silent-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="fixed inset-0 z-40 pointer-events-none"
+            style={{ backgroundColor: "rgba(10, 15, 30, 0.11)" }}
+          />
+        )}
+      </AnimatePresence>
+
       <div className="flex flex-col h-full bg-[#fcfcfd]">
         {/* Top Header */}
-        <div className="flex items-center justify-between px-8 py-6 border-b border-slate-50 bg-white shrink-0">
+        <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100 bg-white/90 shrink-0">
           <div className="flex items-center gap-3">
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -490,6 +507,21 @@ const SOSPage = () => {
             </motion.button>
             <h1 className="text-xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "Manrope, sans-serif" }}>Emergency Assistance</h1>
           </div>
+          {/* Silent Mode Active label */}
+          <AnimatePresence>
+            {isSilent && (
+              <motion.div
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+                className="flex items-center gap-2 bg-slate-100 text-slate-500 px-4 py-1.5 rounded-full border border-slate-200 text-[11px] font-black uppercase tracking-widest"
+              >
+                <EyeOff className="w-3 h-3" />
+                Silent Mode Active
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <div className="flex flex-col flex-1 p-8 items-center justify-start relative overflow-y-auto"
@@ -549,41 +581,60 @@ const SOSPage = () => {
               { icon: Mic,    title: "Voice Trigger", desc: "Activate SOS using your secure voice command", key: "voice" as const },
               { icon: Watch,  title: "Wearable Sync", desc: "Trigger SOS from your connected smart ring", key: "wearable" as const },
               { icon: Eye,    title: "Guardian View", desc: "Preview what contacts see during an alert", key: "guardian" as const },
-            ].map((opt) => (
-              <motion.button
-                key={opt.key}
-                variants={{
-                  hidden: { opacity: 0, y: 15 },
-                  visible: { opacity: 1, y: 0 }
-                }}
-                whileHover={{ y: -3 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => toggleOption(opt.key)}
-                className={`bg-white rounded-[28px] p-6 flex items-start gap-5 shadow-[0_4px_20px_rgba(0,0,0,0.02)] border transition-all cursor-pointer text-left ${
-                  options[opt.key] ? "border-teal-200 shadow-teal-50" : "border-slate-50"
-                }`}
-              >
-                 <div className={`w-12 h-12 rounded-[20px] flex items-center justify-center shrink-0 border transition-colors ${
-                   options[opt.key] ? "bg-teal-50 border-teal-100 text-teal-500" : "bg-slate-50 border-slate-100 text-slate-400"
-                 }`}>
-                   <opt.icon className="w-5 h-5" />
-                 </div>
-                 <div className="flex-1 pt-1">
+            ].map((opt) => {
+              const isOn = options[opt.key];
+              return (
+                <motion.button
+                  key={opt.key}
+                  variants={{
+                    hidden: { opacity: 0, y: 15 },
+                    visible: { opacity: 1, y: 0 }
+                  }}
+                  whileHover={{ y: -3 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => toggleOption(opt.key)}
+                  animate={{
+                    borderColor: isOn ? "rgba(94,234,212,0.6)" : "rgba(241,245,249,1)",
+                    boxShadow: isOn ? "0 4px 20px rgba(20,184,166,0.08)" : "0 4px 20px rgba(0,0,0,0.02)"
+                  }}
+                  transition={{ duration: 0.2 }}
+                  className="bg-white rounded-[28px] p-6 flex items-start gap-5 border cursor-pointer text-left"
+                >
+                  <motion.div
+                    animate={{
+                      backgroundColor: isOn ? "rgb(240,253,250)" : "rgb(248,250,252)",
+                      borderColor: isOn ? "rgb(204,251,241)" : "rgb(226,232,240)",
+                      color: isOn ? "rgb(20,184,166)" : "rgb(148,163,184)"
+                    }}
+                    transition={{ duration: 0.2 }}
+                    className="w-12 h-12 rounded-[20px] flex items-center justify-center shrink-0 border"
+                  >
+                    <opt.icon className="w-5 h-5" />
+                  </motion.div>
+                  <div className="flex-1 pt-1">
                     <div className="flex items-center justify-between mb-2">
-                       <h3 className="text-[14px] font-black text-slate-900 leading-none">{opt.title}</h3>
-                       {/* Toggle pill */}
-                       <div className={`w-9 h-5 rounded-full relative transition-colors duration-200 ${
-                         options[opt.key] ? "bg-teal-500" : "bg-slate-200"
-                       }`}>
-                         <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${
-                           options[opt.key] ? "translate-x-4" : "translate-x-0.5"
-                         }`} />
-                       </div>
+                      <h3 className="text-[14px] font-black text-slate-900 leading-none">{opt.title}</h3>
+                      {/* Smooth toggle pill */}
+                      <motion.div
+                        onClick={(e) => { e.stopPropagation(); toggleOption(opt.key); }}
+                        animate={{ backgroundColor: isOn ? "rgb(20,184,166)" : "rgb(226,232,240)" }}
+                        transition={{ duration: 0.2 }}
+                        className="w-9 h-5 rounded-full relative cursor-pointer flex-shrink-0"
+                      >
+                        <motion.span
+                          layout
+                          animate={{ x: isOn ? 16 : 2 }}
+                          transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                          className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-md"
+                          style={{ position: "absolute" }}
+                        />
+                      </motion.div>
                     </div>
                     <p className="text-[12px] text-slate-400 font-bold leading-relaxed">{opt.desc}</p>
-                 </div>
-              </motion.button>
-            ))}
+                  </div>
+                </motion.button>
+              );
+            })}
           </motion.div>
 
           {/* Bottom Info Row - Fade in */}
