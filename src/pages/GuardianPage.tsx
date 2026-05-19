@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { MapPin, Shield, Phone, MessageSquare, AlertCircle, Clock, Navigation, CheckCircle2, MoreVertical, Menu, Search, Filter, RefreshCw, Radio, Users, AlertTriangle, ShieldAlert, BatteryMedium, Wifi, Watch } from "lucide-react";
+import { MapPin, Shield, Phone, MessageSquare, AlertCircle, Clock, Navigation, CheckCircle2, MoreVertical, Menu, Search, Filter, RefreshCw, Radio, Users, AlertTriangle, ShieldAlert, BatteryMedium, Wifi, Watch, X } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { motion, AnimatePresence } from "framer-motion";
@@ -40,6 +40,8 @@ const GuardianPage = () => {
   const [showPoliceModal, setShowPoliceModal] = useState(false);
   const [showSafetyZones, setShowSafetyZones] = useState(true);
   const [activeRoute, setActiveRoute] = useState<L.Polyline | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [routeType, setRouteType] = useState<"fastest" | "safer">("safer");
   const liveUpdates = ["Location refreshed", "Connection stable", "Updating...", "Signal strong"];
   const [liveStatusText, setLiveStatusText] = useState(liveUpdates[0]);
   const mapRef = useRef<L.Map | null>(null);
@@ -163,30 +165,23 @@ const GuardianPage = () => {
 
   // Handle Guardian Selection Routing
   useEffect(() => {
-    if (!mapRef.current || !userMarkerRef.current) return;
-    if (routeLayer.current) {
-      routeLayer.current.remove();
-      routeLayer.current = null;
+    if (activeRoute && mapRef.current) {
+      mapRef.current.removeLayer(activeRoute);
+      setActiveRoute(null);
     }
-
-    if (selectedGuardian) {
+    
+    // Only draw simple line if we are not in active navigation mode
+    if (selectedGuardian && mapRef.current && userMarkerRef.current && !isNavigating) {
       const userLatLng = userMarkerRef.current.getLatLng();
       const guardianLatLng = L.latLng(selectedGuardian.lat, selectedGuardian.lng);
-      
-      // Draw simple polyline for route
-      routeLayer.current = L.polyline([userLatLng, guardianLatLng], {
+
+      const route = L.polyline([userLatLng, guardianLatLng], {
         color: '#3b82f6',
         weight: 4,
         dashArray: '10, 10',
-        opacity: 0.7
+        opacity: 0.8
       }).addTo(mapRef.current);
       
-      // Fit bounds to show both
-      const bounds = L.latLngBounds(userLatLng, guardianLatLng);
-      mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-    } else if (sosState.active) {
-      const userLatLng = userMarkerRef.current.getLatLng();
-      mapRef.current.setView(userLatLng, 16);
     }
   }, [selectedGuardian, sosState.active]);
 
@@ -402,6 +397,10 @@ const GuardianPage = () => {
                           <motion.button onClick={() => setShowPoliceModal(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-red-100 text-red-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-red-200 transition-colors cursor-pointer">
                             <Shield className="w-4 h-4" /> Notify Authorities
                           </motion.button>
+
+                          <motion.button onClick={() => setIsNavigating(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-emerald-50 text-emerald-600 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer mt-2">
+                            <MapPin className="w-4 h-4" /> Navigate Safely
+                          </motion.button>
                           
                           <motion.button onClick={() => { setIsResolved(true); resolveSOS(); handleAction("Situation marked as safe"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-emerald-100 text-emerald-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-emerald-200 transition-colors cursor-pointer mt-4">
                             <CheckCircle2 className="w-4 h-4" /> Mark as Safe
@@ -581,6 +580,76 @@ const GuardianPage = () => {
                </motion.div>
              )}
            </div>
+
+           {/* Active Route Navigation Panel Overlay */}
+           <AnimatePresence>
+             {isNavigating && (
+               <motion.div 
+                 initial={{ opacity: 0, y: -20 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 exit={{ opacity: 0, y: -20 }}
+                 className="absolute top-28 left-1/2 -translate-x-1/2 z-[400] flex flex-col items-center gap-2 w-full max-w-[340px] px-4"
+               >
+                 <div className="bg-white/95 backdrop-blur-xl p-5 rounded-3xl shadow-2xl border border-slate-100 w-full flex flex-col">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Navigation className="w-5 h-5 text-emerald-500" />
+                        <h3 className="font-black text-slate-900 text-sm tracking-wide">Navigation Active</h3>
+                      </div>
+                      <button onClick={() => setIsNavigating(false)} className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    
+                    <div className="flex gap-2 mb-4 bg-slate-50 p-1 rounded-2xl border border-slate-100">
+                       <button onClick={() => setRouteType("safer")} className={`flex-1 py-2 rounded-xl text-[10px] md:text-[11px] font-black uppercase tracking-wider transition-all ${routeType === "safer" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30" : "bg-transparent text-slate-400 hover:text-slate-600"}`}>
+                         Safer Route
+                       </button>
+                       <button onClick={() => setRouteType("fastest")} className={`flex-1 py-2 rounded-xl text-[10px] md:text-[11px] font-black uppercase tracking-wider transition-all ${routeType === "fastest" ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30" : "bg-transparent text-slate-400 hover:text-slate-600"}`}>
+                         Fastest
+                       </button>
+                    </div>
+
+                    <div className="flex items-center justify-between px-2 mb-2">
+                       <div>
+                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Est. Time</p>
+                         <p className="text-2xl font-black text-slate-900 leading-none">{routeType === "safer" ? "7 min" : "5 min"}</p>
+                       </div>
+                       <div className="text-right">
+                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Distance</p>
+                         <p className="text-2xl font-black text-slate-900 leading-none">{routeType === "safer" ? "1.4 km" : "1.2 km"}</p>
+                       </div>
+                    </div>
+                    
+                    <AnimatePresence mode="wait">
+                      {routeType === "safer" ? (
+                        <motion.div 
+                          key="safer"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-3 bg-emerald-50/80 px-3 py-2.5 rounded-xl flex items-start gap-2 border border-emerald-100 overflow-hidden"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                          <span className="text-[11px] font-bold text-emerald-700 leading-tight">Safer route suggested. This path avoids marked high-risk zones.</span>
+                        </motion.div>
+                      ) : (
+                        <motion.div 
+                          key="fastest"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-3 bg-blue-50/80 px-3 py-2.5 rounded-xl flex items-start gap-2 border border-blue-100 overflow-hidden"
+                        >
+                          <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                          <span className="text-[11px] font-bold text-blue-700 leading-tight">Fastest route selected. Please remain vigilant.</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                 </div>
+               </motion.div>
+             )}
+           </AnimatePresence>
 
            {/* Action Feedback Toast */}
            <AnimatePresence>
