@@ -115,6 +115,14 @@ const SOSPage = () => {
   const [options, setOptions] = useState({ silent: false, voice: false, wearable: true, guardian: false });
   const toggleOption = (key: keyof typeof options) => setOptions(prev => ({ ...prev, [key]: !prev[key] }));
 
+  // Live system status cycling
+  const STATUS_MESSAGES = ["Monitoring active…", "Waiting for input…", "All systems ready", "Monitoring active…"];
+  const [statusIdx, setStatusIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setStatusIdx(i => (i + 1) % STATUS_MESSAGES.length), 3500);
+    return () => clearInterval(t);
+  }, []);
+
   // Native MediaRecorder State
   const [isMediaRecording, setIsMediaRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -484,23 +492,40 @@ const SOSPage = () => {
           </div>
         </div>
 
-        <div className="flex flex-col flex-1 p-8 items-center justify-start relative bg-[#fcfcfd] overflow-y-auto">
+        <div className="flex flex-col flex-1 p-8 items-center justify-start relative overflow-y-auto"
+          style={{
+            background: "radial-gradient(ellipse 70% 45% at 50% 0%, rgba(20,184,166,0.06) 0%, #fcfcfd 70%)"
+          }}
+        >
           
-          {/* Status Pill */}
-          <motion.div 
+          {/* Live System Status Indicator */}
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className="mt-6 flex flex-col items-center mb-12"
           >
-            <div className="flex items-center gap-2 bg-teal-50 text-teal-600 px-5 py-2 rounded-full border border-teal-100 font-black text-[11px] uppercase tracking-widest shadow-sm mb-4">
-               <motion.div 
-                 animate={{ opacity: [1, 0.4, 1] }}
-                 transition={{ repeat: Infinity, duration: 2 }}
-                 className="w-2 h-2 rounded-full bg-teal-500" 
-               />
-               System Ready
+            {/* System Ready pill with blinking dot */}
+            <div className="flex items-center gap-2 bg-teal-50 text-teal-600 px-5 py-2 rounded-full border border-teal-100 font-black text-[11px] uppercase tracking-widest shadow-sm mb-3">
+              <motion.div
+                animate={{ opacity: [1, 0.2, 1] }}
+                transition={{ repeat: Infinity, duration: 1.4, ease: "easeInOut" }}
+                className="w-2 h-2 rounded-full bg-teal-500"
+              />
+              System Ready
             </div>
-            <p className="text-slate-400 text-[14px] font-bold">Press SOS to instantly alert your safety network</p>
+            {/* Dynamic status text — cycles every 3.5s */}
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={statusIdx}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.4, ease: "easeInOut" }}
+                className="text-slate-400 text-[13px] font-semibold tracking-wide"
+              >
+                {STATUS_MESSAGES[statusIdx]}
+              </motion.p>
+            </AnimatePresence>
           </motion.div>
 
           {/* SOS Button Normal State - ENHANCED */}
