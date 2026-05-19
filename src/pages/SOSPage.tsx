@@ -640,6 +640,35 @@ const SOSPage = () => {
     );
   }
 
+  // ── RESOLVED STATE (Marked as Safe by Guardian) ───────────────────────────
+  if (!sosState.active && sosState.resolved) {
+    return (
+      <div className="fixed inset-0 z-50 overflow-hidden bg-emerald-50 dark:bg-[#0B1220] text-slate-800 dark:text-white flex flex-col items-center justify-center pt-16 pb-32">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="flex flex-col items-center justify-center p-8 text-center"
+        >
+          <div className="w-32 h-32 bg-emerald-100 rounded-full flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(16,185,129,0.3)] border-4 border-emerald-50">
+            <CheckCircle2 className="w-16 h-16 text-emerald-500" />
+          </div>
+          <h1 className="text-4xl font-black text-slate-900 mb-2">You are Safe</h1>
+          <p className="text-sm font-bold text-slate-500 mb-8 max-w-xs">Your emergency has been resolved by your guardian. All tracking and recording systems have been safely terminated.</p>
+          
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={cancelSOS}
+            className="bg-slate-900 text-white font-black tracking-widest text-[13px] px-10 py-4 rounded-2xl shadow-xl flex items-center gap-2"
+          >
+            RETURN HOME
+          </motion.button>
+        </motion.div>
+      </div>
+    );
+  }
+
   // ── STANDBY STATE ───────────────────────────────────────────────────────────
   const isSilent = options.silent;
 

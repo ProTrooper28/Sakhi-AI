@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { MapPin, Shield, Phone, MessageSquare, AlertCircle, Clock, Navigation, CheckCircle2, MoreVertical, Menu, Search, Filter, RefreshCw, Radio, Users, AlertTriangle } from "lucide-react";
+import { MapPin, Shield, Phone, MessageSquare, AlertCircle, Clock, Navigation, CheckCircle2, MoreVertical, Menu, Search, Filter, RefreshCw, Radio, Users, AlertTriangle, ShieldAlert, BatteryMedium, Wifi, Watch } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { motion, AnimatePresence } from "framer-motion";
@@ -29,17 +29,25 @@ const createGuardianMarker = (color: string) => L.divIcon({
 });
 
 const GuardianPage = () => {
-  const { sosState, locationState } = useApp();
+  const { sosState, locationState, resolveSOS } = useApp();
   const [activeTab, setActiveTab] = useState<"active" | "requests">("active");
   const [selectedGuardian, setSelectedGuardian] = useState<any>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [jitter, setJitter] = useState({ lat: 0, lng: 0 });
+  const [isResolved, setIsResolved] = useState(false);
+  const [showCallModal, setShowCallModal] = useState(false);
+  const [showPoliceModal, setShowPoliceModal] = useState(false);
+  const [showSafetyZones, setShowSafetyZones] = useState(true);
+  const [activeRoute, setActiveRoute] = useState<L.Polyline | null>(null);
   const liveUpdates = ["Location refreshed", "Connection stable", "Updating...", "Signal strong"];
   const [liveStatusText, setLiveStatusText] = useState(liveUpdates[0]);
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
+
+  const safetyZoneLayers = useRef<L.Circle[]>([]);
+  const routeLayer = useRef<L.Polyline | null>(null);
 
   const guardians = [
     { id: 1, name: "Priya Sharma", role: "Primary Guardian", status: "Online", distance: "0.8 km", battery: "84%", lat: 28.5355, lng: 77.3910, color: "bg-teal-600", lastSeen: "Just now" },
@@ -78,15 +86,79 @@ const GuardianPage = () => {
       });
     });
 
+    // Add Safety Zones
+    const zones = [
+      { lat: 28.5355, lng: 77.3910, radius: 400, color: "#10b981", fillColor: "#10b981", fillOpacity: 0.1 }, // Green (Safe)
+      { lat: 28.5420, lng: 77.3950, radius: 600, color: "#eab308", fillColor: "#eab308", fillOpacity: 0.1 }, // Yellow (Moderate)
+      { lat: 28.5280, lng: 77.3850, radius: 500, color: "#ef4444", fillColor: "#ef4444", fillOpacity: 0.1 }  // Red (High Risk)
+    ];
+
+    zones.forEach(z => {
+      const circle = L.circle([z.lat, z.lng], {
+        radius: z.radius,
+        color: z.color,
+        fillColor: z.fillColor,
+        fillOpacity: z.fillOpacity,
+        weight: 1
+      });
+      safetyZoneLayers.current.push(circle);
+    });
+
+    if (showSafetyZones) {
+      safetyZoneLayers.current.forEach(c => c.addTo(map));
+    }
+
     mapRef.current = map;
 
     return () => {
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
+        safetyZoneLayers.current = [];
       }
     };
   }, []); // Run once on mount
+
+  // Toggle Safety Zones
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (showSafetyZones) {
+      safetyZoneLayers.current.forEach(c => {
+        if (!mapRef.current?.hasLayer(c)) c.addTo(mapRef.current!);
+      });
+    } else {
+      safetyZoneLayers.current.forEach(c => c.remove());
+    }
+  }, [showSafetyZones]);
+
+  // Handle Guardian Selection Routing
+  useEffect(() => {
+    if (!mapRef.current || !userMarkerRef.current) return;
+    if (routeLayer.current) {
+      routeLayer.current.remove();
+      routeLayer.current = null;
+    }
+
+    if (selectedGuardian) {
+      const userLatLng = userMarkerRef.current.getLatLng();
+      const guardianLatLng = L.latLng(selectedGuardian.lat, selectedGuardian.lng);
+      
+      // Draw simple polyline for route
+      routeLayer.current = L.polyline([userLatLng, guardianLatLng], {
+        color: '#3b82f6',
+        weight: 4,
+        dashArray: '10, 10',
+        opacity: 0.7
+      }).addTo(mapRef.current);
+      
+      // Fit bounds to show both
+      const bounds = L.latLngBounds(userLatLng, guardianLatLng);
+      mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+    } else if (sosState.active) {
+      const userLatLng = userMarkerRef.current.getLatLng();
+      mapRef.current.setView(userLatLng, 16);
+    }
+  }, [selectedGuardian, sosState.active]);
 
   // Sync user marker position with jitter
   useEffect(() => {
@@ -209,117 +281,212 @@ const GuardianPage = () => {
                    animate={{ opacity: 1, x: 0 }}
                    className="p-4"
                  >
-                    <div className="bg-red-600 text-white p-5 rounded-3xl border border-red-500 shadow-md mb-6 relative overflow-hidden">
+                                 <div className={`text-white p-5 rounded-3xl border shadow-md mb-6 relative overflow-hidden transition-colors duration-500 ${isResolved ? "bg-emerald-600 border-emerald-500" : "bg-red-600 border-red-500"}`}>
                       <div className="absolute top-0 left-0 w-full h-1 bg-white/20" />
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="w-2 h-2 bg-white rounded-full" />
-                        <h2 className="font-black text-lg tracking-wide uppercase">Emergency Alert Received</h2>
+                        {!isResolved && <div className="w-2 h-2 bg-white rounded-full animate-pulse" />}
+                        {isResolved && <CheckCircle2 className="w-5 h-5 text-white" />}
+                        <h2 className="font-black text-[15px] tracking-wide uppercase">
+                          {isResolved ? "Situation Resolved" : "Emergency Alert"}
+                        </h2>
                       </div>
-                      <p className="text-red-100 font-bold text-sm mb-4">User is In Danger</p>
                       
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl">
-                          <span className="text-xs font-bold text-red-100 uppercase tracking-wider">Time Elapsed</span>
+                      {/* Critical Info Panel */}
+                      <div className="bg-black/20 p-4 rounded-2xl mb-4 space-y-3">
+                        <div className="flex justify-between items-center border-b border-white/10 pb-2">
+                          <span className="text-xs font-bold text-white/70 uppercase tracking-wider">User</span>
+                          <span className="text-sm font-black tracking-wide">{sosState.userName || "Taranpreet Singh"}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-white/10 pb-2">
+                          <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Status</span>
+                          <span className={`text-sm font-black tracking-wide ${isResolved ? "text-emerald-300" : "text-red-200"}`}>
+                            {isResolved ? "Safe" : "In Danger"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pb-1">
+                          <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Location</span>
+                          <span className="text-sm font-bold truncate max-w-[140px]">{sosState.location || locationState.address || "Fetching..."}</span>
+                        </div>
+                      </div>
+                      
+                      {!isResolved && (
+                        <div className="flex items-center justify-between bg-black/20 p-3 rounded-xl mb-2">
+                          <span className="text-xs font-bold text-white/70 uppercase tracking-wider">Time Elapsed</span>
                           <motion.span key={timeElapsed} initial={{ scale: 0.95 }} animate={{ scale: 1 }} transition={{ duration: 0.2 }} className="text-xl font-black font-mono tracking-wider inline-block origin-right">{timeElapsed}</motion.span>
                         </div>
-                        <div className="flex flex-col gap-1 bg-black/20 p-3 rounded-xl">
-                          <span className="text-xs font-bold text-red-100 uppercase tracking-wider flex justify-between">
-                            Last Known Location
-                            <span className="text-red-300">Just now</span>
-                          </span>
-                          <span className="text-sm font-bold truncate">{sosState.location || locationState.address || "Fetching..."}</span>
+                      )}
+                    </div>
+
+                    {!isResolved && (
+                      <>
+                        <div className="mb-4 px-2">
+                          <p className="text-xs font-bold text-slate-500 mb-2">You can call the user or reach nearby help</p>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDuration: "1s" }} />
+                              <span className="text-[11px] font-black uppercase tracking-widest text-slate-900">LIVE</span>
+                            </div>
+                            <AnimatePresence mode="wait">
+                              <motion.span key={liveStatusText} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[11px] font-bold text-slate-500">
+                                {liveStatusText}
+                              </motion.span>
+                            </AnimatePresence>
+                          </div>
                         </div>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center justify-between mb-4 px-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" style={{ animationDuration: "1s" }} />
-                        <span className="text-[11px] font-black uppercase tracking-widest text-slate-900">LIVE</span>
-                      </div>
-                      <AnimatePresence mode="wait">
-                        <motion.span key={liveStatusText} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-[11px] font-bold text-slate-500">
-                          {liveStatusText}
-                        </motion.span>
-                      </AnimatePresence>
-                    </div>
+                        <div className="space-y-4 mb-8 pl-4 border-l-2 border-slate-200 ml-2">
+                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="relative">
+                            <div className="absolute -left-[23px] top-1 w-3 h-3 bg-red-500 rounded-full ring-4 ring-white" />
+                            <span className="text-sm font-bold text-slate-900 block leading-none">Alert received</span>
+                            <span className="text-[10px] text-slate-500 font-bold uppercase mt-1 block">✔ Verified</span>
+                          </motion.div>
+                          
+                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="relative">
+                            <div className="absolute -left-[23px] top-1 w-3 h-3 bg-teal-500 rounded-full ring-4 ring-white" />
+                            <span className="text-sm font-bold text-slate-900 block leading-none">Location tracking active</span>
+                            <span className="text-[10px] text-teal-600 font-bold uppercase mt-1 block">Just now</span>
+                          </motion.div>
 
-                    <div className="space-y-4 mb-8 pl-4 border-l-2 border-slate-200 ml-2">
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="relative">
-                        <div className="absolute -left-[23px] top-1 w-3 h-3 bg-red-500 rounded-full ring-4 ring-white" />
-                        <span className="text-sm font-bold text-slate-900 block leading-none">Alert received</span>
-                        <span className="text-[10px] text-slate-500 font-bold uppercase mt-1 block">✔ Verified</span>
-                      </motion.div>
-                      
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="relative">
-                        <div className="absolute -left-[23px] top-1 w-3 h-3 bg-teal-500 rounded-full ring-4 ring-white" />
-                        <span className="text-sm font-bold text-slate-900 block leading-none">Location tracking active</span>
-                        <span className="text-[10px] text-teal-600 font-bold uppercase mt-1 block">Just now</span>
-                      </motion.div>
-
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }} className="relative bg-slate-50 p-3 rounded-xl border border-slate-100 mt-3">
-                        <div className="absolute -left-[35px] top-4 w-3 h-3 bg-blue-500 rounded-full ring-4 ring-white" />
-                        <div className="flex items-center gap-2 mb-2">
-                           <div className="flex items-end gap-0.5 h-4">
-                             <motion.div animate={{ height: ["4px", "12px", "4px"] }} transition={{ repeat: Infinity, duration: 0.8 }} className="w-1 bg-blue-500 rounded-full" />
-                             <motion.div animate={{ height: ["8px", "16px", "8px"] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-1 bg-blue-500 rounded-full" />
-                             <motion.div animate={{ height: ["12px", "6px", "12px"] }} transition={{ repeat: Infinity, duration: 1.0 }} className="w-1 bg-blue-500 rounded-full" />
-                             <motion.div animate={{ height: ["6px", "14px", "6px"] }} transition={{ repeat: Infinity, duration: 0.7 }} className="w-1 bg-blue-500 rounded-full" />
-                           </div>
-                           <span className="text-sm font-bold text-slate-900 leading-none">Live audio streaming...</span>
+                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1 }} className="relative bg-slate-50 p-3 rounded-xl border border-slate-100 mt-3">
+                            <div className="absolute -left-[35px] top-4 w-3 h-3 bg-blue-500 rounded-full ring-4 ring-white" />
+                            <div className="flex items-center gap-2 mb-2">
+                               <div className="flex items-end gap-0.5 h-4">
+                                 <motion.div animate={{ height: ["4px", "12px", "4px"] }} transition={{ repeat: Infinity, duration: 0.8 }} className="w-1 bg-blue-500 rounded-full" />
+                                 <motion.div animate={{ height: ["8px", "16px", "8px"] }} transition={{ repeat: Infinity, duration: 0.6 }} className="w-1 bg-blue-500 rounded-full" />
+                                 <motion.div animate={{ height: ["12px", "6px", "12px"] }} transition={{ repeat: Infinity, duration: 1.0 }} className="w-1 bg-blue-500 rounded-full" />
+                                 <motion.div animate={{ height: ["6px", "14px", "6px"] }} transition={{ repeat: Infinity, duration: 0.7 }} className="w-1 bg-blue-500 rounded-full" />
+                               </div>
+                               <span className="text-sm font-bold text-slate-900 leading-none">Live audio streaming...</span>
+                            </div>
+                            <span className="text-[10px] text-blue-600 font-bold uppercase mt-1 block">2s ago</span>
+                          </motion.div>
                         </div>
-                        <span className="text-[10px] text-blue-600 font-bold uppercase mt-1 block">2s ago</span>
-                      </motion.div>
-                    </div>
 
-                    <div className="space-y-3">
-                      <motion.button onClick={() => handleAction("Calling User...")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-slate-900 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-[0_0_20px_rgba(15,23,42,0.4)] transition-all cursor-pointer">
-                        <Phone className="w-4 h-4" /> Call User
-                      </motion.button>
-                      <motion.button onClick={() => { if(mapRef.current) mapRef.current.setView([userMarkerRef.current?.getLatLng().lat || sosState.coords.lat, userMarkerRef.current?.getLatLng().lng || sosState.coords.lng], 16); handleAction("Viewing Live Location"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-blue-600 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all cursor-pointer">
-                        <Navigation className="w-4 h-4" /> View Live Location
-                      </motion.button>
-                      <motion.button onClick={() => handleAction("Notifying Authorities...")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-red-100 text-red-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-red-200 transition-colors cursor-pointer">
-                        <Shield className="w-4 h-4" /> Notify Authorities
-                      </motion.button>
-                    </div>
+                        <div className="space-y-3 pb-6">
+                          <motion.button onClick={() => setShowCallModal(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-slate-900 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-[0_0_20px_rgba(15,23,42,0.4)] transition-all cursor-pointer">
+                            <Phone className="w-4 h-4" /> Call User
+                          </motion.button>
+                          <motion.button onClick={() => { if(mapRef.current) mapRef.current.setView([userMarkerRef.current?.getLatLng().lat || sosState.coords.lat, userMarkerRef.current?.getLatLng().lng || sosState.coords.lng], 17, { animate: true, duration: 1 }); handleAction("Zoomed to Live Location"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-blue-600 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all cursor-pointer">
+                            <Navigation className="w-4 h-4" /> View Live Location
+                          </motion.button>
+                          <motion.button onClick={() => setShowPoliceModal(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-red-100 text-red-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-red-200 transition-colors cursor-pointer">
+                            <Shield className="w-4 h-4" /> Notify Authorities
+                          </motion.button>
+                          
+                          <motion.button onClick={() => { setIsResolved(true); resolveSOS(); handleAction("Situation marked as safe"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-emerald-100 text-emerald-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-emerald-200 transition-colors cursor-pointer mt-4">
+                            <CheckCircle2 className="w-4 h-4" /> Mark as Safe
+                          </motion.button>
+                        </div>
+                      </>
+                    )}
 
                  </motion.div>
                ) : activeTab === "active" ? (
-                 guardians.map((g, i) => (
-                   <motion.div 
-                     key={g.id}
-                     initial={{ opacity: 0, y: 10 }}
-                     animate={{ opacity: 1, y: 0 }}
-                     transition={{ delay: i * 0.1 }}
-                     whileHover={{ x: 4, backgroundColor: "#f8fafc" }}
-                     onClick={() => {
-                       setSelectedGuardian(g);
-                       if (mapRef.current) mapRef.current.setView([g.lat, g.lng], 15);
-                     }}
-                     className={`p-4 md:p-5 rounded-[24px] border cursor-pointer transition-all ${selectedGuardian?.id === g.id ? "bg-slate-50 border-slate-200 shadow-sm" : "bg-white border-transparent"}`}
-                   >
-                     <div className="flex items-center gap-4 md:gap-5">
-                       <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl ${g.color} flex items-center justify-center text-white font-black text-lg md:text-xl shadow-lg`}>
-                         {g.name[0]}
-                       </div>
-                       <div className="flex-1">
-                         <div className="flex items-center justify-between mb-1">
-                           <h3 className="font-black text-slate-900 text-[14px] md:text-[15px]">{g.name}</h3>
-                           <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded-full border border-slate-100">
-                             <div className={`w-1.5 h-1.5 rounded-full ${g.status === "Online" ? "bg-green-500" : g.status === "En Route" ? "bg-blue-500" : "bg-slate-400"} animate-pulse`} />
-                             <span className="text-[9px] md:text-[10px] font-black text-slate-600 uppercase tracking-wider">{g.status}</span>
+                  <div className="space-y-4">
+                    {/* User & Device Status Dashboard */}
+                    <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-emerald-400" />
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                        <h3 className="font-black text-sm text-slate-900 uppercase tracking-wide">User is Safe</h3>
+                        <span className="ml-auto text-[10px] text-slate-400 font-bold uppercase">Last updated: just now</span>
+                      </div>
+                      <p className="text-xs font-bold text-slate-500 mb-4">User moving through safe area. All systems normal.</p>
+                      
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-white p-2 rounded-xl text-center shadow-sm border border-slate-100">
+                          <BatteryMedium className="w-3.5 h-3.5 text-teal-500 mx-auto mb-1" />
+                          <p className="text-[10px] font-black text-slate-900">72%</p>
+                          <p className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Phone</p>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl text-center shadow-sm border border-slate-100">
+                          <Wifi className="w-3.5 h-3.5 text-blue-500 mx-auto mb-1" />
+                          <p className="text-[10px] font-black text-slate-900">Strong</p>
+                          <p className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Network</p>
+                        </div>
+                        <div className="bg-white p-2 rounded-xl text-center shadow-sm border border-slate-100">
+                          <Watch className="w-3.5 h-3.5 text-indigo-500 mx-auto mb-1" />
+                          <p className="text-[10px] font-black text-slate-900">Active</p>
+                          <p className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Wearable</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between px-2 pt-2 pb-1 border-b border-slate-50">
+                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">Active Guardians</h4>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={showSafetyZones} onChange={(e) => setShowSafetyZones(e.target.checked)} className="sr-only peer" />
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Zones</span>
+                        <div className="w-7 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-teal-500 relative"></div>
+                      </label>
+                    </div>
+
+                    {guardians.map((g, i) => (
+                      <motion.div 
+                        key={g.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.1 }}
+                        className={`p-4 md:p-5 rounded-[24px] border transition-all ${selectedGuardian?.id === g.id ? "bg-slate-50 border-slate-200 shadow-sm" : "bg-white border-slate-50"}`}
+                      >
+                        <div 
+                          className="flex items-center gap-4 md:gap-5 cursor-pointer"
+                          onClick={() => {
+                            setSelectedGuardian(selectedGuardian?.id === g.id ? null : g);
+                            if (mapRef.current && selectedGuardian?.id !== g.id) {
+                              const userLatLng = userMarkerRef.current?.getLatLng();
+                              const guardianLatLng = L.latLng(g.lat, g.lng);
+                              if(userLatLng) {
+                                mapRef.current.fitBounds(L.latLngBounds(userLatLng, guardianLatLng), { padding: [50, 50], maxZoom: 15 });
+                              }
+                            }
+                          }}
+                        >
+                           <div className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl ${g.color} flex items-center justify-center text-white font-black text-lg md:text-xl shadow-lg`}>
+                             {g.name[0]}
                            </div>
-                         </div>
-                         <p className="text-slate-500 text-[11px] md:text-[12px] font-bold">{g.role}</p>
-                         <div className="flex items-center gap-4 mt-2 md:mt-3">
-                            <span className="flex items-center gap-1 text-[10px] md:text-[11px] font-black text-slate-400"><MapPin className="w-3 h-3" /> {g.distance}</span>
-                            <span className="flex items-center gap-1 text-[10px] md:text-[11px] font-black text-slate-400"><Clock className="w-3 h-3" /> {g.lastSeen}</span>
-                         </div>
-                       </div>
-                     </div>
-                   </motion.div>
-                 ))
+                           <div className="flex-1">
+                             <div className="flex items-center justify-between mb-1">
+                               <h3 className="font-black text-slate-900 text-[14px] md:text-[15px]">{g.name}</h3>
+                               <div className="flex items-center gap-1.5 px-2 py-1 bg-white rounded-full border border-slate-100">
+                                 <div className={`w-1.5 h-1.5 rounded-full ${g.status === "Online" ? "bg-green-500" : g.status === "En Route" ? "bg-blue-500" : "bg-slate-400"} animate-pulse`} />
+                                 <span className="text-[9px] md:text-[10px] font-black text-slate-600 uppercase tracking-wider">{g.status}</span>
+                               </div>
+                             </div>
+                             <p className="text-slate-500 text-[11px] md:text-[12px] font-bold">{g.role}</p>
+                             <div className="flex items-center gap-4 mt-2 md:mt-3">
+                                <span className="flex items-center gap-1 text-[10px] md:text-[11px] font-black text-slate-400"><MapPin className="w-3 h-3" /> {g.distance}</span>
+                                <span className="flex items-center gap-1 text-[10px] md:text-[11px] font-black text-slate-400"><Clock className="w-3 h-3" /> {g.lastSeen}</span>
+                             </div>
+                           </div>
+                        </div>
+
+                        {/* Quick Actions (Prevention) */}
+                        <AnimatePresence>
+                          {selectedGuardian?.id === g.id && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="flex gap-2 pt-4 mt-4 border-t border-slate-200">
+                                <button onClick={() => handleAction(`Checking on ${g.name}...`)} className="flex-1 py-2 bg-slate-900 text-white font-bold text-[10px] rounded-xl flex items-center justify-center gap-1.5 hover:bg-slate-800 transition-colors">
+                                  <Shield className="w-3 h-3" /> Check User
+                                </button>
+                                <button onClick={() => handleAction("Location Shared")} className="flex-1 py-2 bg-blue-100 text-blue-700 font-bold text-[10px] rounded-xl flex items-center justify-center gap-1.5 hover:bg-blue-200 transition-colors">
+                                  <Navigation className="w-3 h-3" /> Share Loc
+                                </button>
+                                <button onClick={() => handleAction("Viewing Safe Route")} className="flex-1 py-2 bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-xl flex items-center justify-center gap-1.5 hover:bg-emerald-200 transition-colors">
+                                  <MapPin className="w-3 h-3" /> View Route
+                                </button>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    ))}
+                  </div>
                ) : (
                  <div className="flex flex-col items-center justify-center h-64 text-center p-8">
                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100 text-slate-300">
@@ -443,6 +610,70 @@ const GuardianPage = () => {
              )}
            </AnimatePresence>
         </div>
+
+        {/* ── Call Modal Overlay ── */}
+        <AnimatePresence>
+          {showCallModal && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }} 
+                animate={{ scale: 1, y: 0 }} 
+                exit={{ scale: 0.9, y: 20 }} 
+                className="bg-white w-full max-w-sm rounded-[32px] p-8 flex flex-col items-center shadow-2xl relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-b from-blue-50 to-white pointer-events-none" />
+                <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} transition={{ repeat: Infinity, duration: 1.5 }} className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6 relative z-10">
+                  <Phone className="w-10 h-10 text-blue-600 animate-pulse" />
+                </motion.div>
+                <h3 className="text-xl font-black text-slate-900 relative z-10 mb-1">Calling {sosState.userName || "User"}...</h3>
+                <p className="text-sm font-bold text-slate-400 relative z-10 mb-8">Ringing</p>
+                <motion.button onClick={() => setShowCallModal(false)} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center shadow-[0_10px_25px_rgba(239,68,68,0.4)] relative z-10">
+                   <Phone className="w-6 h-6 text-white rotate-[135deg]" />
+                </motion.button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Police Modal Overlay ── */}
+        <AnimatePresence>
+          {showPoliceModal && (
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }} 
+                animate={{ scale: 1, y: 0 }} 
+                exit={{ scale: 0.9, y: 20 }} 
+                className="bg-white w-full max-w-sm rounded-[32px] p-8 flex flex-col items-center shadow-2xl text-center relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-b from-red-50 to-white pointer-events-none" />
+                <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-4 relative z-10">
+                  <ShieldAlert className="w-10 h-10 text-red-600" />
+                </div>
+                <h3 className="text-xl font-black text-slate-900 relative z-10 mb-2">Connecting to Emergency Services</h3>
+                <p className="text-sm font-bold text-slate-500 relative z-10 mb-8">Your local police station is being notified with the live location and recording feed.</p>
+                
+                <div className="w-full flex gap-3 relative z-10">
+                  <motion.button onClick={() => setShowPoliceModal(false)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl">
+                    Cancel
+                  </motion.button>
+                  <motion.button onClick={() => { setShowPoliceModal(false); handleAction("Authorities Dispatched"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex-1 py-4 bg-red-600 text-white font-black rounded-2xl shadow-[0_10px_25px_rgba(239,68,68,0.4)]">
+                    Confirm
+                  </motion.button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
     </div>
   );

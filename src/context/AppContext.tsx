@@ -31,6 +31,7 @@ export type SOSState = {
   userName: string;
   location: string;
   coords: { lat: number; lng: number };
+  resolved?: boolean;
 };
 
 export type AppLocationState = {
@@ -46,6 +47,7 @@ const DEFAULT_SOS_STATE: SOSState = {
   userName: "Preeti",
   location: "Bandra West, Mumbai",
   coords: { lat: 19.0596, lng: 72.8295 },
+  resolved: false,
 };
 
 type AppContextType = {
@@ -59,6 +61,7 @@ type AppContextType = {
   getReport: (id: string) => Report | undefined;
   triggerSOS: () => void;
   cancelSOS: () => void;
+  resolveSOS: () => void;
   requestLocation: () => void;
   isSidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
@@ -241,10 +244,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, [locationState.coords, locationState.address]);
 
   const cancelSOS = useCallback(() => {
-    const next: SOSState = { ...DEFAULT_SOS_STATE, active: false };
+    const next: SOSState = { ...DEFAULT_SOS_STATE, active: false, resolved: false };
     localStorage.setItem(STORAGE_KEY_SOS, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY_SOS }));
     setSOSState(next);
+  }, []);
+
+  const resolveSOS = useCallback(() => {
+    setSOSState(prev => {
+      const next: SOSState = { ...prev, active: false, resolved: true };
+      localStorage.setItem(STORAGE_KEY_SOS, JSON.stringify(next));
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY_SOS }));
+      return next;
+    });
   }, []);
 
   // ── Report Actions ──
@@ -281,7 +293,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       value={{
         reports, evidenceLocker, sosState, locationState,
         addReport, updateReport, addEvidence, getReport,
-        triggerSOS, cancelSOS, requestLocation,
+        triggerSOS, cancelSOS, resolveSOS, requestLocation,
         isSidebarOpen, setSidebarOpen
       }}
     >
