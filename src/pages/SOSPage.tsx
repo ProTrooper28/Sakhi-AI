@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mic, EyeOff, Eye, Phone, MapPin, Video, Watch, Users, ShieldAlert, CheckCircle2, Navigation, Bell, Shield, Asterisk, ArrowLeft, BatteryMedium, Heart, Wifi } from "lucide-react";
+import { Mic, EyeOff, Eye, Phone, MapPin, Video, Watch, Users, ShieldAlert, CheckCircle2, Navigation, Bell, Shield, Asterisk, ArrowLeft, BatteryMedium, Heart, Wifi, ExternalLink } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
@@ -942,6 +942,24 @@ const SOSPage = () => {
                 );
               })}
             </div>
+          </motion.div>
+
+          {/* Guardian Demo Button */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.55 }}
+            className="w-full max-w-[750px] relative z-10 mb-8 flex justify-center"
+          >
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => window.open("/guardian-live", "_blank", "width=420,height=850,top=100,left=100")}
+              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold text-[11px] uppercase tracking-widest px-4 py-2 rounded-xl transition-colors border border-slate-200"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Open Guardian Screen (Demo)
+            </motion.button>
           </motion.div>
 
           {/* Bottom Info Row - Fade in */}

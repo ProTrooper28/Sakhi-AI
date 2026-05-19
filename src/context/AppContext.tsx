@@ -238,9 +238,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       },
       ...prev
     ]);
-    
-    // Automatically open the Guardian view in a separate emergency window
-    window.open("/guardian-live", "_blank", "width=420,height=850,top=100,left=100");
   }, [locationState.coords, locationState.address]);
 
   const cancelSOS = useCallback(() => {
