@@ -1,9 +1,111 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Mic, EyeOff, Eye, Phone, MapPin, Video, Watch, Users, ShieldAlert, CheckCircle2, Navigation, Bell, Shield, Asterisk, ArrowLeft } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
+
+// ── SOS BUTTON COMPONENT ─────────────────────────────────────────────────────
+const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
+  const [isHeld, setIsHeld] = useState(false);
+  const [ripples, setRipples] = useState<number[]>([]);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rippleInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const rippleId = useRef(0);
+
+  const startHold = useCallback(() => {
+    setIsHeld(true);
+    // spawn ripples every 400ms while held
+    rippleInterval.current = setInterval(() => {
+      const id = rippleId.current++;
+      setRipples(prev => [...prev, id]);
+      setTimeout(() => setRipples(prev => prev.filter(r => r !== id)), 1200);
+    }, 400);
+    // trigger after 1.5s hold
+    holdTimer.current = setTimeout(() => {
+      cleanup();
+      onTrigger();
+    }, 1500);
+  }, [onTrigger]);
+
+  const cleanup = useCallback(() => {
+    setIsHeld(false);
+    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+    if (rippleInterval.current) { clearInterval(rippleInterval.current); rippleInterval.current = null; }
+    setRipples([]);
+  }, []);
+
+  useEffect(() => () => cleanup(), [cleanup]);
+
+  return (
+    <div className="relative mb-16 mt-4 flex items-center justify-center select-none">
+      {/* Ambient outer glow ring */}
+      <motion.div
+        animate={{ scale: [1, 1.08, 1], opacity: [0.18, 0.06, 0.18] }}
+        transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
+        className="absolute w-[340px] h-[340px] rounded-full"
+        style={{ background: "radial-gradient(circle, rgba(220,38,38,0.22) 0%, transparent 70%)" }}
+      />
+      {/* Inner breathing ring */}
+      <motion.div
+        animate={{ scale: [1, 1.04, 1], opacity: [0.25, 0.08, 0.25] }}
+        transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut", delay: 0.3 }}
+        className="absolute w-[270px] h-[270px] rounded-full bg-red-100 border border-red-200"
+      />
+
+      {/* Hold ripples */}
+      <AnimatePresence>
+        {ripples.map(id => (
+          <motion.div
+            key={id}
+            initial={{ scale: 0.85, opacity: 0.6 }}
+            animate={{ scale: 2.1, opacity: 0 }}
+            exit={{}}
+            transition={{ duration: 1.1, ease: "easeOut" }}
+            className="absolute w-[208px] h-[208px] rounded-full border-2 border-red-400/50 pointer-events-none"
+          />
+        ))}
+      </AnimatePresence>
+
+      {/* SOS Button */}
+      <motion.button
+        onMouseDown={startHold}
+        onMouseUp={cleanup}
+        onMouseLeave={cleanup}
+        onTouchStart={startHold}
+        onTouchEnd={cleanup}
+        animate={{
+          scale: isHeld ? 0.93 : [1, 1.04, 1],
+          boxShadow: isHeld
+            ? ["0 0 60px rgba(220,38,38,0.85)", "0 0 90px rgba(220,38,38,1)"]
+            : ["0 0 18px rgba(220,38,38,0.35)", "0 0 42px rgba(220,38,38,0.6)", "0 0 18px rgba(220,38,38,0.35)"],
+        }}
+        transition={isHeld
+          ? { duration: 0.15, ease: "easeOut" }
+          : { repeat: Infinity, duration: 2.8, ease: "easeInOut" }
+        }
+        className="relative z-10 w-52 h-52 rounded-full bg-gradient-to-b from-[#DC2626] to-[#7F1D1D] flex flex-col items-center justify-center border-4 border-white/20 shadow-2xl overflow-hidden cursor-pointer"
+        style={{ WebkitTapHighlightColor: "transparent" }}
+      >
+        {/* Inner shimmer overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/10 pointer-events-none" />
+        {/* Press glow flash */}
+        {isHeld && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 0.4, 0.2] }}
+            transition={{ duration: 0.3 }}
+            className="absolute inset-0 bg-red-300/40 pointer-events-none rounded-full"
+          />
+        )}
+        <span style={{ fontFamily: "Manrope, sans-serif" }} className="relative z-10 text-white text-[64px] font-black leading-none mb-1 drop-shadow-md">SOS</span>
+        <span className="relative z-10 text-white font-bold text-[11px] tracking-[0.2em] uppercase drop-shadow-sm">
+          {isHeld ? "HOLD..." : "HOLD TO TRIGGER"}
+        </span>
+      </motion.button>
+    </div>
+  );
+};
 
 const SOSPage = () => {
   const { sosState, triggerSOS, cancelSOS, addEvidence, locationState } = useApp();
@@ -401,40 +503,8 @@ const SOSPage = () => {
             <p className="text-slate-400 text-[14px] font-bold">Press SOS to instantly alert your safety network</p>
           </motion.div>
 
-          {/* SOS Button Normal State - PULSING */}
-          <div className="relative mb-16 mt-4 flex items-center justify-center">
-            {/* Breathing Glow & Rings */}
-            <motion.div 
-               animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.1, 0.3] }}
-               transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-               className="absolute w-[280px] h-[280px] rounded-full bg-red-50 border border-red-100 dark:bg-red-900/20 dark:border-red-900/30" 
-            />
-            <motion.div 
-               animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.05, 0.2] }}
-               transition={{ repeat: Infinity, duration: 4, ease: "easeInOut", delay: 0.5 }}
-               className="absolute w-[360px] h-[360px] rounded-full border border-red-50 dark:border-red-900/20" 
-            />
-            
-            <motion.button 
-              onClick={triggerSOS}
-              whileHover={{ scale: 1.05, filter: "brightness(1.1)" }}
-              whileTap={{ scale: 0.95 }}
-              animate={{ 
-                scale: [1, 1.05, 1],
-                boxShadow: [
-                  "0 0 20px rgba(220, 38, 38, 0.4)",
-                  "0 0 50px rgba(220, 38, 38, 0.7)",
-                  "0 0 20px rgba(220, 38, 38, 0.4)"
-                ]
-              }}
-              transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-              className="relative z-10 w-52 h-52 rounded-full bg-gradient-to-b from-[#DC2626] to-[#7F1D1D] flex flex-col items-center justify-center border-4 border-white/20 shadow-2xl overflow-hidden cursor-pointer"
-            >
-              <div className="absolute inset-0 bg-red-600/20 mix-blend-overlay pointer-events-none" />
-              <span style={{ fontFamily: "Manrope, sans-serif" }} className="relative z-10 text-white text-[64px] font-black leading-none mb-1 drop-shadow-md">SOS</span>
-              <span className="relative z-10 text-white font-bold text-[11px] tracking-[0.2em] uppercase drop-shadow-sm">HOLD TO TRIGGER</span>
-            </motion.button>
-          </div>
+          {/* SOS Button Normal State - ENHANCED */}
+          <SOSButtonArea onTrigger={triggerSOS} />
 
           {/* Options grid - Fade in sequentially */}
           <motion.div 
