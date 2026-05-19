@@ -115,6 +115,9 @@ const SOSPage = () => {
   const [options, setOptions] = useState({ silent: false, voice: false, wearable: true, guardian: false });
   const toggleOption = (key: keyof typeof options) => setOptions(prev => ({ ...prev, [key]: !prev[key] }));
 
+  // Safety mode selection
+  const [safetyMode, setSafetyMode] = useState<"standard" | "offline" | "lownet">("standard");
+
   // Live system status cycling
   const STATUS_MESSAGES = ["Monitoring active…", "Waiting for input…", "All systems ready", "Monitoring active…"];
   const [statusIdx, setStatusIdx] = useState(0);
@@ -660,6 +663,90 @@ const SOSPage = () => {
                 />
                 Live
               </div>
+            </div>
+          </motion.div>
+
+          {/* Safety Mode Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 }}
+            className="w-full max-w-[750px] relative z-10 mb-10"
+          >
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Safety Mode</p>
+            <div className="grid grid-cols-3 gap-3">
+              {([
+                {
+                  id: "standard" as const,
+                  dot: "bg-teal-400",
+                  label: "Standard",
+                  desc: "Full protection with tracking and alerts",
+                  activeRing: "border-teal-300",
+                  activeBg: "bg-teal-50",
+                  activeText: "text-teal-700",
+                },
+                {
+                  id: "offline" as const,
+                  dot: "bg-slate-400",
+                  label: "Offline",
+                  desc: "Works without internet, records locally",
+                  activeRing: "border-slate-300",
+                  activeBg: "bg-slate-50",
+                  activeText: "text-slate-700",
+                },
+                {
+                  id: "lownet" as const,
+                  dot: "bg-amber-400",
+                  label: "Low Network",
+                  desc: "Uses less data, slower updates",
+                  activeRing: "border-amber-300",
+                  activeBg: "bg-amber-50",
+                  activeText: "text-amber-700",
+                },
+              ] as const).map((mode) => {
+                const isActive = safetyMode === mode.id;
+                return (
+                  <motion.button
+                    key={mode.id}
+                    onClick={() => setSafetyMode(mode.id)}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.97 }}
+                    animate={{
+                      borderColor: isActive ? undefined : "rgba(241,245,249,1)",
+                      boxShadow: isActive
+                        ? "0 4px 16px rgba(0,0,0,0.06)"
+                        : "0 2px 8px rgba(0,0,0,0.02)",
+                    }}
+                    transition={{ duration: 0.2 }}
+                    className={`rounded-[20px] p-4 flex flex-col gap-2 border cursor-pointer text-left transition-colors duration-200 ${
+                      isActive
+                        ? `${mode.activeBg} ${mode.activeRing}`
+                        : "bg-white border-slate-100"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${mode.dot} ${
+                        isActive ? "" : "opacity-50"
+                      }`} />
+                      <span className={`text-[12px] font-black leading-none ${
+                        isActive ? mode.activeText : "text-slate-500"
+                      }`}>{mode.label}</span>
+                      {isActive && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="ml-auto w-4 h-4 rounded-full bg-white border border-slate-200 flex items-center justify-center"
+                        >
+                          <div className={`w-2 h-2 rounded-full ${mode.dot}`} />
+                        </motion.div>
+                      )}
+                    </div>
+                    <p className={`text-[10px] font-semibold leading-snug ${
+                      isActive ? "text-slate-500" : "text-slate-400"
+                    }`}>{mode.desc}</p>
+                  </motion.button>
+                );
+              })}
             </div>
           </motion.div>
 
