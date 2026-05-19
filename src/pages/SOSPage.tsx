@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Mic, EyeOff, Eye, Phone, MapPin, Video, Watch, Users, ShieldAlert, CheckCircle2, Navigation, Bell, Shield, Asterisk, ArrowLeft } from "lucide-react";
+import { Mic, EyeOff, Eye, Phone, MapPin, Video, Watch, Users, ShieldAlert, CheckCircle2, Navigation, Bell, Shield, Asterisk, ArrowLeft, BatteryMedium, Heart, Wifi } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
@@ -645,23 +645,53 @@ const SOSPage = () => {
               </div>
             </div>
 
-            {/* Row 2: Wearable Status — no toggle, info only */}
-            <div className="bg-white rounded-[24px] px-5 py-4 flex items-center gap-4 border border-slate-100 shadow-[0_4px_16px_rgba(0,0,0,0.02)]">
-              <div className="w-10 h-10 rounded-[16px] flex items-center justify-center shrink-0 border bg-indigo-50 border-indigo-100 text-indigo-500 relative">
-                <Watch className="w-4 h-4" />
-                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-teal-400 rounded-full border-2 border-white" />
+            {/* Wearable Device Card — enhanced, no toggle */}
+            <div className="bg-white rounded-[24px] border border-slate-100 shadow-[0_4px_16px_rgba(0,0,0,0.02)] overflow-hidden">
+              {/* Top row: device identity + status */}
+              <div className="flex items-center gap-4 px-5 pt-4 pb-3 border-b border-slate-50">
+                <div className="w-10 h-10 rounded-[16px] flex items-center justify-center shrink-0 border bg-indigo-50 border-indigo-100 text-indigo-500 relative">
+                  <Watch className="w-4 h-4" />
+                  <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-teal-400 rounded-full border-2 border-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[13px] font-black text-slate-900 leading-none mb-0.5">Sakhi Ring</p>
+                  <div className="flex items-center gap-1.5">
+                    <motion.div
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
+                      className="w-1.5 h-1.5 rounded-full bg-teal-400"
+                    />
+                    <p className="text-[10px] text-teal-600 font-black uppercase tracking-widest">Connected</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-slate-400 text-[10px] font-semibold">
+                  <Wifi className="w-3 h-3 text-teal-500" />
+                  <span className="text-teal-600 font-black">Strong</span>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="text-[13px] font-black text-slate-900 leading-none mb-0.5">Smart Device Connected</p>
-                <p className="text-[11px] text-teal-600 font-black uppercase tracking-widest">Sakhi Ring · Active</p>
-              </div>
-              <div className="flex items-center gap-1.5 bg-teal-50 text-teal-600 px-3 py-1 rounded-full border border-teal-100 text-[10px] font-black uppercase tracking-wider">
-                <motion.div
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
-                  className="w-1.5 h-1.5 rounded-full bg-teal-500"
-                />
-                Live
+              {/* Bottom row: stats */}
+              <div className="grid grid-cols-3 divide-x divide-slate-50 px-1 py-2">
+                <div className="flex flex-col items-center gap-1 px-3 py-1">
+                  <BatteryMedium className="w-3.5 h-3.5 text-teal-500" />
+                  <p className="text-[12px] font-black text-slate-800">78%</p>
+                  <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Battery</p>
+                </div>
+                <div className="flex flex-col items-center gap-1 px-3 py-1">
+                  <Heart className="w-3.5 h-3.5 text-rose-400" />
+                  <p className="text-[12px] font-black text-slate-400">-- bpm</p>
+                  <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Heart Rate</p>
+                </div>
+                <div className="flex flex-col items-center gap-1 px-3 py-1">
+                  <motion.div
+                    animate={{ opacity: [1, 0.4, 1] }}
+                    transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+                    className="w-3.5 h-3.5 flex items-center justify-center"
+                  >
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                  </motion.div>
+                  <p className="text-[12px] font-black text-slate-800">Just now</p>
+                  <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Last Sync</p>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -783,16 +813,6 @@ const SOSPage = () => {
                 </div>
              </div>
 
-             <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center border border-indigo-100 relative">
-                   <Watch className="w-5 h-5 text-indigo-500" />
-                   <div className="absolute top-1 right-1 w-2 h-2 bg-indigo-400 rounded-full border-2 border-white" />
-                </div>
-                <div>
-                   <p className="text-[13px] font-black text-slate-900 leading-none mb-1">Sakhi Ring</p>
-                   <p className="text-[11px] text-indigo-600 font-black uppercase tracking-widest">Connected</p>
-                </div>
-             </div>
           </motion.div>
 
         </div>
