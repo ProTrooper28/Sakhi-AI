@@ -7,49 +7,100 @@ import { useNavigate } from "react-router-dom";
 
 // ── SOS BUTTON COMPONENT ─────────────────────────────────────────────────────
 const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
-  const [isHeld, setIsHeld] = useState(false);
-  const [ripples, setRipples] = useState<number[]>([]);
-  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rippleInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const rippleId = useRef(0);
+  const [isHeld, setIsHeld]           = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+  const [ripples, setRipples]         = useState<number[]>([]);
+  const holdTimer       = useRef<ReturnType<typeof setTimeout>  | null>(null);
+  const rippleInterval  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activationTimer = useRef<ReturnType<typeof setTimeout>  | null>(null);
+  const rippleId        = useRef(0);
 
   const startHold = useCallback(() => {
+    if (isActivating) return;
     setIsHeld(true);
-    // spawn ripples every 400ms while held
     rippleInterval.current = setInterval(() => {
       const id = rippleId.current++;
       setRipples(prev => [...prev, id]);
       setTimeout(() => setRipples(prev => prev.filter(r => r !== id)), 1200);
     }, 400);
-    // trigger after 1.5s hold
     holdTimer.current = setTimeout(() => {
-      cleanup();
-      onTrigger();
+      // clear hold state
+      setIsHeld(false);
+      if (rippleInterval.current) { clearInterval(rippleInterval.current); rippleInterval.current = null; }
+      setRipples([]);
+      // enter activation phase
+      setIsActivating(true);
+      activationTimer.current = setTimeout(() => {
+        setIsActivating(false);
+        onTrigger();
+      }, 600);
     }, 1500);
-  }, [onTrigger]);
+  }, [onTrigger, isActivating]);
 
   const cleanup = useCallback(() => {
+    if (isActivating) return; // never interrupt activation
     setIsHeld(false);
-    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+    if (holdTimer.current)      { clearTimeout(holdTimer.current);       holdTimer.current = null; }
     if (rippleInterval.current) { clearInterval(rippleInterval.current); rippleInterval.current = null; }
     setRipples([]);
-  }, []);
+  }, [isActivating]);
 
-  useEffect(() => () => cleanup(), [cleanup]);
+  useEffect(() => () => {
+    if (holdTimer.current)      clearTimeout(holdTimer.current);
+    if (rippleInterval.current) clearInterval(rippleInterval.current);
+    if (activationTimer.current) clearTimeout(activationTimer.current);
+  }, []);
 
   return (
     <div className="relative mb-16 mt-4 flex items-center justify-center select-none">
+
+      {/* ── ACTIVATION: full-screen red radial burst ── */}
+      <AnimatePresence>
+        {isActivating && (
+          <motion.div
+            key="burst"
+            initial={{ opacity: 0.7, scale: 0.2 }}
+            animate={{ opacity: 0, scale: 9 }}
+            exit={{}}
+            transition={{ duration: 0.55, ease: "easeOut" }}
+            className="fixed rounded-full bg-red-600 pointer-events-none"
+            style={{ width: 208, height: 208, top: "50%", left: "50%", marginLeft: -104, marginTop: -104, zIndex: 45 }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── ACTIVATION: subtle dark focus overlay ── */}
+      <AnimatePresence>
+        {isActivating && (
+          <motion.div
+            key="dim"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 bg-black/18 pointer-events-none"
+            style={{ zIndex: 44 }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Ambient outer glow ring */}
       <motion.div
-        animate={{ scale: [1, 1.08, 1], opacity: [0.18, 0.06, 0.18] }}
-        transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
+        animate={isActivating
+          ? { scale: 1.6, opacity: 0.5 }
+          : { scale: [1, 1.08, 1], opacity: [0.18, 0.06, 0.18] }}
+        transition={isActivating
+          ? { duration: 0.3 }
+          : { repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
         className="absolute w-[340px] h-[340px] rounded-full"
         style={{ background: "radial-gradient(circle, rgba(220,38,38,0.22) 0%, transparent 70%)" }}
       />
       {/* Inner breathing ring */}
       <motion.div
-        animate={{ scale: [1, 1.04, 1], opacity: [0.25, 0.08, 0.25] }}
-        transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut", delay: 0.3 }}
+        animate={isActivating
+          ? { scale: 1.35, opacity: 0.35 }
+          : { scale: [1, 1.04, 1], opacity: [0.25, 0.08, 0.25] }}
+        transition={{ repeat: isActivating ? 0 : Infinity, duration: 3.5, ease: "easeInOut", delay: 0.3 }}
         className="absolute w-[270px] h-[270px] rounded-full bg-red-100 border border-red-200"
       />
 
@@ -67,41 +118,80 @@ const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
         ))}
       </AnimatePresence>
 
-      {/* SOS Button */}
+      {/* ── SOS BUTTON ── */}
       <motion.button
         onMouseDown={startHold}
         onMouseUp={cleanup}
         onMouseLeave={cleanup}
         onTouchStart={startHold}
         onTouchEnd={cleanup}
-        animate={{
-          scale: isHeld ? 0.93 : [1, 1.04, 1],
-          boxShadow: isHeld
-            ? ["0 0 60px rgba(220,38,38,0.85)", "0 0 90px rgba(220,38,38,1)"]
-            : ["0 0 18px rgba(220,38,38,0.35)", "0 0 42px rgba(220,38,38,0.6)", "0 0 18px rgba(220,38,38,0.35)"],
-        }}
-        transition={isHeld
-          ? { duration: 0.15, ease: "easeOut" }
-          : { repeat: Infinity, duration: 2.8, ease: "easeInOut" }
+        animate={
+          isActivating ? {
+            scale: [0.93, 1.13, 1.06],
+            x: [0, -4, 4, -3, 3, -1, 0],
+            boxShadow: ["0 0 80px rgba(220,38,38,1)", "0 0 130px rgba(220,38,38,0.9)", "0 0 90px rgba(220,38,38,1)"]
+          } : isHeld ? {
+            scale: 0.96,
+            boxShadow: ["0 0 60px rgba(220,38,38,0.85)", "0 0 90px rgba(220,38,38,1)"]
+          } : {
+            scale: [1, 1.04, 1],
+            boxShadow: ["0 0 18px rgba(220,38,38,0.35)", "0 0 42px rgba(220,38,38,0.6)", "0 0 18px rgba(220,38,38,0.35)"]
+          }
+        }
+        transition={
+          isActivating
+            ? { duration: 0.5, ease: "easeOut", x: { duration: 0.45, times: [0, 0.15, 0.3, 0.45, 0.6, 0.8, 1] } }
+            : isHeld
+            ? { duration: 0.15, ease: "easeOut" }
+            : { repeat: Infinity, duration: 2.8, ease: "easeInOut" }
         }
         className="relative z-10 w-52 h-52 rounded-full bg-gradient-to-b from-[#DC2626] to-[#7F1D1D] flex flex-col items-center justify-center border-4 border-white/20 shadow-2xl overflow-hidden cursor-pointer"
-        style={{ WebkitTapHighlightColor: "transparent" }}
+        style={{ WebkitTapHighlightColor: "transparent", zIndex: 46 }}
       >
-        {/* Inner shimmer overlay */}
+        {/* Shimmer */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/10 pointer-events-none" />
-        {/* Press glow flash */}
-        {isHeld && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.4, 0.2] }}
-            transition={{ duration: 0.3 }}
-            className="absolute inset-0 bg-red-300/40 pointer-events-none rounded-full"
-          />
-        )}
+        {/* Press/activation glow */}
+        <AnimatePresence>
+          {(isHeld || isActivating) && (
+            <motion.div
+              key="pressglow"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: isActivating ? 0.65 : 0.35 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-red-300/50 pointer-events-none rounded-full"
+            />
+          )}
+        </AnimatePresence>
+
         <span style={{ fontFamily: "Manrope, sans-serif" }} className="relative z-10 text-white text-[64px] font-black leading-none mb-1 drop-shadow-md">SOS</span>
-        <span className="relative z-10 text-white font-bold text-[11px] tracking-[0.2em] uppercase drop-shadow-sm">
-          {isHeld ? "HOLD..." : "HOLD TO TRIGGER"}
-        </span>
+
+        {/* Label — animates between states */}
+        <AnimatePresence mode="wait">
+          {isActivating ? (
+            <motion.span
+              key="activated"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.18 }}
+              className="relative z-10 text-white font-black text-[11px] tracking-[0.2em] uppercase drop-shadow-sm"
+            >
+              SOS ACTIVATED
+            </motion.span>
+          ) : (
+            <motion.span
+              key="idle"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="relative z-10 text-white font-bold text-[11px] tracking-[0.2em] uppercase drop-shadow-sm"
+            >
+              {isHeld ? "HOLD..." : "HOLD TO TRIGGER"}
+            </motion.span>
+          )}
+        </AnimatePresence>
       </motion.button>
     </div>
   );
@@ -405,9 +495,10 @@ const SOSPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.2 }}
-              className="bg-[#1e293b] rounded-3xl relative overflow-hidden h-[280px] shadow-[0_4px_25px_rgba(0,0,0,0.1)] border border-slate-700"
+              className="bg-[#1e293b] rounded-3xl relative overflow-hidden h-[280px] shadow-[0_4px_25px_rgba(0,0,0,0.1)] border border-slate-700 flex flex-col"
             >
-               <div className="absolute inset-0 opacity-10" style={{
+               {/* Map Background Grid */}
+               <div className="absolute inset-0 opacity-[0.08]" style={{
                   backgroundImage: "linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)",
                   backgroundSize: "24px 24px",
                   transform: "perspective(500px) rotateX(45deg) scale(2)",
@@ -415,34 +506,77 @@ const SOSPage = () => {
                }} />
                <div className="absolute inset-0 bg-gradient-to-t from-[#1e293b] via-transparent to-[#1e293b]" />
                
-               <div className="absolute inset-0 flex items-center justify-center pb-4">
-                  <div className="relative flex flex-col items-center">
-                     {/* Map Ripples */}
+               {/* Map Content */}
+               <div className="absolute inset-0 pb-8 pointer-events-none">
+                  {/* User Location Center */}
+                  <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
+                     {/* Ripples */}
                      <motion.div 
-                        animate={{ scale: [1, 2], opacity: [0.5, 0] }}
+                        animate={{ scale: [1, 2.5], opacity: [0.6, 0] }}
                         transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
-                        className="absolute w-20 h-20 bg-teal-400/20 rounded-full" 
+                        className="absolute w-16 h-16 bg-red-500/30 rounded-full" 
                      />
-                     <div className="absolute w-24 h-24 border border-teal-400/10 rounded-full" />
                      
+                     {/* User Marker */}
                      <motion.div 
-                        animate={{ y: [0, -4, 0] }}
-                        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                        className="relative z-10 w-8 h-10 flex flex-col items-center"
+                        animate={{ y: [0, -3, 0] }}
+                        transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
+                        className="relative z-10 flex flex-col items-center"
                      >
-                        <div className="w-8 h-8 rounded-t-full rounded-b-full bg-teal-500/80 backdrop-blur-sm border-2 border-white flex items-center justify-center shadow-lg" style={{ borderBottomLeftRadius: 0, transform: 'rotate(45deg)' }}>
-                           <div className="w-3 h-3 bg-red-500 rounded-full shadow-sm" style={{ transform: 'rotate(-45deg)' }} />
+                        <div className="w-5 h-5 rounded-full bg-red-500 border-2 border-white shadow-[0_0_15px_rgba(239,68,68,0.6)] flex items-center justify-center">
+                           <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                        </div>
+                        <div className="mt-1 bg-slate-900/80 backdrop-blur-md px-2 py-0.5 rounded text-[9px] text-white font-bold tracking-wider whitespace-nowrap shadow-sm border border-slate-700/50">
+                           YOUR LOCATION
                         </div>
                      </motion.div>
                   </div>
+
+                  {/* Nearby Police */}
+                  <div className="absolute top-[25%] left-[25%] flex flex-col items-center opacity-80">
+                     <div className="w-6 h-6 rounded-full bg-blue-500/20 border border-blue-500/50 flex items-center justify-center text-blue-400 mb-1">
+                        <Shield className="w-3 h-3" />
+                     </div>
+                     <span className="text-[8px] text-blue-300 font-bold uppercase tracking-wider bg-[#1e293b]/50 px-1 rounded">Police (800m)</span>
+                  </div>
+
+                  {/* Nearby Hospital */}
+                  <div className="absolute top-[60%] left-[75%] flex flex-col items-center opacity-90">
+                     <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-400 mb-1">
+                        <div className="w-3 h-3 relative flex items-center justify-center">
+                          <span className="absolute w-3 h-1 bg-emerald-400 rounded-sm" />
+                          <span className="absolute w-1 h-3 bg-emerald-400 rounded-sm" />
+                        </div>
+                     </div>
+                     <span className="text-[8px] text-emerald-300 font-bold uppercase tracking-wider bg-[#1e293b]/50 px-1 rounded">Hospital</span>
+                     <span className="text-[8px] text-emerald-300 font-bold bg-[#1e293b]/50 px-1 rounded mt-0.5">450m</span>
+                  </div>
                </div>
-               <div className="absolute bottom-6 left-6 bg-slate-900/90 backdrop-blur-md rounded-xl px-4 py-2 flex items-center gap-2 border border-slate-700 shadow-xl">
-                  <motion.div 
-                    animate={{ opacity: [1, 0.4, 1] }}
-                    transition={{ repeat: Infinity, duration: 1 }}
-                    className="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" 
-                  />
-                  <span className="text-[10px] text-white font-black tracking-widest uppercase">Target Sync: Active</span>
+
+               {/* Top Label */}
+               <div className="absolute top-4 left-5 right-5 flex justify-between items-start z-20">
+                  <div className="flex flex-col gap-1">
+                     <div className="bg-red-500/20 text-red-400 text-[9px] font-black tracking-widest uppercase px-2 py-1 rounded w-fit border border-red-500/30">
+                        Help is on the way
+                     </div>
+                     <p className="text-[10px] text-slate-300 font-medium ml-0.5">Location shared with contacts</p>
+                  </div>
+               </div>
+
+               {/* Bottom Status Bar */}
+               <div className="absolute bottom-4 left-5 right-5 flex justify-between items-end z-20">
+                  <div className="bg-slate-900/90 backdrop-blur-md rounded-lg px-3 py-1.5 flex items-center gap-2 border border-slate-700 shadow-xl">
+                     <motion.div 
+                       animate={{ opacity: [1, 0.3, 1] }}
+                       transition={{ repeat: Infinity, duration: 1.5 }}
+                       className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" 
+                     />
+                     <span className="text-[9px] text-white font-bold tracking-widest uppercase">Live tracking active</span>
+                  </div>
+                  <div className="bg-emerald-500/20 border border-emerald-500/30 rounded-lg px-3 py-1.5 flex flex-col items-end shadow-lg backdrop-blur-md">
+                     <span className="text-[8px] text-emerald-400 font-black uppercase tracking-widest mb-0.5">Nearest Help</span>
+                     <span className="text-[11px] text-emerald-300 font-bold leading-none">450m away</span>
+                  </div>
                </div>
             </motion.div>
 
