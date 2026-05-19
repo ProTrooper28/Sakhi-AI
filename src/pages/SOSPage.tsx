@@ -563,78 +563,104 @@ const SOSPage = () => {
           {/* SOS Button Normal State - ENHANCED */}
           <SOSButtonArea onTrigger={triggerSOS} />
 
-          {/* Options grid - Fade in sequentially */}
-          <motion.div 
-            initial="hidden"
-            animate="visible"
-            variants={{
-              hidden: { opacity: 0 },
-              visible: {
-                opacity: 1,
-                transition: { staggerChildren: 0.1 }
-              }
-            }}
-            className="grid grid-cols-2 gap-5 w-full max-w-[750px] relative z-10 mb-16"
+          {/* Controls Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="flex flex-col gap-4 w-full max-w-[750px] relative z-10 mb-10"
           >
-            {[
-              { icon: EyeOff, title: "Silent Mode", desc: "Send alerts without sound or visual indication", key: "silent" as const },
-              { icon: Mic,    title: "Voice Trigger", desc: "Activate SOS using your secure voice command", key: "voice" as const },
-              { icon: Watch,  title: "Wearable Sync", desc: "Trigger SOS from your connected smart ring", key: "wearable" as const },
-              { icon: Eye,    title: "Guardian View", desc: "Preview what contacts see during an alert", key: "guardian" as const },
-            ].map((opt) => {
-              const isOn = options[opt.key];
-              return (
-                <motion.button
-                  key={opt.key}
-                  variants={{
-                    hidden: { opacity: 0, y: 15 },
-                    visible: { opacity: 1, y: 0 }
-                  }}
-                  whileHover={{ y: -3 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => toggleOption(opt.key)}
+            {/* Row 1: Silent Mode + Voice Activation */}
+            <div className="grid grid-cols-2 gap-4">
+
+              {/* Silent Mode Toggle */}
+              <motion.button
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => toggleOption("silent")}
+                animate={{
+                  borderColor: options.silent ? "rgba(94,234,212,0.6)" : "rgba(241,245,249,1)",
+                  boxShadow: options.silent ? "0 4px 20px rgba(20,184,166,0.08)" : "0 4px 16px rgba(0,0,0,0.02)"
+                }}
+                transition={{ duration: 0.2 }}
+                className="bg-white rounded-[24px] p-5 flex items-start gap-4 border cursor-pointer text-left"
+              >
+                <motion.div
                   animate={{
-                    borderColor: isOn ? "rgba(94,234,212,0.6)" : "rgba(241,245,249,1)",
-                    boxShadow: isOn ? "0 4px 20px rgba(20,184,166,0.08)" : "0 4px 20px rgba(0,0,0,0.02)"
+                    backgroundColor: options.silent ? "rgb(240,253,250)" : "rgb(248,250,252)",
+                    borderColor: options.silent ? "rgb(204,251,241)" : "rgb(226,232,240)",
+                    color: options.silent ? "rgb(20,184,166)" : "rgb(148,163,184)"
                   }}
                   transition={{ duration: 0.2 }}
-                  className="bg-white rounded-[28px] p-6 flex items-start gap-5 border cursor-pointer text-left"
+                  className="w-10 h-10 rounded-[16px] flex items-center justify-center shrink-0 border"
                 >
-                  <motion.div
-                    animate={{
-                      backgroundColor: isOn ? "rgb(240,253,250)" : "rgb(248,250,252)",
-                      borderColor: isOn ? "rgb(204,251,241)" : "rgb(226,232,240)",
-                      color: isOn ? "rgb(20,184,166)" : "rgb(148,163,184)"
-                    }}
-                    transition={{ duration: 0.2 }}
-                    className="w-12 h-12 rounded-[20px] flex items-center justify-center shrink-0 border"
-                  >
-                    <opt.icon className="w-5 h-5" />
-                  </motion.div>
-                  <div className="flex-1 pt-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-[14px] font-black text-slate-900 leading-none">{opt.title}</h3>
-                      {/* Smooth toggle pill */}
-                      <motion.div
-                        onClick={(e) => { e.stopPropagation(); toggleOption(opt.key); }}
-                        animate={{ backgroundColor: isOn ? "rgb(20,184,166)" : "rgb(226,232,240)" }}
-                        transition={{ duration: 0.2 }}
-                        className="w-9 h-5 rounded-full relative cursor-pointer flex-shrink-0"
-                      >
-                        <motion.span
-                          layout
-                          animate={{ x: isOn ? 16 : 2 }}
-                          transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                          className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-md"
-                          style={{ position: "absolute" }}
-                        />
-                      </motion.div>
-                    </div>
-                    <p className="text-[12px] text-slate-400 font-bold leading-relaxed">{opt.desc}</p>
+                  <EyeOff className="w-4 h-4" />
+                </motion.div>
+                <div className="flex-1 pt-0.5">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <h3 className="text-[13px] font-black text-slate-900 leading-none">Silent Mode</h3>
+                    <motion.div
+                      animate={{ backgroundColor: options.silent ? "rgb(20,184,166)" : "rgb(226,232,240)" }}
+                      transition={{ duration: 0.2 }}
+                      className="w-8 h-[18px] rounded-full relative flex-shrink-0"
+                    >
+                      <motion.span
+                        animate={{ x: options.silent ? 13 : 2 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                        className="absolute top-[2px] w-[14px] h-[14px] bg-white rounded-full shadow-sm"
+                        style={{ position: "absolute" }}
+                      />
+                    </motion.div>
                   </div>
-                </motion.button>
-              );
-            })}
+                  <p className="text-[11px] text-slate-400 font-semibold leading-relaxed">Alerts sent without any sound</p>
+                </div>
+              </motion.button>
+
+              {/* Voice Activation — Passive system, no toggle */}
+              <div className="bg-white rounded-[24px] p-5 flex items-start gap-4 border border-slate-100 shadow-[0_4px_16px_rgba(0,0,0,0.02)]">
+                <div className="w-10 h-10 rounded-[16px] flex items-center justify-center shrink-0 border bg-violet-50 border-violet-100 text-violet-500">
+                  <Mic className="w-4 h-4" />
+                </div>
+                <div className="flex-1 pt-0.5">
+                  <p className="text-[13px] font-black text-slate-900 leading-none mb-1.5">Voice Activation</p>
+                  <p className="text-[11px] text-slate-400 font-semibold leading-relaxed mb-2">
+                    Listening for "Help", "Bachao"
+                  </p>
+                  {/* Minimal waveform bars */}
+                  <div className="flex items-end gap-[3px] h-4">
+                    {[0.5, 0.9, 0.6, 1, 0.7, 0.85, 0.5].map((h, i) => (
+                      <motion.div
+                        key={i}
+                        animate={{ scaleY: [h, h * 0.4, h] }}
+                        transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.1, ease: "easeInOut" }}
+                        style={{ height: `${h * 100}%`, transformOrigin: "bottom" }}
+                        className="w-[3px] rounded-full bg-violet-300"
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Row 2: Wearable Status — no toggle, info only */}
+            <div className="bg-white rounded-[24px] px-5 py-4 flex items-center gap-4 border border-slate-100 shadow-[0_4px_16px_rgba(0,0,0,0.02)]">
+              <div className="w-10 h-10 rounded-[16px] flex items-center justify-center shrink-0 border bg-indigo-50 border-indigo-100 text-indigo-500 relative">
+                <Watch className="w-4 h-4" />
+                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-teal-400 rounded-full border-2 border-white" />
+              </div>
+              <div className="flex-1">
+                <p className="text-[13px] font-black text-slate-900 leading-none mb-0.5">Smart Device Connected</p>
+                <p className="text-[11px] text-teal-600 font-black uppercase tracking-widest">Sakhi Ring · Active</p>
+              </div>
+              <div className="flex items-center gap-1.5 bg-teal-50 text-teal-600 px-3 py-1 rounded-full border border-teal-100 text-[10px] font-black uppercase tracking-wider">
+                <motion.div
+                  animate={{ opacity: [1, 0.3, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
+                  className="w-1.5 h-1.5 rounded-full bg-teal-500"
+                />
+                Live
+              </div>
+            </div>
           </motion.div>
 
           {/* Bottom Info Row - Fade in */}
