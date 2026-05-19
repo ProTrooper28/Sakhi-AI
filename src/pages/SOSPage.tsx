@@ -397,30 +397,50 @@ const SOSPage = () => {
             </motion.div>
           </div>
 
-          {/* Status List - Sequential Fade-In */}
-          <div className="relative z-10 flex flex-col gap-4 mb-10 text-[12px] font-semibold text-slate-600 w-full max-w-[280px]">
-             {[
-               { icon: Asterisk, text: "Recording Started", time: "just now", color: "text-red-600" },
-               { icon: MapPin, text: "Location shared", time: "2s ago" },
-               { icon: Navigation, text: "Alerts dispatched", time: "12s ago", rotate: 90 },
-             ].map((item, i) => (
-               <motion.div 
-                 key={i}
-                 initial={{ opacity: 0, x: -10 }}
-                 animate={{ opacity: 1, x: 0 }}
-                 transition={{ delay: 0.5 + i * 0.2 }}
-                 className={`flex items-center gap-3 ${item.color || ""}`}
-               >
-                 {item.icon === Asterisk ? (
-                   <div className="w-3.5 h-3.5 rounded-full border-2 border-red-600 flex items-center justify-center">
-                     <div className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+          {/* Real-time System Response Feed */}
+          <div className="relative z-10 flex flex-col gap-3 mb-12 w-full max-w-[320px] bg-white/70 backdrop-blur-md rounded-[20px] p-5 border border-white shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
+            {/* Live Indicator Header */}
+            <div className="flex items-center justify-between border-b border-slate-200/50 pb-3 mb-1">
+              <div className="flex items-center gap-2">
+                <motion.div
+                  animate={{ opacity: [1, 0.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+                  className="w-2 h-2 rounded-full bg-red-500"
+                />
+                <span className="text-[10px] font-black text-slate-800 tracking-widest uppercase">Live System Log</span>
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tracking Active</span>
+            </div>
+
+            {/* Sequential Steps */}
+            {[
+              { icon: Asterisk, title: "Recording started", detail: "Audio & video locked", delay: 0.5, color: "text-red-500", dot: "bg-red-500", time: "just now" },
+              { icon: MapPin, title: "Location shared", detail: "GPS pinpointed", delay: 1.8, color: "text-teal-600", dot: "bg-teal-500", time: "1s ago" },
+              { icon: Users, title: "Contacts alerted", detail: "Help is being notified", delay: 3.2, color: "text-indigo-600", dot: "bg-indigo-500", time: "3s ago" }
+            ].map((step, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                transition={{ delay: step.delay, duration: 0.4, ease: "easeOut" }}
+                className="flex items-start gap-3"
+              >
+                <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 bg-white shadow-sm border border-slate-100 ${step.color}`}>
+                  {step.icon === Asterisk ? (
+                     <div className={`w-1.5 h-1.5 rounded-full ${step.dot} shadow-[0_0_4px_rgba(239,68,68,0.5)]`} />
+                  ) : (
+                     <step.icon className="w-3 h-3" />
+                  )}
+                </div>
+                <div className="flex-1 flex justify-between items-start pt-0.5">
+                   <div className="flex flex-col">
+                     <span className="text-[13px] font-black text-slate-800 leading-none mb-1">{step.title}</span>
+                     <span className="text-[10px] font-bold text-slate-500 leading-none">{step.detail}</span>
                    </div>
-                 ) : (
-                   <item.icon className={`w-4 h-4 ${item.rotate ? `rotate-${item.rotate}` : ""}`} />
-                 )}
-                 {item.text} ({item.time})
-               </motion.div>
-             ))}
+                   <span className="text-[9px] font-bold text-slate-400 whitespace-nowrap ml-2">{step.time}</span>
+                </div>
+              </motion.div>
+            ))}
           </div>
 
           {/* Grid of Cards - Sequential Fade-In */}
