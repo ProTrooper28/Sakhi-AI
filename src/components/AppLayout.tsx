@@ -93,7 +93,7 @@ const MobileHeader = () => {
       >
         <Menu className="w-5 h-5" />
       </button>
-      <div className="font-black text-slate-900 text-sm uppercase tracking-widest" style={{ fontFamily: "Manrope, sans-serif" }}>Sakhi AI</div>
+      <div className="font-black text-slate-900 text-sm uppercase tracking-widest" style={{ fontFamily: "Manrope, sans-serif" }}>Sakhi Safety</div>
 
       <div className="flex items-center gap-2">
         {/* Notification */}

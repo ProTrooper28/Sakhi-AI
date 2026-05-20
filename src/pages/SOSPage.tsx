@@ -326,7 +326,7 @@ const SOSPage = () => {
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative z-10 flex flex-col items-center mb-10"
+            className="relative z-10 flex flex-col items-center mb-10 order-2 md:order-none"
           >
             <div className="flex items-center gap-2 bg-red-50 text-red-600 px-4 py-1.5 rounded-full border border-red-100 font-bold tracking-widest text-[13px] shadow-sm mb-2">
               <motion.div 
@@ -340,7 +340,7 @@ const SOSPage = () => {
           </motion.div>
 
           {/* Central SOS Button Active Area */}
-          <div className="relative z-10 flex flex-col items-center justify-center mb-10 w-full">
+          <div className="relative z-10 flex flex-col items-center justify-center mb-10 w-full order-1 md:order-none">
             {/* Ripples */}
             <AnimatePresence>
                {[0, 1, 2].map((i) => (
@@ -398,7 +398,7 @@ const SOSPage = () => {
           </div>
 
           {/* Real-time System Response Feed */}
-          <div className="relative z-10 flex flex-col gap-3 mb-12 w-full max-w-[320px] bg-white/70 backdrop-blur-md rounded-[20px] p-5 border border-white shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
+          <div className="relative z-10 flex flex-col gap-3 mb-12 w-full max-w-[320px] bg-white/70 backdrop-blur-md rounded-[20px] p-5 border border-white shadow-[0_4px_20px_rgba(0,0,0,0.04)] order-2 md:order-none">
             {/* Live Indicator Header */}
             <div className="flex items-center justify-between border-b border-slate-200/50 pb-3 mb-1">
               <div className="flex items-center gap-2">
@@ -444,7 +444,7 @@ const SOSPage = () => {
           </div>
 
           {/* Grid of Cards - Sequential Fade-In */}
-          <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl px-8">
+          <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl px-4 md:px-8 order-3 md:order-none mb-44 sm:mb-32">
             
             {/* LIVE REC Card */}
             <motion.div 
@@ -617,20 +617,20 @@ const SOSPage = () => {
             initial={{ y: 100 }}
             animate={{ y: 0 }}
             transition={{ type: "spring", damping: 20, delay: 1.4 }}
-            className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 p-6 flex justify-center gap-6 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.03)]"
+            className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-100 p-4 sm:p-6 flex flex-col sm:flex-row justify-center gap-3 sm:gap-6 z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.03)] pb-[calc(1rem+env(safe-area-inset-bottom))]"
           >
              <motion.button 
                whileHover={{ scale: 1.05 }}
                whileTap={{ scale: 0.95 }}
                onClick={() => window.location.href = "tel:100"}
-               className="bg-[#C82121] hover:bg-[#A30000] text-white font-black tracking-widest text-[12px] px-10 py-4 rounded-2xl shadow-xl shadow-red-100 flex items-center gap-3 transition-colors cursor-pointer"
+               className="bg-[#C82121] hover:bg-[#A30000] text-white font-black tracking-widest text-[13px] sm:text-[12px] w-full sm:w-auto px-8 sm:px-10 py-4 rounded-2xl shadow-xl shadow-red-100 flex items-center justify-center gap-3 transition-colors cursor-pointer"
              >
                 <Phone className="w-5 h-5 fill-current" /> CALL POLICE
              </motion.button>
              <motion.button 
                whileTap={{ scale: 0.95 }}
                onClick={cancelSOS}
-               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black tracking-widest text-[12px] px-10 py-4 rounded-2xl transition-colors cursor-pointer"
+               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black tracking-widest text-[13px] sm:text-[12px] w-full sm:w-auto px-8 sm:px-10 py-4 rounded-2xl transition-colors cursor-pointer flex items-center justify-center"
              >
                 CANCEL SOS
              </motion.button>
@@ -720,7 +720,7 @@ const SOSPage = () => {
           </AnimatePresence>
         </div>
 
-        <div className="flex flex-col flex-1 p-8 items-center justify-start relative overflow-y-auto"
+        <div className="flex flex-col flex-1 p-4 sm:p-8 items-center justify-start relative overflow-y-auto"
           style={{
             background: "radial-gradient(ellipse 70% 45% at 50% 0%, rgba(20,184,166,0.06) 0%, #fcfcfd 70%)"
           }}
@@ -767,12 +767,12 @@ const SOSPage = () => {
             className="flex flex-col gap-4 w-full max-w-[750px] relative z-10 mb-10"
           >
             {/* Row 1: Silent Mode + Voice Activation */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
               {/* Silent Mode Toggle */}
               <motion.button
                 whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.97 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => toggleOption("silent")}
                 animate={{
                   borderColor: options.silent ? "rgba(94,234,212,0.6)" : "rgba(241,245,249,1)",
@@ -897,7 +897,7 @@ const SOSPage = () => {
             className="w-full max-w-[750px] relative z-10 mb-10"
           >
             <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 px-1">Safety Mode</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {([
                 {
                   id: "standard" as const,
@@ -933,7 +933,7 @@ const SOSPage = () => {
                     key={mode.id}
                     onClick={() => setSafetyMode(mode.id)}
                     whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.97 }}
+                    whileTap={{ scale: 0.95 }}
                     animate={{
                       borderColor: isActive ? undefined : "rgba(241,245,249,1)",
                       boxShadow: isActive
@@ -982,7 +982,7 @@ const SOSPage = () => {
           >
             <motion.button
               whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => window.open("/guardian-live", "_blank", "width=420,height=850,top=100,left=100")}
               className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold text-[11px] uppercase tracking-widest px-4 py-2 rounded-xl transition-colors border border-slate-200"
             >
@@ -996,7 +996,7 @@ const SOSPage = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
-            className="w-full max-w-[750px] flex justify-between items-center mt-auto pb-6"
+            className="w-full max-w-[750px] flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mt-auto pb-6 px-2 sm:px-0"
           >
              <div className="flex items-center gap-4">
                 <div className="flex -space-x-3">

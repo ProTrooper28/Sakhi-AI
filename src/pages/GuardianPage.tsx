@@ -568,8 +568,16 @@ const GuardianPage = () => {
         <motion.div 
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
-          className="w-full md:w-[420px] bg-white border-r border-slate-100 flex flex-col z-30 shadow-2xl relative"
+          className={`bg-white flex flex-col z-30 shadow-2xl transition-all duration-300 ${
+            sosState.active 
+              ? "fixed bottom-0 left-0 right-0 rounded-t-[32px] md:rounded-none max-h-[60vh] md:max-h-none md:relative md:w-[420px] md:h-full border-t md:border-t-0 md:border-r border-slate-100" 
+              : "w-full h-[50vh] md:h-full md:w-[420px] border-b md:border-b-0 md:border-r border-slate-100 relative"
+          }`}
         >
+          {/* Mobile Bottom Sheet Handle */}
+          {sosState.active && (
+            <div className="w-12 h-1 bg-slate-300 rounded-full mx-auto mt-4 mb-2 md:hidden shrink-0" />
+          )}
           {/* Header */}
           <div className="p-6 md:p-8 border-b border-slate-50">
             <div className="flex items-center justify-between mb-6 md:mb-8">
@@ -706,21 +714,21 @@ const GuardianPage = () => {
                         </div>
 
                         <div className="space-y-3 pb-6">
-                          <motion.button onClick={() => setShowCallModal(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-slate-900 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-[0_0_20px_rgba(15,23,42,0.4)] transition-all cursor-pointer">
+                          <motion.button onClick={() => setShowCallModal(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} className="w-full bg-slate-900 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-[0_0_20px_rgba(15,23,42,0.4)] transition-all cursor-pointer">
                             <Phone className="w-4 h-4" /> Call User
                           </motion.button>
-                          <motion.button onClick={() => { if(mapRef.current) mapRef.current.setView([userMarkerRef.current?.getLatLng().lat || sosState.coords.lat, userMarkerRef.current?.getLatLng().lng || sosState.coords.lng], 17, { animate: true, duration: 1 }); handleAction("Zoomed to Live Location"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-blue-600 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all cursor-pointer">
+                          <motion.button onClick={() => { if(mapRef.current) mapRef.current.setView([userMarkerRef.current?.getLatLng().lat || sosState.coords.lat, userMarkerRef.current?.getLatLng().lng || sosState.coords.lng], 17, { animate: true, duration: 1 }); handleAction("Zoomed to Live Location"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} className="w-full bg-blue-600 text-white font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-all cursor-pointer">
                             <Navigation className="w-4 h-4" /> View Live Location
                           </motion.button>
-                          <motion.button onClick={() => setShowPoliceModal(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-red-100 text-red-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-red-200 transition-colors cursor-pointer">
+                          <motion.button onClick={() => setShowPoliceModal(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} className="w-full bg-red-100 text-red-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-red-200 transition-colors cursor-pointer">
                             <Shield className="w-4 h-4" /> Notify Authorities
                           </motion.button>
 
-                          <motion.button onClick={() => startNavigation("User's Emergency Location", userMarkerRef.current?.getLatLng().lat || sosState.coords.lat, userMarkerRef.current?.getLatLng().lng || sosState.coords.lng, "1.2 km")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-emerald-50 text-emerald-600 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer mt-2">
+                          <motion.button onClick={() => startNavigation("User's Emergency Location", userMarkerRef.current?.getLatLng().lat || sosState.coords.lat, userMarkerRef.current?.getLatLng().lng || sosState.coords.lng, "1.2 km")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} className="w-full bg-emerald-50 text-emerald-600 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer mt-2">
                             <MapPin className="w-4 h-4" /> Navigate Safely
                           </motion.button>
                           
-                          <motion.button onClick={() => { setIsResolved(true); resolveSOS(); handleAction("Situation marked as safe"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-emerald-100 text-emerald-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-emerald-200 transition-colors cursor-pointer mt-4">
+                          <motion.button onClick={() => { setIsResolved(true); resolveSOS(); handleAction("Situation marked as safe"); }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} className="w-full bg-emerald-100 text-emerald-700 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-emerald-200 transition-colors cursor-pointer mt-4">
                             <CheckCircle2 className="w-4 h-4" /> Mark as Safe
                           </motion.button>
                         </div>
@@ -859,7 +867,11 @@ const GuardianPage = () => {
         </motion.div>
 
         {/* ── Right Content (Map) ── */}
-        <div className="flex-1 relative min-h-[300px] md:min-h-0 bg-slate-100 overflow-hidden">
+        <div className={`relative bg-slate-100 overflow-hidden transition-all duration-300 ${
+          sosState.active
+            ? "w-full h-full absolute inset-0 md:relative md:flex-1"
+            : "flex-1 min-h-[50vh] md:min-h-0"
+        }`}>
            <div ref={mapContainerRef} className="w-full h-full relative z-0" />
            <div className="absolute inset-0 pointer-events-none z-10 shadow-[inset_0_0_100px_rgba(0,0,0,0.1)]" />
 
@@ -874,14 +886,14 @@ const GuardianPage = () => {
            </div>
 
            {/* Top Floating Live Status (Always active) */}
-           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] flex flex-col items-center gap-2">
+           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[400] flex flex-col items-center gap-2 w-full max-w-[90%] sm:max-w-md">
              <motion.div 
                initial={{ y: -50, opacity: 0 }}
                animate={{ y: 0, opacity: 1 }}
-               className={`px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-3 border-2 ${sosState.active ? "bg-white border-red-100" : "bg-slate-900 border-slate-700"}`}
+               className={`px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-full shadow-2xl flex items-center gap-2 sm:gap-3 border-2 ${sosState.active ? "bg-white border-red-100" : "bg-slate-900 border-slate-700"}`}
              >
-               <div className={`w-2.5 h-2.5 rounded-full animate-pulse ${sosState.active ? "bg-red-600" : "bg-emerald-400"}`} />
-               <span className={`font-black text-sm tracking-widest uppercase ${sosState.active ? "text-slate-900" : "text-white"}`}>
+               <div className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full animate-pulse ${sosState.active ? "bg-red-600" : "bg-emerald-400"}`} />
+               <span className={`font-black text-[10px] sm:text-sm tracking-widest uppercase ${sosState.active ? "text-slate-900" : "text-white"}`}>
                  {sosState.active ? "LIVE EMERGENCY TRACKING" : "LIVE TRACKING ACTIVE"}
                </span>
              </motion.div>

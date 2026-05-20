@@ -62,7 +62,7 @@ const Sidebar = () => {
               className="font-bold text-white leading-none"
               style={{ fontFamily: "Manrope, sans-serif", fontSize: "1rem" }}
             >
-              Sakhi AI
+              Sakhi Safety
             </p>
             <p className="text-[10px] text-white/40 mt-0.5 tracking-widest uppercase">
               Safety Companion

@@ -191,8 +191,8 @@ export default function LocationTrackingPage() {
   return (
     <AppLayout>
       <div className="bg-[#fcfcfd] min-h-screen">
-        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="pb-10 px-8 max-w-[1400px] mx-auto pt-8">
-          <div className="flex items-center justify-between mb-10">
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="pb-10 px-4 md:px-8 max-w-[1400px] mx-auto pt-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-10">
             <motion.div initial={{ x: -20 }} animate={{ x: 0 }}>
               <h1 style={{ fontFamily: "Manrope,sans-serif" }} className="text-2xl font-black text-slate-900 tracking-tight">Live Location Tracking</h1>
               <div className="flex items-center gap-2 mt-1.5">
@@ -203,7 +203,7 @@ export default function LocationTrackingPage() {
             <motion.button
               whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
               onClick={handleShare}
-              className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-[13px] font-black transition-colors shadow-xl cursor-pointer ${
+              className={`w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-[13px] font-black transition-colors shadow-xl cursor-pointer ${
                 copied ? "bg-teal-600 text-white shadow-teal-100" : "bg-slate-900 text-white hover:bg-black shadow-slate-200"
               }`}
             >
@@ -212,10 +212,10 @@ export default function LocationTrackingPage() {
             </motion.button>
           </div>
 
-          <div className="grid gap-8 items-start" style={{ gridTemplateColumns: "1fr 380px" }}>
-            <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[32px] border border-slate-50 shadow-[0_4px_30px_rgba(0,0,0,0.02)] overflow-hidden relative flex flex-col sticky top-8" style={{ minHeight: "calc(100vh - 180px)" }}>
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8 items-start">
+            <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-[32px] border border-slate-50 shadow-[0_4px_30px_rgba(0,0,0,0.02)] overflow-hidden relative flex flex-col lg:sticky lg:top-8 h-[350px] lg:h-[calc(100vh-180px)]">
               <div ref={containerRef} className="absolute inset-0 z-0 bg-slate-50" />
-              <div className="absolute bottom-8 right-8 flex flex-col gap-3 z-[400]">
+              <div className="absolute bottom-4 right-4 sm:bottom-8 sm:right-8 flex flex-col gap-3 z-[400]">
                 <motion.button onClick={handleZoomIn}  whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-12 h-12 bg-white rounded-2xl shadow-xl border border-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all cursor-pointer"><ZoomIn className="w-6 h-6" /></motion.button>
                 <motion.button onClick={handleLayers} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className={`w-12 h-12 rounded-2xl shadow-xl border flex items-center justify-center transition-all cursor-pointer ${ satelliteMode ? "bg-slate-900 border-slate-900 text-white" : "bg-white border-slate-50 text-slate-400 hover:text-slate-900" }`}><Layers className="w-6 h-6" /></motion.button>
                 <motion.button onClick={handleZoomOut} whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} className="w-12 h-12 bg-white rounded-2xl shadow-xl border border-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-900 transition-all cursor-pointer"><ZoomOut className="w-6 h-6" /></motion.button>
@@ -233,8 +233,8 @@ export default function LocationTrackingPage() {
                 </div>
 
                 <div className="flex bg-slate-50 p-1 rounded-2xl mb-6 border border-slate-100">
-                  <button onClick={() => setRouteType("fastest")} className={`flex-1 py-2 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all cursor-pointer ${routeType === "fastest" ? "bg-white shadow-md text-blue-600" : "text-slate-400 hover:text-slate-600"}`}>Fastest Route</button>
-                  <button onClick={() => setRouteType("safest")} className={`flex-1 py-2 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all cursor-pointer ${routeType === "safest" ? "bg-white shadow-md text-teal-600" : "text-slate-400 hover:text-slate-600"}`}>Safest Route</button>
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => setRouteType("fastest")} className={`flex-1 py-2 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all cursor-pointer ${routeType === "fastest" ? "bg-white shadow-md text-blue-600" : "text-slate-400 hover:text-slate-600"}`}>Fastest Route</motion.button>
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => setRouteType("safest")} className={`flex-1 py-2 rounded-xl text-[12px] font-black uppercase tracking-widest transition-all cursor-pointer ${routeType === "safest" ? "bg-white shadow-md text-teal-600" : "text-slate-400 hover:text-slate-600"}`}>Safest Route</motion.button>
                 </div>
 
                 {routeType === "safest" && (
@@ -246,9 +246,9 @@ export default function LocationTrackingPage() {
 
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] font-black text-slate-900 uppercase tracking-widest">Show Safety Zones</span>
-                  <button onClick={() => setShowSafetyZones(!showSafetyZones)} className={`w-12 h-6 rounded-full relative transition-colors cursor-pointer ${showSafetyZones ? "bg-red-500" : "bg-slate-200"}`}>
-                    <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${showSafetyZones ? "left-7" : "left-1"}`} />
-                  </button>
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowSafetyZones(!showSafetyZones)} className={`w-12 h-6 rounded-full relative transition-colors cursor-pointer ${showSafetyZones ? "bg-red-500" : "bg-slate-200"}`}>
+                    <motion.div layout transition={{ type: "spring", stiffness: 700, damping: 30 }} className={`w-4 h-4 bg-white rounded-full absolute top-1 ${showSafetyZones ? "left-7" : "left-1"}`} />
+                  </motion.button>
                 </div>
               </motion.div>
 
@@ -279,7 +279,7 @@ export default function LocationTrackingPage() {
                   {guardiansList.map((g, i)=>(
                     <motion.button
                       whileHover={{ x: 4 }}
-                      whileTap={{ scale: 0.97 }}
+                      whileTap={{ scale: 0.95 }}
                       key={i}
                       onClick={() => navigate("/guardian")}
                       className="w-full flex items-center gap-4 cursor-pointer text-left"
@@ -316,7 +316,7 @@ export default function LocationTrackingPage() {
 
               <motion.button 
                 whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => { triggerSOS(); }}
                 className="w-full bg-[#da2929] hover:bg-[#c52525] text-white px-8 py-5 rounded-[24px] text-[14px] font-black uppercase tracking-widest transition-all shadow-xl shadow-red-100 flex items-center justify-center gap-3"
               >
