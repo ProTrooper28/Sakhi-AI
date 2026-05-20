@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, Lock, Bell, Fingerprint, Eye, EyeOff, Phone, ChevronRight, AlertTriangle, Check, X } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useNavigate } from "react-router-dom";
 import ThemeToggle from "@/components/ThemeToggle";
+import { playSOSTriggerSound } from "@/lib/audio";
 
 const sections = [
   {
@@ -37,10 +38,25 @@ const sections = [
 
 export default function SecuritySettingsPage() {
   const navigate = useNavigate();
-  const [toggles, setToggles] = useState<Record<string, boolean>>({
-    pin: true, bio: true, lock: false, silent: false, sms: true, shake: true,
-    stealth: false, anon: true, fakeoff: false,
+  const [toggles, setToggles] = useState<Record<string, boolean>>(() => {
+    try {
+      const stored = localStorage.getItem("sakhi_security_settings");
+      return stored ? JSON.parse(stored) : {
+        pin: true, bio: true, lock: false, silent: false, sms: true, shake: true,
+        stealth: false, anon: true, fakeoff: false,
+      };
+    } catch {
+      return {
+        pin: true, bio: true, lock: false, silent: false, sms: true, shake: true,
+        stealth: false, anon: true, fakeoff: false,
+      };
+    }
   });
+
+  useEffect(() => {
+    localStorage.setItem("sakhi_security_settings", JSON.stringify(toggles));
+  }, [toggles]);
+
   const [showPin, setShowPin] = useState(false);
   const [pin, setPin] = useState("1234");
   const [editingPin, setEditingPin] = useState(false);
@@ -120,6 +136,19 @@ export default function SecuritySettingsPage() {
                     </div>
                   ))}
                 </div>
+                {title === "Emergency Alerts" && (
+                  <div className="mt-5 pt-4 border-t border-slate-100 flex gap-2">
+                    <button
+                      onClick={() => {
+                        playSOSTriggerSound();
+                      }}
+                      className="btn-secondary text-xs py-2.5 px-4 font-bold flex items-center gap-2 text-teal-600 border-teal-100 bg-teal-50/50 hover:bg-teal-50 cursor-pointer"
+                    >
+                      <Bell style={{ width: 14, height: 14 }} className="text-teal-500 animate-pulse" />
+                      Test Emergency Siren
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

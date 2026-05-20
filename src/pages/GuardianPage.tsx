@@ -537,6 +537,12 @@ const GuardianPage = () => {
     }
   }, [sosState.active, sosState.triggeredAt]);
 
+  useEffect(() => {
+    if (sosState.active) {
+      setIsResolved(false);
+    }
+  }, [sosState.active]);
+
   return (
     <div className={`flex flex-col md:flex-row h-screen w-screen overflow-hidden ${sosState.active ? "bg-red-50" : "bg-[#fcfcfd]"}`}>
       <style>{`

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
+import { startSOSAlarmLoop, stopSOSAlarmLoop, playSuccessChimeSound } from "@/lib/audio";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -139,6 +140,61 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY_EVIDENCE, JSON.stringify(evidenceLocker));
   }, [evidenceLocker]);
+
+  // Keep track of previous SOS State to detect transitions
+  const prevSOSState = useRef<{ active: boolean; resolved: boolean }>({
+    active: sosState.active,
+    resolved: !!sosState.resolved
+  });
+
+  useEffect(() => {
+    const prev = prevSOSState.current;
+    const current = { active: sosState.active, resolved: !!sosState.resolved };
+
+    // Differentiate between Guardian page and Victim/User pages
+    const isGuardianPage = window.location.pathname.includes("guardian-live");
+
+    // 1. Transition: active changed from false to true (SOS Triggered / Alert Received)
+    if (!prev.active && current.active) {
+      if (isGuardianPage) {
+        startSOSAlarmLoop(true);
+      } else {
+        try {
+          const storedOptions = localStorage.getItem("sakhi_sos_options");
+          const isSilentSOS = storedOptions ? JSON.parse(storedOptions).silent : false;
+          
+          const storedSettings = localStorage.getItem("sakhi_security_settings");
+          const isSilentSettings = storedSettings ? JSON.parse(storedSettings).silent : false;
+          
+          const isSilent = isSilentSOS || isSilentSettings;
+          if (!isSilent) {
+            startSOSAlarmLoop(false);
+          }
+        } catch {
+          startSOSAlarmLoop(false);
+        }
+      }
+    }
+
+    // 2. Transition: active changed from true to false (SOS stopped/cancelled)
+    if (prev.active && !current.active) {
+      stopSOSAlarmLoop();
+    }
+
+    // 3. Transition: resolved changed from false to true (Marked Safe)
+    if (!prev.resolved && current.resolved) {
+      playSuccessChimeSound();
+    }
+
+    prevSOSState.current = current;
+  }, [sosState.active, sosState.resolved]);
+
+  // Clean up alarm loop on unmount
+  useEffect(() => {
+    return () => {
+      stopSOSAlarmLoop();
+    };
+  }, []);
 
   // Sync SOS State across tabs (simulates multiple devices)
   useEffect(() => {

@@ -202,7 +202,19 @@ const SOSPage = () => {
   const navigate = useNavigate();
 
   // Option card toggle state
-  const [options, setOptions] = useState({ silent: false, voice: false, wearable: true, guardian: false });
+  const [options, setOptions] = useState(() => {
+    try {
+      const stored = localStorage.getItem("sakhi_sos_options");
+      return stored ? JSON.parse(stored) : { silent: false, voice: false, wearable: true, guardian: false };
+    } catch {
+      return { silent: false, voice: false, wearable: true, guardian: false };
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("sakhi_sos_options", JSON.stringify(options));
+  }, [options]);
+
   const toggleOption = (key: keyof typeof options) => setOptions(prev => ({ ...prev, [key]: !prev[key] }));
 
   // Safety mode selection
