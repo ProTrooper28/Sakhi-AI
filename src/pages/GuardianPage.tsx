@@ -42,6 +42,9 @@ const GuardianPage = () => {
   const [activeRoute, setActiveRoute] = useState<L.Polyline | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [routeType, setRouteType] = useState<"fastest" | "safer">("safer");
+  const [navTarget, setNavTarget] = useState<{ name: string; lat: number; lng: number; distance: string; type?: string } | null>(null);
+  const activeRouteGroupRef = useRef<L.FeatureGroup | null>(null);
+
   const liveUpdates = ["Location refreshed", "Connection stable", "Updating...", "Signal strong"];
   const [liveStatusText, setLiveStatusText] = useState(liveUpdates[0]);
   const mapRef = useRef<L.Map | null>(null);
@@ -59,6 +62,205 @@ const GuardianPage = () => {
     { id: 2, name: "Rahul Singh", role: "Emergency Contact", status: "En Route", distance: "1.2 km", battery: "92%", lat: userLat - 0.008, lng: userLng + 0.006, color: "bg-blue-600", lastSeen: "2m ago" },
     { id: 3, name: "Security Team", role: "Response Team", status: "Monitoring", distance: "2.5 km", battery: "100%", lat: userLat + 0.015, lng: userLng + 0.012, color: "bg-slate-900", lastSeen: "Live" }
   ];
+
+  // Pulse marker for destination
+  const createDestinationPulseMarker = (color: string, iconHtml: string) => L.divIcon({
+    className: "custom-dest-pulse-marker",
+    html: `<div class="relative flex items-center justify-center w-10 h-10">
+             <div class="absolute w-12 h-12 ${color.split(' ')[0]}/40 rounded-full animate-ping pointer-events-none"></div>
+             <div class="w-8 h-8 ${color} rounded-full border-2 border-white shadow-lg flex items-center justify-center">${iconHtml}</div>
+           </div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
+  });
+
+  const getRoutePoints = (targetName: string, type: "fastest" | "safer") => {
+    if (targetName.includes("City Hospital")) {
+      const dest = [userLat + 0.003, userLng + 0.004];
+      if (type === "fastest") {
+        return [
+          L.latLng(userLat, userLng),
+          L.latLng(userLat + 0.001, userLng + 0.0015),
+          L.latLng(userLat + 0.002, userLng + 0.003),
+          L.latLng(dest[0], dest[1])
+        ];
+      } else {
+        return [
+          L.latLng(userLat, userLng),
+          L.latLng(userLat + 0.0005, userLng - 0.001),
+          L.latLng(userLat + 0.002, userLng - 0.001),
+          L.latLng(userLat + 0.0028, userLng + 0.001),
+          L.latLng(dest[0], dest[1])
+        ];
+      }
+    }
+    
+    if (targetName.includes("General Hospital")) {
+      const dest = [userLat - 0.005, userLng - 0.002];
+      if (type === "fastest") {
+        return [
+          L.latLng(userLat, userLng),
+          L.latLng(userLat - 0.002, userLng - 0.001),
+          L.latLng(dest[0], dest[1])
+        ];
+      } else {
+        return [
+          L.latLng(userLat, userLng),
+          L.latLng(userLat - 0.001, userLng + 0.001),
+          L.latLng(userLat - 0.003, userLng + 0.001),
+          L.latLng(dest[0], dest[1])
+        ];
+      }
+    }
+
+    if (targetName.includes("Central Police")) {
+      const dest = [userLat + 0.002, userLng - 0.006];
+      if (type === "fastest") {
+        return [
+          L.latLng(userLat, userLng),
+          L.latLng(userLat + 0.001, userLng - 0.003),
+          L.latLng(dest[0], dest[1])
+        ];
+      } else {
+        return [
+          L.latLng(userLat, userLng),
+          L.latLng(userLat + 0.0005, userLng - 0.002),
+          L.latLng(userLat + 0.001, userLng - 0.004),
+          L.latLng(dest[0], dest[1])
+        ];
+      }
+    }
+
+    if (targetName.includes("District Police")) {
+      const dest = [userLat - 0.007, userLng + 0.003];
+      if (type === "fastest") {
+        return [
+          L.latLng(userLat, userLng),
+          L.latLng(userLat - 0.003, userLng + 0.001),
+          L.latLng(dest[0], dest[1])
+        ];
+      } else {
+        return [
+          L.latLng(userLat, userLng),
+          L.latLng(userLat - 0.002, userLng - 0.001),
+          L.latLng(userLat - 0.005, userLng - 0.001),
+          L.latLng(dest[0], dest[1])
+        ];
+      }
+    }
+
+    // Fallback: direct line to target
+    const fallbackLat = navTarget?.lat || userLat + 0.005;
+    const fallbackLng = navTarget?.lng || userLng - 0.005;
+    
+    if (type === "fastest") {
+      return [
+        L.latLng(userLat, userLng),
+        L.latLng(fallbackLat, fallbackLng)
+      ];
+    } else {
+      return [
+        L.latLng(userLat, userLng),
+        L.latLng(userLat + (fallbackLat - userLat) * 0.3, userLng - (fallbackLng - userLng) * 0.1),
+        L.latLng(userLat + (fallbackLat - userLat) * 0.7, userLng + (fallbackLng - userLng) * 0.1),
+        L.latLng(fallbackLat, fallbackLng)
+      ];
+    }
+  };
+
+  const animatePolylineDraw = (polyline: L.Polyline, fullLatLngs: L.LatLng[]) => {
+    let currentStep = 0;
+    const totalSteps = 15;
+    polyline.setLatLngs([]);
+    
+    const interval = setInterval(() => {
+      currentStep++;
+      if (currentStep > totalSteps) {
+        clearInterval(interval);
+        polyline.setLatLngs(fullLatLngs);
+        return;
+      }
+      
+      const progress = currentStep / totalSteps;
+      const subLatLngs: L.LatLng[] = [];
+      const segmentCount = fullLatLngs.length - 1;
+      const limit = progress * segmentCount;
+      
+      for (let i = 0; i <= segmentCount; i++) {
+        if (i <= limit) {
+          subLatLngs.push(fullLatLngs[i]);
+        } else if (i - 1 < limit) {
+          const start = fullLatLngs[i - 1];
+          const end = fullLatLngs[i];
+          const segProgress = limit - (i - 1);
+          const lat = start.lat + (end.lat - start.lat) * segProgress;
+          const lng = start.lng + (end.lng - start.lng) * segProgress;
+          subLatLngs.push(L.latLng(lat, lng));
+          break;
+        }
+      }
+      polyline.setLatLngs(subLatLngs);
+    }, 25);
+  };
+
+  const getNavDetails = () => {
+    if (!navTarget) return { name: "Help Point", fastestDist: "350m", fastestEta: "2 min", saferDist: "450m", saferEta: "3.5 min" };
+    
+    const name = navTarget.name;
+    if (name.includes("City Hospital")) {
+      return { name, fastestDist: "350m", fastestEta: "2 min", saferDist: "450m", saferEta: "3.5 min" };
+    }
+    if (name.includes("General Hospital")) {
+      return { name, fastestDist: "550m", fastestEta: "3 min", saferDist: "700m", saferEta: "5 min" };
+    }
+    if (name.includes("Central Police")) {
+      return { name, fastestDist: "400m", fastestEta: "2 min", saferDist: "520m", saferEta: "4 min" };
+    }
+    if (name.includes("District Police")) {
+      return { name, fastestDist: "800m", fastestEta: "5 min", saferDist: "1.1 km", saferEta: "8 min" };
+    }
+    if (name.includes("Priya")) {
+      return { name, fastestDist: "0.8 km", fastestEta: "5 min", saferDist: "1.0 km", saferEta: "7 min" };
+    }
+    if (name.includes("Rahul")) {
+      return { name, fastestDist: "1.2 km", fastestEta: "8 min", saferDist: "1.5 km", saferEta: "11 min" };
+    }
+    if (name.includes("Security")) {
+      return { name, fastestDist: "2.5 km", fastestEta: "15 min", saferDist: "3.1 km", saferEta: "20 min" };
+    }
+    
+    return { name, fastestDist: navTarget.distance || "350m", fastestEta: "2 min", saferDist: "450m", saferEta: "3.5 min" };
+  };
+
+  const startNavigation = (name: string, lat: number, lng: number, distance: string, type?: string) => {
+    setIsNavigating(true);
+    setNavTarget({ name, lat, lng, distance, type });
+    setRouteType("safer");
+    handleAction(`Navigating to ${name}`);
+  };
+
+  const startNavigationRef = useRef(startNavigation);
+  useEffect(() => {
+    startNavigationRef.current = startNavigation;
+  });
+
+  const stopNavigation = () => {
+    setIsNavigating(false);
+    setNavTarget(null);
+    if (activeRouteGroupRef.current && mapRef.current) {
+      mapRef.current.removeLayer(activeRouteGroupRef.current);
+      activeRouteGroupRef.current = null;
+    }
+    if (mapRef.current) {
+      mapRef.current.setView([userLat, userLng], 14, { animate: true });
+    }
+    handleAction("Navigation ended");
+  };
+
+  const stopNavigationRef = useRef(stopNavigation);
+  useEffect(() => {
+    stopNavigationRef.current = stopNavigation;
+  });
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -113,9 +315,43 @@ const GuardianPage = () => {
         <div class="text-center font-sans p-1">
           <div class="font-black text-sm text-slate-800">${hp.name}</div>
           <div class="text-xs text-slate-500 font-bold mb-2">${hp.distance} away</div>
-          <button class="bg-slate-900 text-white text-xs font-bold px-3 py-1.5 rounded-md w-full shadow-md">Navigate</button>
+          <button 
+            class="bg-slate-900 text-white text-xs font-black px-3 py-1.5 rounded-xl w-full shadow-md hover:bg-slate-800 transition-all duration-150 active:scale-95 cursor-pointer navigate-btn"
+            data-hp-name="${hp.name}"
+            data-hp-lat="${hp.lat}"
+            data-hp-lng="${hp.lng}"
+            data-hp-distance="${hp.distance}"
+            data-hp-type="${hp.type}"
+          >
+            Navigate
+          </button>
         </div>
       `);
+    });
+
+    map.on("popupopen", (e) => {
+      const popupElement = e.popup.getElement();
+      if (!popupElement) return;
+
+      const navBtn = popupElement.querySelector(".navigate-btn") as HTMLButtonElement;
+      if (navBtn) {
+        navBtn.addEventListener("click", () => {
+          // Visual feedback on click
+          navBtn.classList.add("clicked");
+          navBtn.innerText = "Connecting...";
+
+          const hpName = navBtn.getAttribute("data-hp-name") || "Help Point";
+          const hpLat = parseFloat(navBtn.getAttribute("data-hp-lat") || "0");
+          const hpLng = parseFloat(navBtn.getAttribute("data-hp-lng") || "0");
+          const hpDist = navBtn.getAttribute("data-hp-distance") || "350m";
+          const hpType = navBtn.getAttribute("data-hp-type") || "hospital";
+
+          setTimeout(() => {
+            map.closePopup();
+            startNavigationRef.current(hpName, hpLat, hpLng, hpDist, hpType);
+          }, 350);
+        });
+      }
     });
 
     // Add Safety Zones
@@ -185,6 +421,64 @@ const GuardianPage = () => {
     }
   }, [selectedGuardian, sosState.active]);
 
+  // Sync navigation route on map
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    if (activeRouteGroupRef.current) {
+      mapRef.current.removeLayer(activeRouteGroupRef.current);
+      activeRouteGroupRef.current = null;
+    }
+
+    if (isNavigating && navTarget) {
+      const points = getRoutePoints(navTarget.name, routeType);
+      const color = routeType === "safer" ? "#10b981" : "#3b82f6";
+      
+      const group = L.featureGroup().addTo(mapRef.current);
+      activeRouteGroupRef.current = group;
+
+      // 1. Thick track background
+      const polyBg = L.polyline(points, {
+        color: color,
+        weight: 8,
+        opacity: 0.3
+      }).addTo(group);
+
+      // 2. Glowing animated foreground
+      const polyFg = L.polyline(points, {
+        color: color,
+        weight: 4,
+        opacity: 0.9,
+        className: "animated-route-line"
+      }).addTo(group);
+
+      // Animate progressive drawing
+      animatePolylineDraw(polyBg, points);
+      animatePolylineDraw(polyFg, points);
+
+      // 3. Pulsing destination marker
+      const hospitalIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>`;
+      const policeIcon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`;
+      const iconHtml = navTarget.name.includes("Hospital") ? hospitalIcon : policeIcon;
+      const colorClass = routeType === "safer" ? "bg-emerald-500 text-white" : "bg-blue-500 text-white";
+
+      L.marker([navTarget.lat, navTarget.lng], {
+        icon: createDestinationPulseMarker(colorClass, iconHtml)
+      }).addTo(group);
+
+      // Fit map bounds to show route
+      const bounds = L.latLngBounds(points);
+      mapRef.current.fitBounds(bounds, { padding: [80, 80], maxZoom: 16 });
+    }
+
+    return () => {
+      if (activeRouteGroupRef.current && mapRef.current) {
+        mapRef.current.removeLayer(activeRouteGroupRef.current);
+        activeRouteGroupRef.current = null;
+      }
+    };
+  }, [isNavigating, navTarget, routeType]);
+
   // Sync user marker position with jitter
   useEffect(() => {
     if (userMarkerRef.current && mapRef.current) {
@@ -245,6 +539,30 @@ const GuardianPage = () => {
 
   return (
     <div className={`flex flex-col md:flex-row h-screen w-screen overflow-hidden ${sosState.active ? "bg-red-50" : "bg-[#fcfcfd]"}`}>
+      <style>{`
+        @keyframes routeDash {
+          to {
+            stroke-dashoffset: -20;
+          }
+        }
+        .animated-route-line {
+          stroke-dasharray: 10, 10;
+          animation: routeDash 1.2s linear infinite;
+        }
+        .navigate-btn {
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .navigate-btn:active {
+          transform: scale(0.92) !important;
+          filter: brightness(0.9);
+        }
+        .navigate-btn.clicked {
+          background-color: #10b981 !important;
+          color: white !important;
+          transform: scale(0.9) !important;
+          pointer-events: none !important;
+        }
+      `}</style>
         
         {/* ── Left Sidebar (List) ── */}
         <motion.div 
@@ -398,7 +716,7 @@ const GuardianPage = () => {
                             <Shield className="w-4 h-4" /> Notify Authorities
                           </motion.button>
 
-                          <motion.button onClick={() => setIsNavigating(true)} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-emerald-50 text-emerald-600 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer mt-2">
+                          <motion.button onClick={() => startNavigation("User's Emergency Location", userMarkerRef.current?.getLatLng().lat || sosState.coords.lat, userMarkerRef.current?.getLatLng().lng || sosState.coords.lng, "1.2 km")} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full bg-emerald-50 text-emerald-600 font-black text-sm py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer mt-2">
                             <MapPin className="w-4 h-4" /> Navigate Safely
                           </motion.button>
                           
@@ -593,10 +911,15 @@ const GuardianPage = () => {
                  <div className="bg-white/95 backdrop-blur-xl p-5 rounded-3xl shadow-2xl border border-slate-100 w-full flex flex-col">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
-                        <Navigation className="w-5 h-5 text-emerald-500" />
-                        <h3 className="font-black text-slate-900 text-sm tracking-wide">Navigation Active</h3>
+                        <Navigation className="w-5 h-5 text-emerald-500 animate-pulse" />
+                        <div>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Navigation Active</p>
+                          <h3 className="font-black text-slate-900 text-sm tracking-tight truncate max-w-[200px]" style={{ fontFamily: "Manrope, sans-serif" }}>
+                            {getNavDetails().name}
+                          </h3>
+                        </div>
                       </div>
-                      <button onClick={() => setIsNavigating(false)} className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-colors">
+                      <button onClick={stopNavigation} className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-colors">
                         <X className="w-4 h-4" />
                       </button>
                     </div>
@@ -613,11 +936,15 @@ const GuardianPage = () => {
                     <div className="flex items-center justify-between px-2 mb-2">
                        <div>
                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Est. Time</p>
-                         <p className="text-2xl font-black text-slate-900 leading-none">{routeType === "safer" ? "7 min" : "5 min"}</p>
+                         <p className="text-2xl font-black text-slate-900 leading-none">
+                           {routeType === "safer" ? getNavDetails().saferEta : getNavDetails().fastestEta}
+                         </p>
                        </div>
                        <div className="text-right">
                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Distance</p>
-                         <p className="text-2xl font-black text-slate-900 leading-none">{routeType === "safer" ? "1.4 km" : "1.2 km"}</p>
+                         <p className="text-2xl font-black text-slate-900 leading-none">
+                           {routeType === "safer" ? getNavDetails().saferDist : getNavDetails().fastestDist}
+                         </p>
                        </div>
                     </div>
                     
@@ -646,6 +973,15 @@ const GuardianPage = () => {
                         </motion.div>
                       )}
                     </AnimatePresence>
+
+                    <motion.button 
+                      whileHover={{ scale: 1.02 }} 
+                      whileTap={{ scale: 0.98 }}
+                      onClick={stopNavigation}
+                      className="w-full bg-red-500 hover:bg-red-600 active:scale-95 text-white font-black text-xs py-3 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-red-100 transition-all mt-4 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" /> End Navigation
+                    </motion.button>
                  </div>
                </motion.div>
              )}
