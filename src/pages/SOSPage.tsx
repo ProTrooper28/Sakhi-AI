@@ -324,14 +324,25 @@ const SOSPage = () => {
         <div className="max-w-lg mx-auto px-4 pt-4">
 
           {/* Header */}
-          <div className="flex items-center gap-3 mb-6">
-            <button onClick={() => navigate("/home")} className="icon-btn w-9 h-9" style={{ color: "#8B3A2F" }}>
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 22, color: "#3D2315" }}>Emergency SOS</h1>
-              <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 13, color: "#9E7A6A" }}>Sakhi is always ready to help</p>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <button onClick={() => navigate("/home")} className="icon-btn w-9 h-9" style={{ color: "#8B3A2F" }}>
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h1 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 22, color: "#3D2315" }}>Emergency SOS</h1>
+                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 13, color: "#9E7A6A" }}>Sakhi is always ready to help</p>
+              </div>
             </div>
+            {/* Guardian Mode Shortcut */}
+            <button
+              onClick={() => navigate("/guardian")}
+              className="icon-btn w-10 h-10 flex items-center justify-center text-[#8B3A2F]"
+              style={{ background: "rgba(242,149,106,0.08)", borderRadius: "12px" }}
+              title="Guardian Dashboard"
+            >
+              <Users className="w-5 h-5" />
+            </button>
           </div>
 
           {/* Safe status */}

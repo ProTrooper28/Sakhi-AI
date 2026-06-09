@@ -8,7 +8,6 @@ import {
   FileWarning,
   Map,
   MessageSquare,
-  MapPin,
   Settings,
   LogOut,
   Watch,
@@ -16,15 +15,16 @@ import {
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Home",             path: "/home" },
   { icon: AlertOctagon,    label: "SOS Settings",     path: "/sos" },
-  { icon: Archive,         label: "Evidence Locker",  path: "/evidence-locker" },
-  { icon: FileWarning,     label: "Anonymous Reports",path: "/report" },
+  { icon: Users,           label: "Aapke Apnewale",   path: "/guardian" },
   { icon: MessageSquare,   label: "AI Companion",     path: "/assistant" },
   { icon: Map,             label: "Location Tracking",path: "/location" },
+  { icon: Archive,         label: "Evidence Locker",  path: "/evidence-locker" },
+  { icon: FileWarning,     label: "Anonymous Reports",path: "/report" },
   { icon: Watch,           label: "Wearable Device",  path: "/wearable" },
   { icon: Settings,        label: "Settings",         path: "/settings" },
 ];
@@ -34,12 +34,53 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const { isSidebarOpen, setSidebarOpen } = useApp();
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const sidebarContainerRef = useRef<HTMLDivElement>(null);
 
+  // Sync mobile/desktop view width
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // Handle escape key to close sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isSidebarOpen) {
+        setSidebarOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isSidebarOpen, setSidebarOpen]);
+
+  // Click outside to close sidebar (works on both mobile and desktop)
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!isSidebarOpen) return;
+
+      // Check if clicking inside the sidebar container
+      if (sidebarContainerRef.current && sidebarContainerRef.current.contains(e.target as Node)) {
+        return;
+      }
+
+      // Check if clicking the hamburger buttons
+      const desktopToggle = document.getElementById("desktop-sidebar-toggle");
+      if (desktopToggle && desktopToggle.contains(e.target as Node)) return;
+
+      setSidebarOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isSidebarOpen, setSidebarOpen]);
+
+  // Default open state on desktop when page starts
+  useEffect(() => {
+    if (window.innerWidth > 768) {
+      setSidebarOpen(true);
+    }
+  }, [setSidebarOpen]);
 
   const handleNavClick = (path: string) => {
     navigate(path);
@@ -47,40 +88,48 @@ const Sidebar = () => {
   };
 
   const SidebarContent = (
-    <aside className={`sidebar ${isMobile ? 'fixed inset-y-0 left-0 z-[110] w-[80%] max-w-[320px] !flex' : ''}`}>
-      {/* ── Logo ── */}
+    <aside 
+      className={`sidebar h-full flex flex-col ${
+        isMobile ? "w-full" : "w-[var(--sidebar-width)]"
+      }`}
+      style={{
+        background: "linear-gradient(180deg, #5C2018 0%, #8B3A2F 100%)",
+      }}
+    >
+      {/* ── Logo & Title ── */}
       <div className="flex items-center justify-between px-6 py-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center"
-            style={{ background: "rgba(20,184,166,0.2)" }}
+            className="w-9 h-9 rounded-lg flex items-center justify-center bg-teal-400/20"
           >
             <Shield className="w-5 h-5 text-teal-400" />
           </div>
           <div>
             <p
-              className="font-bold text-white leading-none"
-              style={{ fontFamily: "Manrope, sans-serif", fontSize: "1rem" }}
+              className="font-bold text-white leading-none font-heading text-[15px]"
             >
               Sakhi Safety
             </p>
-            <p className="text-[10px] text-white/40 mt-0.5 tracking-widest uppercase">
+            <p className="text-[10px] text-white/40 mt-0.5 tracking-widest uppercase font-semibold">
               Safety Companion
             </p>
           </div>
         </div>
-        {isMobile && (
-          <button onClick={() => setSidebarOpen(false)} className="text-white/40 hover:text-white/70 transition-colors">
-            <X className="w-6 h-6" />
-          </button>
-        )}
+        
+        {/* Toggle close button (X) - visible whenever the sidebar is open */}
+        <button 
+          onClick={() => setSidebarOpen(false)} 
+          className="text-white/40 hover:text-white/70 transition-colors p-1 rounded-lg hover:bg-white/5 cursor-pointer"
+          title="Close Menu"
+        >
+          <X className="w-5.5 h-5.5" />
+        </button>
       </div>
 
       {/* ── Status pill ── */}
       <div className="px-6 py-4">
         <div
-          className="flex items-center gap-2 px-3 py-2 rounded-lg"
-          style={{ background: "rgba(20,184,166,0.1)", border: "1px solid rgba(20,184,166,0.2)" }}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-400/10 border border-teal-400/20"
         >
           <span
             className="w-2 h-2 rounded-full bg-teal-400"
@@ -92,67 +141,76 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* ── Navigation ── */}
+      {/* ── Navigation List ── */}
       <nav className="flex-1 px-3 pb-4 space-y-1 overflow-y-auto">
-        <p className="section-label px-3 pb-2 text-white/30">Navigation</p>
-        {navItems.slice(0, 2).map((item) => {
-          const active =
-            location.pathname === item.path ||
-            (item.path === "/report" && location.pathname.startsWith("/report-review"));
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.path}
-              onClick={() => handleNavClick(item.path)}
-              className={`sidebar-item ${active ? "active" : ""}`}
-            >
-              <Icon className="w-4.5 h-4.5 flex-shrink-0" style={{ width: 18, height: 18 }} />
-              {item.label}
-            </button>
-          );
-        })}
-
-        <p className="section-label px-3 pt-4 pb-2 text-white/30">Safety Tools</p>
-        {navItems.slice(2, 8).map((item) => {
-          const active =
-            location.pathname === item.path ||
-            (item.path === "/report" && location.pathname.startsWith("/report-review"));
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.path}
-              onClick={() => handleNavClick(item.path)}
-              className={`sidebar-item ${active ? "active" : ""}`}
-            >
-              <Icon className="flex-shrink-0" style={{ width: 18, height: 18 }} />
-              {item.label}
-            </button>
-          );
-        })}
-
-        <p className="section-label px-3 pt-4 pb-2 text-white/30">Account</p>
-        {navItems.slice(8).map((item) => {
+        <p className="section-label px-3 pb-2 text-white/30 uppercase tracking-widest text-[9px] font-bold">Navigation</p>
+        {navItems.slice(0, 3).map((item) => {
           const active = location.pathname === item.path;
           const Icon = item.icon;
           return (
             <button
               key={item.path}
               onClick={() => handleNavClick(item.path)}
-              className={`sidebar-item ${active ? "active" : ""}`}
+              className={`sidebar-item flex items-center gap-3 w-full px-4 py-2.5 rounded-full text-left transition-all text-sm font-semibold hover:bg-white/10 active:scale-95 cursor-pointer ${
+                active 
+                  ? "bg-white/15 text-white shadow-sm font-bold border-l-4 border-l-[#F2956A] pl-3" 
+                  : "text-[#FDDCCC]/80 hover:text-white"
+              }`}
             >
-              <Icon className="flex-shrink-0" style={{ width: 18, height: 18 }} />
-              {item.label}
+              <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+
+        <p className="section-label px-3 pt-4 pb-2 text-white/30 uppercase tracking-widest text-[9px] font-bold">Safety Tools</p>
+        {navItems.slice(3, 7).map((item) => {
+          const active =
+            location.pathname === item.path ||
+            (item.path === "/report" && location.pathname.startsWith("/report-review"));
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.path}
+              onClick={() => handleNavClick(item.path)}
+              className={`sidebar-item flex items-center gap-3 w-full px-4 py-2.5 rounded-full text-left transition-all text-sm font-semibold hover:bg-white/10 active:scale-95 cursor-pointer ${
+                active 
+                  ? "bg-white/15 text-white shadow-sm font-bold border-l-4 border-l-[#F2956A] pl-3" 
+                  : "text-[#FDDCCC]/80 hover:text-white"
+              }`}
+            >
+              <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+
+        <p className="section-label px-3 pt-4 pb-2 text-white/30 uppercase tracking-widest text-[9px] font-bold">Account</p>
+        {navItems.slice(7).map((item) => {
+          const active = location.pathname === item.path;
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.path}
+              onClick={() => handleNavClick(item.path)}
+              className={`sidebar-item flex items-center gap-3 w-full px-4 py-2.5 rounded-full text-left transition-all text-sm font-semibold hover:bg-white/10 active:scale-95 cursor-pointer ${
+                active 
+                  ? "bg-white/15 text-white shadow-sm font-bold border-l-4 border-l-[#F2956A] pl-3" 
+                  : "text-[#FDDCCC]/80 hover:text-white"
+              }`}
+            >
+              <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+              <span>{item.label}</span>
             </button>
           );
         })}
       </nav>
 
-      {/* ── User footer ── */}
+      {/* ── User Footer ── */}
       <div className="px-4 py-4 border-t border-white/10">
-        <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: "rgba(255,255,255,0.05)" }}>
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
-            style={{ background: "rgba(20,184,166,0.3)" }}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0 bg-teal-400/30"
           >
             P
           </div>
@@ -162,7 +220,7 @@ const Sidebar = () => {
           </div>
           <button
             onClick={() => handleNavClick("/")}
-            className="text-white/40 hover:text-white/70 transition-colors"
+            className="text-white/40 hover:text-white/70 transition-colors p-1 rounded-lg hover:bg-white/5 cursor-pointer"
             title="Log out"
           >
             <LogOut style={{ width: 14, height: 14 }} />
@@ -174,30 +232,49 @@ const Sidebar = () => {
 
   return (
     <>
-      {!isMobile && SidebarContent}
-      <AnimatePresence>
-        {isMobile && isSidebarOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            onClick={() => setSidebarOpen(false)}
-            className="fixed inset-0 z-[110] bg-slate-900/40 backdrop-blur-sm md:hidden"
-          >
+      {/* Desktop sidebar */}
+      {!isMobile && (
+        <AnimatePresence>
+          {isSidebarOpen && (
             <motion.div
-              initial={{ x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
+              ref={sidebarContainerRef}
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: "var(--sidebar-width)", opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              onClick={(e) => e.stopPropagation()}
-              className="h-full w-[80%] max-w-[320px]"
+              className="overflow-hidden flex flex-col h-screen sticky top-0 z-40 border-r border-white/5"
             >
               {SidebarContent}
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
+      )}
+
+      {/* Mobile drawer sidebar */}
+      {isMobile && (
+        <AnimatePresence>
+          {isSidebarOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="fixed inset-0 z-[110] bg-slate-950/50 backdrop-blur-sm md:hidden flex justify-start"
+            >
+              <motion.div
+                ref={sidebarContainerRef}
+                initial={{ x: "-100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "-100%" }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                className="h-full w-[80%] max-w-[320px] shadow-2xl"
+              >
+                {SidebarContent}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
     </>
   );
 };

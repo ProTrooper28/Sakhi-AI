@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Settings, LogOut, Shield, ChevronRight, X, CheckCircle2, AlertOctagon, MapPin, Sparkles } from "lucide-react";
+import { Bell, Settings, LogOut, Shield, ChevronRight, X, CheckCircle2, AlertOctagon, MapPin, Sparkles, Menu, Users } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
 
@@ -109,6 +109,7 @@ const ProfileContent = ({ navigate, onClose }: { navigate: (p: string) => void; 
 // ── Mobile header ────────────────────────────────────────────────────────────
 const MobileHeader = () => {
   const navigate = useNavigate();
+  const { setSidebarOpen } = useApp();
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -121,9 +122,18 @@ const MobileHeader = () => {
   }, []);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 md:hidden" style={{ background: "transparent" }}>
+    <div className="flex items-center justify-between px-4 py-3 md:hidden bg-transparent">
+      {/* Left Menu Hamburger (☰) */}
+      <button
+        onClick={() => setSidebarOpen(true)}
+        className="icon-btn w-10 h-10 flex items-center justify-center text-[#8B3A2F]"
+        title="Open Navigation"
+      >
+        <Menu className="w-6 h-6" />
+      </button>
+
       {/* Brand */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/home")}>
         <div
           className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm"
           style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)" }}
@@ -133,33 +143,43 @@ const MobileHeader = () => {
         <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 17, color: "#8B3A2F" }}>Sakhi</span>
       </div>
 
-      {/* Notification bell */}
-      <div className="relative" ref={notifRef}>
+      {/* Right Controls: Guardian Mode Button + Notif */}
+      <div className="flex items-center gap-1.5">
         <button
-          id="mobile-notif-btn"
-          onClick={() => setNotifOpen(v => !v)}
-          className="icon-btn w-10 h-10 relative"
-          style={{ color: "#8B3A2F" }}
+          onClick={() => navigate("/guardian")}
+          className="icon-btn w-9 h-9 flex items-center justify-center text-[#8B3A2F]"
+          title="Guardian Mode"
         >
-          <Bell style={{ width: 20, height: 20 }} />
-          <span
-            className="absolute top-2 right-2 w-2 h-2 rounded-full border-2"
-            style={{ background: "#D4455C", borderColor: "var(--sakhi-cream)" }}
-          />
+          <Users className="w-5 h-5" />
         </button>
-        <AnimatePresence>
-          {notifOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className="dropdown-panel w-72"
-            >
-              <NotificationsContent onClose={() => setNotifOpen(false)} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+
+        <div className="relative" ref={notifRef}>
+          <button
+            id="mobile-notif-btn"
+            onClick={() => setNotifOpen(v => !v)}
+            className="icon-btn w-10 h-10 relative"
+            style={{ color: "#8B3A2F" }}
+          >
+            <Bell style={{ width: 20, height: 20 }} />
+            <span
+              className="absolute top-2 right-2 w-2 h-2 rounded-full border-2"
+              style={{ background: "#D4455C", borderColor: "var(--sakhi-cream)" }}
+            />
+          </button>
+          <AnimatePresence>
+            {notifOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className="dropdown-panel w-72"
+              >
+                <NotificationsContent onClose={() => setNotifOpen(false)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
@@ -168,6 +188,7 @@ const MobileHeader = () => {
 // ── Desktop top bar ──────────────────────────────────────────────────────────
 const DesktopTopBar = () => {
   const navigate = useNavigate();
+  const { isSidebarOpen, setSidebarOpen } = useApp();
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -184,46 +205,68 @@ const DesktopTopBar = () => {
 
   return (
     <div
-      className="hidden md:flex items-center justify-end gap-3 px-6 py-3"
+      className="hidden md:flex items-center justify-between gap-3 px-6 py-3"
       style={{ borderBottom: "1px solid rgba(242,149,106,0.12)", background: "rgba(253,240,233,0.82)", backdropFilter: "blur(10px)" }}
     >
-      <div className="relative" ref={notifRef}>
-        <button id="desktop-notif-btn" onClick={() => { setNotifOpen(v => !v); setProfileOpen(false); }} className="icon-btn w-9 h-9 relative" style={{ color: "#8B3A2F" }}>
-          <Bell style={{ width: 18, height: 18 }} />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={{ background: "#D4455C" }} />
-        </button>
-        <AnimatePresence>
-          {notifOpen && (
-            <motion.div initial={{ opacity: 0, y: -8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.95 }} transition={{ duration: 0.15 }} className="dropdown-panel w-72">
-              <NotificationsContent onClose={() => setNotifOpen(false)} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <div className="flex items-center gap-3">
+        {/* Toggle hamburger when sidebar is closed on desktop */}
+        {!isSidebarOpen && (
+          <button
+            id="desktop-sidebar-toggle"
+            onClick={() => setSidebarOpen(true)}
+            className="icon-btn w-9 h-9 flex items-center justify-center text-[#8B3A2F]"
+            title="Open Sidebar"
+          >
+            <Menu className="w-5.5 h-5.5" />
+          </button>
+        )}
       </div>
-      <div className="relative" ref={profileRef}>
-        <button id="desktop-profile-btn" onClick={() => { setProfileOpen(v => !v); setNotifOpen(false); }} className="icon-btn w-9 h-9 overflow-hidden rounded-full border-2" style={{ borderColor: "rgba(242,149,106,0.3)" }}>
-          <div className="w-full h-full rounded-full flex items-center justify-center text-white font-black text-xs" style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)" }}>PS</div>
+
+      <div className="flex items-center gap-3">
+        {/* Guardian Mode Quick Button */}
+        <button
+          onClick={() => navigate("/guardian")}
+          className="icon-btn px-3.5 py-1.5 flex items-center gap-2 rounded-xl text-xs font-bold text-[#8B3A2F]"
+          style={{ background: "rgba(242,149,106,0.08)" }}
+          title="Guardian Mode Dashboard"
+        >
+          <Users className="w-4 h-4 text-[#F2956A]" />
+          <span>Apne Guardian</span>
         </button>
-        <AnimatePresence>
-          {profileOpen && (
-            <motion.div initial={{ opacity: 0, y: -8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.95 }} transition={{ duration: 0.15 }} className="dropdown-panel w-56">
-              <ProfileContent navigate={navigate} onClose={() => setProfileOpen(false)} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+
+        <div className="relative" ref={notifRef}>
+          <button id="desktop-notif-btn" onClick={() => { setNotifOpen(v => !v); setProfileOpen(false); }} className="icon-btn w-9 h-9 relative" style={{ color: "#8B3A2F" }}>
+            <Bell style={{ width: 18, height: 18 }} />
+            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full" style={{ background: "#D4455C" }} />
+          </button>
+          <AnimatePresence>
+            {notifOpen && (
+              <motion.div initial={{ opacity: 0, y: -8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.95 }} transition={{ duration: 0.15 }} className="dropdown-panel w-72">
+                <NotificationsContent onClose={() => setNotifOpen(false)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <div className="relative" ref={profileRef}>
+          <button id="desktop-profile-btn" onClick={() => { setProfileOpen(v => !v); setNotifOpen(false); }} className="icon-btn w-9 h-9 overflow-hidden rounded-full border-2" style={{ borderColor: "rgba(242,149,106,0.3)" }}>
+            <div className="w-full h-full rounded-full flex items-center justify-center text-white font-black text-xs" style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)" }}>PS</div>
+          </button>
+          <AnimatePresence>
+            {profileOpen && (
+              <motion.div initial={{ opacity: 0, y: -8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.95 }} transition={{ duration: 0.15 }} className="dropdown-panel w-56">
+                <ProfileContent navigate={navigate} onClose={() => setProfileOpen(false)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   );
 };
 
 // ── App Layout ───────────────────────────────────────────────────────────────
-const AppLayout = ({ children }: AppLayoutProps) => {
-  useEffect(() => {
-    const handleResize = () => {};
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
+export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="page-with-sidebar" style={{ background: "var(--sakhi-cream)" }}>
       <Sidebar />
@@ -244,6 +287,4 @@ const AppLayout = ({ children }: AppLayoutProps) => {
       </div>
     </div>
   );
-};
-
-export default AppLayout;
+}
