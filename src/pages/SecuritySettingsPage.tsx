@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Lock, Bell, Fingerprint, Eye, EyeOff, Phone, ChevronRight, AlertTriangle, Check, X } from "lucide-react";
+import { Shield, Lock, Bell, Fingerprint, Eye, EyeOff, Phone, ChevronRight, AlertTriangle, Check, X, Sparkles, AlertCircle } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useNavigate } from "react-router-dom";
-import ThemeToggle from "@/components/ThemeToggle";
 import { playSOSTriggerSound } from "@/lib/audio";
 
 const sections = [
@@ -26,7 +25,7 @@ const sections = [
     ],
   },
   {
-    title: "Privacy",
+    title: "Privacy Settings",
     icon: Eye,
     items: [
       { label: "Stealth Mode", description: "Hide app icon from recent apps", key: "stealth", on: false },
@@ -77,7 +76,7 @@ export default function SecuritySettingsPage() {
         setPin(newPin);
         setNewPin("");
         setEditingPin(false);
-        showToast("PIN updated successfully");
+        showToast("PIN updated successfully!");
       } else {
         showToast("PIN must be at least 4 digits");
       }
@@ -97,209 +96,208 @@ export default function SecuritySettingsPage() {
 
   return (
     <AppLayout>
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 style={{ fontFamily: "Manrope,sans-serif", fontSize: "1.75rem", fontWeight: 700 }} className="text-foreground">
-              Security Settings
+      <div className="bg-[#FDF6EE] min-h-screen text-[#3D2315] font-sans pb-24 md:pb-10">
+        <motion.div 
+          initial={{ opacity: 0, y: 15 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          className="px-4 md:px-8 max-w-[1200px] mx-auto pt-6"
+        >
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-2 text-xs font-bold text-[#9E7A6A] tracking-wider uppercase mb-1">
+              <Sparkles className="w-3.5 h-3.5 text-[#F2956A]" />
+              Manage your companion settings
+            </div>
+            <h1 className="text-3xl font-extrabold text-[#3D2315] font-heading tracking-tight">
+              Safety Preferences ⚙️
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">Manage your safety preferences and account protection.</p>
+            <p className="text-[#9E7A6A] text-sm mt-1">Configure your personal security triggers, PINs, and options.</p>
           </div>
-          <ThemeToggle />
-        </div>
 
-        <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 360px" }}>
-          {/* LEFT — Toggle sections */}
-          <div className="space-y-6">
-            {sections.map(({ title, icon: Icon, items }) => (
-              <div key={title} className="card-surface p-6">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-                    <Icon style={{ width: 18, height: 18 }} className="text-foreground" />
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 items-start">
+            {/* Left Section: Preference Toggles */}
+            <div className="space-y-6">
+              {sections.map(({ title, icon: Icon, items }) => (
+                <div 
+                  key={title} 
+                  className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6"
+                >
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="p-2.5 rounded-2xl bg-[#FBDDD0] text-[#D4455C]">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <h2 className="font-extrabold text-base text-[#3D2315] font-heading">{title}</h2>
                   </div>
-                  <h2 style={{ fontFamily: "Manrope,sans-serif", fontWeight: 700, fontSize: "1rem" }} className="text-foreground">{title}</h2>
-                </div>
-                <div className="space-y-4">
-                  {items.map(item => (
-                    <div key={item.key} className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-foreground text-sm font-semibold">{item.label}</p>
-                        <p className="text-muted-foreground text-xs mt-0.5">{item.description}</p>
+                  
+                  <div className="space-y-5">
+                    {items.map(item => (
+                      <div key={item.key} className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[#3D2315] text-sm font-bold">{item.label}</p>
+                          <p className="text-[#9E7A6A] text-xs mt-0.5 leading-relaxed">{item.description}</p>
+                        </div>
+                        <button
+                          onClick={() => toggle(item.key)}
+                          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-0.5 cursor-pointer ${
+                            toggles[item.key] ? "bg-[#3D9970]" : "bg-[#F5E4D6]"
+                          }`}
+                        >
+                          <span 
+                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                              toggles[item.key] ? "translate-x-5.5" : "translate-x-0.5"
+                            }`} 
+                          />
+                        </button>
                       </div>
+                    ))}
+                  </div>
+
+                  {title === "Emergency Alerts" && (
+                    <div className="mt-5 pt-4 border-t border-[#F5E4D6] flex gap-2">
                       <button
-                        onClick={() => toggle(item.key)}
-                        className={`toggle-pill w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 mt-0.5 relative ${toggles[item.key] ? "bg-teal-500" : "bg-slate-200"}`}
+                        onClick={() => playSOSTriggerSound()}
+                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold text-[#D4455C] bg-[#FBDDED]/50 hover:bg-[#FBDDED] transition-colors cursor-pointer"
                       >
-                        <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${toggles[item.key] ? "translate-x-5" : "translate-x-0.5"}`} />
+                        <Bell className="w-4 h-4 text-[#D4455C] animate-pulse" />
+                        Test Emergency Siren
                       </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Right Section: Access PIN & Contacts */}
+            <div className="space-y-6">
+              {/* Access PIN Card */}
+              <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2.5 rounded-2xl bg-[#FBDDD0] text-[#D4455C]">
+                    <Fingerprint className="w-5 h-5" />
+                  </div>
+                  <h2 className="font-extrabold text-base text-[#3D2315] font-heading">Locker PIN</h2>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-[#9E7A6A] uppercase tracking-wider block mb-2">
+                      {editingPin ? "Create New PIN" : "Current Active PIN"}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPin ? "text" : "password"}
+                        value={editingPin ? newPin : pin}
+                        onChange={e => editingPin ? setNewPin(e.target.value) : undefined}
+                        readOnly={!editingPin}
+                        maxLength={8}
+                        placeholder={editingPin ? "Enter 4+ digits" : "PIN Active"}
+                        className="w-full bg-[#FBF0E9] border border-[#F5E4D6] rounded-xl px-4 py-2.5 text-sm font-bold text-[#3D2315] focus:outline-none focus:border-[#F2956A] pr-10"
+                      />
+                      <button
+                        onClick={() => setShowPin(!showPin)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9E7A6A] hover:text-[#3D2315] cursor-pointer"
+                      >
+                        {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={handleChangePin} 
+                      className="flex-1 bg-[#D4455C] hover:bg-[#b8324a] text-white py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      {editingPin ? "Save PIN" : "Change PIN"}
+                    </button>
+                    {editingPin && (
+                      <button
+                        onClick={() => { setEditingPin(false); setNewPin(""); }}
+                        className="bg-[#FBF0E9] hover:bg-[#F5E4D6] text-[#9E7A6A] px-3.5 rounded-xl transition-all cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Security Score Banner */}
+              <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6 bg-gradient-to-br from-white to-[#FDF6EE]">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2.5 rounded-2xl bg-[#D6F5EA] text-[#3D9970]">
+                    <Shield className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="font-extrabold text-sm text-[#3D2315] font-heading">Security Level</h2>
+                    <p className="text-[10px] font-bold text-[#3D9970] uppercase">Secure Companion</p>
+                  </div>
+                  <span className="ml-auto text-xs font-bold text-[#3D9970] bg-[#D6F5EA] px-2.5 py-1 rounded-full">
+                    Good
+                  </span>
+                </div>
+                <div className="w-full bg-[#F5E4D6] rounded-full h-2.5 mb-2.5">
+                  <div className="h-2.5 rounded-full bg-[#3D9970]" style={{ width: "75%" }} />
+                </div>
+                <p className="text-[#9E7A6A] text-[11px] leading-relaxed">
+                  Turn on <strong>Stealth Mode</strong> and update your locker lock sequence to reach 100%.
+                </p>
+              </div>
+
+              {/* Danger Zone */}
+              <div className="bg-white rounded-[28px] border border-[#D4455C]/20 shadow-sm p-6">
+                <div className="flex items-center gap-2 mb-3 text-[#D4455C]">
+                  <AlertTriangle className="w-4 h-4" />
+                  <h2 className="font-extrabold text-sm font-heading">Caution Zone</h2>
+                </div>
+                <p className="text-[#9E7A6A] text-[11px] leading-relaxed mb-4">
+                  These changes instantly delete stored evidence and local safety logs.
+                </p>
+                <div className="space-y-2.5">
+                  {[
+                    { label: "Clear Safety Logs", key: "clear-evidence" },
+                    { label: "Reset Sakhi Config", key: "reset-account" },
+                  ].map(({ label, key }) => (
+                    <div key={key}>
+                      <button
+                        onClick={() => handleDangerAction(label)}
+                        className="w-full py-2.5 border border-[#D4455C]/20 text-[#D4455C] hover:bg-[#FBDDED]/40 transition-colors rounded-xl text-xs font-bold cursor-pointer"
+                      >
+                        {confirmDanger === label ? "Tap again to reset" : label}
+                      </button>
+                      <AnimatePresence>
+                        {confirmDanger === label && (
+                          <motion.p
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="text-[#D4455C] text-[10px] font-bold mt-1 text-center"
+                          >
+                            ⚠️ Resets safety configurations instantly.
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
                     </div>
                   ))}
                 </div>
-                {title === "Emergency Alerts" && (
-                  <div className="mt-5 pt-4 border-t border-slate-100 flex gap-2">
-                    <button
-                      onClick={() => {
-                        playSOSTriggerSound();
-                      }}
-                      className="btn-secondary text-xs py-2.5 px-4 font-bold flex items-center gap-2 text-teal-600 border-teal-100 bg-teal-50/50 hover:bg-teal-50 cursor-pointer"
-                    >
-                      <Bell style={{ width: 14, height: 14 }} className="text-teal-500 animate-pulse" />
-                      Test Emergency Siren
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* RIGHT — PIN + contacts */}
-          <div className="space-y-5">
-            {/* Change PIN */}
-            <div className="card-surface p-6">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-                  <Fingerprint style={{ width: 18, height: 18 }} className="text-foreground" />
-                </div>
-                <h2 style={{ fontFamily: "Manrope,sans-serif", fontWeight: 700, fontSize: "1rem" }} className="text-foreground">Access PIN</h2>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="section-label mb-2 block">{editingPin ? "New PIN" : "Current PIN"}</label>
-                  <div className="relative">
-                    <input
-                      type={showPin ? "text" : "password"}
-                      value={editingPin ? newPin : pin}
-                      onChange={e => editingPin ? setNewPin(e.target.value) : undefined}
-                      readOnly={!editingPin}
-                      maxLength={8}
-                      placeholder={editingPin ? "Enter new PIN" : "Enter PIN"}
-                      className="input-soft pr-10"
-                    />
-                    <button
-                      onClick={() => setShowPin(!showPin)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                    >
-                      {showPin ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
-                    </button>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={handleChangePin} className="btn-primary flex-1">
-                    {editingPin ? "Save PIN" : "Change PIN"}
-                  </button>
-                  {editingPin && (
-                    <button
-                      onClick={() => { setEditingPin(false); setNewPin(""); }}
-                      className="btn-secondary px-4"
-                    >
-                      <X style={{ width: 14, height: 14 }} />
-                    </button>
-                  )}
-                </div>
               </div>
             </div>
+          </div>
 
-            {/* Emergency contacts quick view */}
-            <div className="card-surface p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-                  <Phone style={{ width: 18, height: 18 }} className="text-foreground" />
-                </div>
-                <h2 style={{ fontFamily: "Manrope,sans-serif", fontWeight: 700, fontSize: "1rem" }} className="text-foreground">Emergency Contacts</h2>
-              </div>
-              {[
-                { initials: "M", name: "Mom (Sunita)", phone: "+91 98100 00001", color: "bg-blue-100 text-blue-700" },
-                { initials: "P", name: "Priya Kapoor", phone: "+91 98100 00002", color: "bg-purple-100 text-purple-700" },
-              ].map(c => (
-                <button
-                  key={c.name}
-                  onClick={() => window.location.href = `tel:${c.phone.replace(/\s/g, "")}`}
-                  className="w-full flex items-center gap-3 py-3 border-b border-border last:border-0 hover:bg-slate-50 transition-colors cursor-pointer text-left rounded-lg px-1"
-                >
-                  <div className={`w-9 h-9 rounded-full ${c.color} flex items-center justify-center font-bold text-sm flex-shrink-0`}>{c.initials}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-foreground text-sm font-semibold">{c.name}</p>
-                    <p className="text-muted-foreground text-xs">{c.phone}</p>
-                  </div>
-                  <Phone style={{ width: 14, height: 14 }} className="text-teal-500" />
-                </button>
-              ))}
-              <button 
-                onClick={() => window.open("/guardian-live", "_blank", "width=420,height=850,top=100,left=100")} 
-                className="btn-secondary w-full mt-4 flex items-center justify-center gap-2"
+          {/* Toast Notification */}
+          <AnimatePresence>
+            {toast && (
+              <motion.div
+                initial={{ opacity: 0, y: 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 40 }}
+                className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[9999] bg-[#3D2315] text-[#FDF6EE] text-xs font-bold px-6 py-3 rounded-2xl shadow-xl flex items-center gap-2"
               >
-                <Eye style={{ width: 16, height: 16 }} /> Open Guardian Preview
-              </button>
-            </div>
-
-            {/* Danger zone */}
-            <div className="card-surface p-6" style={{ borderColor: "hsl(var(--sos)/0.3)" }}>
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle style={{ width: 16, height: 16, color: "hsl(var(--sos))" }} />
-                <h2 className="text-sm font-semibold" style={{ color: "hsl(var(--sos))" }}>Danger Zone</h2>
-              </div>
-              <p className="text-muted-foreground text-xs mb-4">These actions are irreversible. Proceed with caution.</p>
-              <div className="space-y-3">
-                {[
-                  { label: "Clear All Evidence Data", key: "clear-evidence" },
-                  { label: "Reset Account", key: "reset-account" },
-                ].map(({ label, key }) => (
-                  <div key={key}>
-                    <button
-                      onClick={() => handleDangerAction(label)}
-                      className="btn-secondary w-full text-sm cursor-pointer"
-                      style={{ color: "hsl(var(--sos))", borderColor: "hsl(var(--sos)/0.3)" }}
-                    >
-                      {confirmDanger === label ? "Tap again to confirm" : label}
-                    </button>
-                    <AnimatePresence>
-                      {confirmDanger === label && (
-                        <motion.p
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="text-red-500 text-[11px] font-bold mt-1 ml-1"
-                        >
-                          ⚠ This cannot be undone. Tap button again to confirm.
-                        </motion.p>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Security status */}
-            <div className="card-surface p-5 bg-gradient-teal">
-              <div className="flex items-center gap-3 mb-3">
-                <Shield style={{ width: 20, height: 20, color: "hsl(var(--teal))" }} />
-                <p className="text-foreground text-sm font-bold">Security Score</p>
-                <span className="ml-auto badge-teal">Good</span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
-                <div className="h-2 rounded-full bg-teal-500" style={{ width: "72%" }} />
-              </div>
-              <p className="text-muted-foreground text-xs">72 / 100 — Enable biometric & stealth mode to improve</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Toast Notification */}
-        <AnimatePresence>
-          {toast && (
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 40 }}
-              className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[9999] bg-slate-900 text-white text-[13px] font-bold px-6 py-3 rounded-2xl shadow-xl flex items-center gap-2"
-            >
-              <Check className="w-4 h-4 text-teal-400" />
-              {toast}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+                <Check className="w-4 h-4 text-[#3D9970]" />
+                {toast}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </div>
     </AppLayout>
   );
 }
