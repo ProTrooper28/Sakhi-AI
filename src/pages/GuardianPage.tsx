@@ -1,11 +1,18 @@
 import { useState, useEffect, useRef } from "react";
-import { MapPin, Phone, CheckCircle2, Navigation, Shield, RefreshCw, Users, X, ChevronRight, AlertTriangle, Heart } from "lucide-react";
+import { 
+  MapPin, Phone, CheckCircle2, Shield, RefreshCw, 
+  Users, AlertTriangle, BatteryMedium, Wifi, Camera, 
+  Mic, Clock, Navigation, Stethoscope, CarFront, MessageSquare, 
+  FileText, ChevronRight, Check
+} from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
+
+// ── Icons & Map Helpers ────────────────────────────────────────────────────────
 
 const createUserMarker = () => L.divIcon({
   className: "custom-user-marker",
@@ -17,47 +24,54 @@ const createUserMarker = () => L.divIcon({
   iconAnchor: [36, 36],
 });
 
-const createGuardianMarker = (color: string) => L.divIcon({
+const createGuardianMarker = () => L.divIcon({
   className: "custom-guardian-marker",
   html: `<div class="relative">
-          <div class="w-9 h-9 ${color} rounded-2xl border-2 border-white shadow-xl flex items-center justify-center text-white font-black text-xs">G</div>
-          <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] border-t-white"></div>
+          <div class="w-9 h-9 bg-blue-500 rounded-full border-2 border-white shadow-xl flex items-center justify-center text-white"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg></div>
          </div>`,
-  iconSize: [36, 40],
-  iconAnchor: [18, 40],
+  iconSize: [36, 36],
+  iconAnchor: [18, 18],
 });
+
+const createPoiMarker = (emoji: string, color: string) => L.divIcon({
+  className: "custom-poi-marker",
+  html: `<div class="w-8 h-8 rounded-full border-2 border-white shadow-md flex items-center justify-center text-sm" style="background:${color}">${emoji}</div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+});
+
+// ── Main Page ─────────────────────────────────────────────────────────────
 
 const GuardianPage = () => {
   const navigate = useNavigate();
   const { sosState, locationState, resolveSOS } = useApp();
-  const [selectedGuardian, setSelectedGuardian] = useState<any>(null);
+  
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
-  const [showSafetyZones, setShowSafetyZones] = useState(true);
   const [isResolved, setIsResolved] = useState(false);
   const [timeElapsed, setTimeElapsed] = useState("00:00");
-
+  
+  // Real-time map refs
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const userMarkerRef = useRef<L.Marker | null>(null);
-  const safetyZoneLayers = useRef<L.Circle[]>([]);
+  const routeLineRef = useRef<L.Polyline | null>(null);
 
+  // Mocks
   const userLat = sosState.active ? sosState.coords.lat : (locationState.coords?.lat || 28.5355);
   const userLng = sosState.active ? sosState.coords.lng : (locationState.coords?.lng || 77.3910);
+  const guardianLat = userLat - 0.008;
+  const guardianLng = userLng + 0.006;
+  
+  const isSOS = sosState.active;
 
-  const guardians = [
-    { id: 1, name: "Priya Sharma",  role: "Primary Guardian",  status: "Online",     distance: "0.8 km", lat: userLat + 0.005, lng: userLng - 0.005, color: "bg-orange-400", online: true },
-    { id: 2, name: "Rahul Singh",   role: "Emergency Contact", status: "En Route",   distance: "1.2 km", lat: userLat - 0.008, lng: userLng + 0.006, color: "bg-blue-500",   online: true },
-    { id: 3, name: "Security Team", role: "Response Team",     status: "Monitoring", distance: "2.5 km", lat: userLat + 0.015, lng: userLng + 0.012, color: "bg-rose-600",   online: true },
-  ];
-
+  // Actions
   const handleAction = (msg: string) => {
     setActionFeedback(msg);
     setTimeout(() => setActionFeedback(null), 2800);
   };
 
   useEffect(() => {
-    if (sosState.active) { setIsResolved(false); }
+    if (sosState.active) setIsResolved(false);
   }, [sosState.active]);
 
   // Timer
@@ -68,55 +82,80 @@ const GuardianPage = () => {
       const d = Math.floor((Date.now() - new Date(sosState.triggeredAt).getTime()) / 1000);
       return `${String(Math.floor(d / 60)).padStart(2, "0")}:${String(d % 60).padStart(2, "0")}`;
     };
+    setTimeElapsed(calc());
     const id = setInterval(() => setTimeElapsed(calc()), 1000);
     return () => clearInterval(id);
   }, [sosState.active, sosState.triggeredAt]);
 
-  // Map init
+  // Map Initialization
   useEffect(() => {
     if (!mapContainerRef.current) return;
-    if (mapRef.current) { mapRef.current.remove(); }
+    if (mapRef.current) mapRef.current.remove();
 
-    const map = L.map(mapContainerRef.current, { center: [userLat, userLng], zoom: 14, zoomControl: false, attributionControl: false });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
-
-    const uMarker = L.marker([userLat, userLng], { icon: createUserMarker() }).addTo(map);
-    userMarkerRef.current = uMarker;
-
-    guardians.forEach(g => {
-      const m = L.marker([g.lat, g.lng], { icon: createGuardianMarker(g.color) }).addTo(map);
-      m.on("click", () => setSelectedGuardian(g));
+    const map = L.map(mapContainerRef.current, { 
+      center: [userLat - 0.002, userLng + 0.002], // Offset center slightly to fit both
+      zoom: 15, 
+      zoomControl: false, 
+      attributionControl: false 
     });
+    
+    // Use dark theme tiles if SOS is active, else light
+    const tileUrl = isSOS 
+      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+    L.tileLayer(tileUrl).addTo(map);
 
-    // Safety zones
+    // Markers
+    L.marker([userLat, userLng], { icon: createUserMarker(), zIndexOffset: 1000 }).addTo(map);
+    
+    if (isSOS) {
+      L.marker([guardianLat, guardianLng], { icon: createGuardianMarker() }).addTo(map);
+      
+      // POIs
+      L.marker([userLat + 0.004, userLng - 0.002], { icon: createPoiMarker("🚔", "#2563EB") }).addTo(map);
+      L.marker([userLat - 0.002, userLng - 0.005], { icon: createPoiMarker("🏥", "#E74C3C") }).addTo(map);
+
+      // Route Polyline
+      const route = L.polyline([
+        [guardianLat, guardianLng],
+        [guardianLat + 0.003, guardianLng - 0.002],
+        [userLat - 0.002, userLng + 0.001],
+        [userLat, userLng]
+      ], { color: "#3B82F6", weight: 4, dashArray: "10, 10", opacity: 0.8 }).addTo(map);
+      routeLineRef.current = route;
+      
+      // Fit bounds
+      map.fitBounds(route.getBounds(), { padding: [30, 30] });
+    }
+
+    // Safety zones (only in non-sos for cleaner view, or keep them? instructions say "Keep risk zones")
     const zones = [
-      { lat: userLat + 0.002, lng: userLng - 0.002, radius: 400, color: "#3D9970", fillColor: "#3D9970", fillOpacity: 0.12 },
-      { lat: userLat - 0.004, lng: userLng + 0.003, radius: 600, color: "#F39C12", fillColor: "#F39C12", fillOpacity: 0.12 },
-      { lat: userLat + 0.005, lng: userLng + 0.005, radius: 500, color: "#E74C3C", fillColor: "#E74C3C", fillOpacity: 0.12 },
+      { lat: userLat + 0.002, lng: userLng - 0.002, radius: 400, color: "#3D9970", fillColor: "#3D9970", fillOpacity: isSOS ? 0.08 : 0.12 },
+      { lat: userLat - 0.004, lng: userLng + 0.003, radius: 600, color: "#F39C12", fillColor: "#F39C12", fillOpacity: isSOS ? 0.08 : 0.12 },
+      { lat: userLat + 0.005, lng: userLng + 0.005, radius: 500, color: "#E74C3C", fillColor: "#E74C3C", fillOpacity: isSOS ? 0.08 : 0.12 },
     ];
     zones.forEach(z => {
-      const c = L.circle([z.lat, z.lng], { radius: z.radius, color: z.color, fillColor: z.fillColor, fillOpacity: z.fillOpacity, weight: 1.5 });
-      safetyZoneLayers.current.push(c);
+      L.circle([z.lat, z.lng], { radius: z.radius, color: z.color, fillColor: z.fillColor, fillOpacity: z.fillOpacity, weight: isSOS ? 1 : 1.5 }).addTo(map);
     });
-    if (showSafetyZones) safetyZoneLayers.current.forEach(c => c.addTo(map));
 
     mapRef.current = map;
-    return () => { map.remove(); mapRef.current = null; safetyZoneLayers.current = []; };
-  }, []);
+    return () => { map.remove(); mapRef.current = null; };
+  }, [userLat, userLng, guardianLat, guardianLng, isSOS]);
 
-  useEffect(() => {
-    if (!mapRef.current) return;
-    if (showSafetyZones) safetyZoneLayers.current.forEach(c => { if (!mapRef.current?.hasLayer(c)) c.addTo(mapRef.current!); });
-    else safetyZoneLayers.current.forEach(c => c.remove());
-  }, [showSafetyZones]);
-
-  const isSOS = sosState.active;
+  // Mock Timeline Generation
+  const timelineEvents = [
+    { time: "14:22", msg: "SOS Triggered", active: false },
+    { time: "14:22", msg: "Guardians Notified", active: false },
+    { time: "14:23", msg: "Live Location Shared", active: false },
+    { time: "14:23", msg: "Video Recording Started", active: false },
+    { time: "14:24", msg: "You opened the alert", active: true },
+  ];
 
   return (
     <AppLayout>
-      <div style={{ background: isSOS ? "#160404" : "var(--sakhi-cream)", minHeight: "100vh", transition: "background 0.5s ease", paddingBottom: "7rem" }}>
-
-        {/* ── Action Feedback Toast ── */}
+      <div style={{ background: isSOS ? "#110303" : "var(--sakhi-cream)", minHeight: "100vh", transition: "background 0.5s ease", paddingBottom: "7rem" }}>
+        
+        {/* Toast */}
         <AnimatePresence>
           {actionFeedback && (
             <motion.div
@@ -129,133 +168,205 @@ const GuardianPage = () => {
           )}
         </AnimatePresence>
 
-        <div className="max-w-2xl mx-auto px-4 pt-4">
+        <div className="max-w-3xl mx-auto px-4 pt-4">
 
-          {/* ── Header ── */}
-          <div className="flex items-center justify-between mb-5">
+          {/* ── Dashboard Header ── */}
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 24, color: isSOS ? "white" : "#3D2315" }}>
-                {isSOS ? "🚨 Emergency Active" : "Aapke Apnewale 💛"}
-              </h1>
-              <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 13, color: isSOS ? "rgba(255,255,255,0.65)" : "#9E7A6A" }}>
-                {isSOS ? `${sosState.userName || "Preeti"} needs help right now` : "People who care about you"}
+              <div className="flex items-center gap-2 mb-1">
+                {isSOS && <motion.div animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 0.8, repeat: Infinity }} className="w-2.5 h-2.5 rounded-full bg-red-500" />}
+                <h1 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 22, color: isSOS ? "white" : "#3D2315" }}>
+                  {isSOS ? "Emergency Active" : "Aapke Apnewale 💛"}
+                </h1>
+              </div>
+              <div className="flex items-center gap-3">
+                {isSOS && (
+                  <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12, color: "#E74C3C" }}>
+                    Duration: {timeElapsed}
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: isSOS ? "rgba(255,255,255,0.4)" : "#9E7A6A" }}>
+                  <RefreshCw className="w-3 h-3" /> Last Updated: Just now
+                </span>
+              </div>
+            </div>
+            
+            {isSOS && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background: "rgba(46,204,113,0.15)", border: "1px solid rgba(46,204,113,0.3)" }}>
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10, color: "#6EE7B7", textTransform: "uppercase" }}>Live Tracking</span>
+              </div>
+            )}
+          </div>
+
+          {!isSOS ? (
+            /* Non-SOS state placeholder (simplified for requirements focusing on SOS) */
+            <div className="rounded-[24px] p-6 text-center" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.05)" }}>
+              <Users className="w-12 h-12 text-[#D4455C] mx-auto mb-3" />
+              <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 18, color: "#3D2315" }}>No Active Emergencies</h2>
+              <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 13, color: "#9E7A6A", marginTop: 4 }}>
+                Preeti is safe. You will be notified if an SOS is triggered.
               </p>
             </div>
-            <motion.button whileHover={{ rotate: 180 }} whileTap={{ scale: 0.9 }} onClick={() => { setIsRefreshing(true); setTimeout(() => setIsRefreshing(false), 1400); }}
-              style={{ color: isSOS ? "rgba(255,255,255,0.7)" : "#9E7A6A" }}
-            >
-              <RefreshCw className={`w-5 h-5 ${isRefreshing ? "animate-spin" : ""}`} />
-            </motion.button>
-          </div>
-
-          {/* ── SOS Alert Banner ── */}
-          <AnimatePresence>
-            {isSOS && !isResolved && (
-              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                className="rounded-[22px] p-5 mb-5 relative overflow-hidden"
-                style={{ background: "linear-gradient(135deg,#922B21,#C0392B)", border: "1px solid rgba(255,255,255,0.12)" }}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <motion.div animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 0.8, repeat: Infinity }} className="w-3 h-3 rounded-full bg-white" />
-                  <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 16, color: "white" }}>Emergency Alert</span>
-                  <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 18, color: "white", marginLeft: "auto" }}>{timeElapsed}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-white text-xs mb-4">
-                  <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 12, padding: "8px 12px" }}>
-                    <p style={{ opacity: 0.65, fontWeight: 600, marginBottom: 2 }}>User</p>
-                    <p style={{ fontWeight: 800 }}>{sosState.userName || "Preeti"}</p>
+          ) : (
+            
+            /* ── EMERGENCY DASHBOARD GRID ── */
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              
+              {/* Main Column (Left) */}
+              <div className="md:col-span-8 flex flex-col gap-4">
+                
+                {/* User Info Card */}
+                <div className="rounded-[24px] p-5 relative overflow-hidden" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <div className="absolute top-0 left-0 w-1 h-full bg-red-500" />
+                  
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 }}>User at Risk</p>
+                      <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 20, color: "white" }}>{sosState.userName || "Preeti Sharma"}</h2>
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "rgba(255,255,255,0.1)" }}>
+                        <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                        <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11, color: "white" }}>Online</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "rgba(255,255,255,0.1)" }}>
+                        <BatteryMedium className="w-3.5 h-3.5 text-yellow-400" />
+                        <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11, color: "white" }}>42%</span>
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 12, padding: "8px 12px" }}>
-                    <p style={{ opacity: 0.65, fontWeight: 600, marginBottom: 2 }}>Location</p>
-                    <p style={{ fontWeight: 800 }} className="truncate">{sosState.location || "Fetching…"}</p>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-500/20 text-red-400"><Camera className="w-4 h-4" /></div>
+                      <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 13, color: "white" }}>Video Recording Active</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-red-500/20 text-red-400"><Mic className="w-4 h-4" /></div>
+                      <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 13, color: "white" }}>Audio Recording Active</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-emerald-500/20 text-emerald-400"><MapPin className="w-4 h-4" /></div>
+                      <div className="flex-1 min-w-0">
+                        <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 13, color: "white" }}>Live Location Sharing</p>
+                        <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "rgba(255,255,255,0.5)" }} className="truncate">{sosState.location || "Tracking precise location..."}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <button onClick={() => { window.location.href = "tel:112"; }} className="w-full py-3 rounded-[16px] cursor-pointer text-white font-bold text-sm flex items-center justify-center gap-2" style={{ background: "rgba(0,0,0,0.35)", fontFamily: "Nunito,sans-serif", fontWeight: 800 }}>
-                    <Phone className="w-4 h-4" /> Call User
-                  </button>
-                  <button onClick={() => { setIsResolved(true); resolveSOS(); handleAction("Situation marked as safe ✅"); }}
-                    className="w-full py-3 rounded-[16px] cursor-pointer font-bold text-sm flex items-center justify-center gap-2"
-                    style={{ background: "linear-gradient(135deg,#27AE60,#1E8449)", color: "white", fontFamily: "Nunito,sans-serif", fontWeight: 800 }}
-                  >
-                    <CheckCircle2 className="w-4 h-4" /> Mark as Safe
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
-          {/* ── Map ── */}
-          <div className="rounded-[24px] overflow-hidden mb-5 relative" style={{ height: 260, border: `2px solid ${isSOS ? "rgba(192,57,43,0.4)" : "rgba(242,149,106,0.15)"}`, boxShadow: isSOS ? "0 0 30px rgba(192,57,43,0.25)" : "0 4px 20px rgba(139,58,47,0.07)" }}>
-            <div ref={mapContainerRef} className="absolute inset-0" />
-            {/* Zone toggle */}
-            <div className="absolute top-3 right-3 z-[400]">
-              <button onClick={() => setShowSafetyZones(!showSafetyZones)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold cursor-pointer shadow-md"
-                style={{ background: "white", fontFamily: "Nunito,sans-serif", color: showSafetyZones ? "#3D9970" : "#9E7A6A", border: `1px solid ${showSafetyZones ? "rgba(61,153,112,0.3)" : "rgba(242,149,106,0.2)"}` }}
-              >
-                <Shield className="w-3 h-3" /> {showSafetyZones ? "Zones On" : "Zones Off"}
-              </button>
-            </div>
-          </div>
-
-          {/* ── Guardian Cards ── */}
-          <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 15, color: isSOS ? "rgba(255,255,255,0.75)" : "#8B3A2F", marginBottom: 12 }}>
-            {isSOS ? "Apnewale Status" : "Active Guardians"} ({guardians.length})
-          </h2>
-          <div className="space-y-3 mb-5">
-            {guardians.map((g, i) => (
-              <motion.div key={g.id}
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
-                onClick={() => { setSelectedGuardian(selectedGuardian?.id === g.id ? null : g); if (mapRef.current) mapRef.current.setView([g.lat, g.lng], 15, { animate: true }); }}
-                className="rounded-[22px] p-4 flex items-center gap-4 cursor-pointer transition-all"
-                style={{
-                  background: isSOS
-                    ? (selectedGuardian?.id === g.id ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)")
-                    : (selectedGuardian?.id === g.id ? "white" : "rgba(255,255,255,0.7)"),
-                  border: `1px solid ${isSOS ? "rgba(255,255,255,0.1)" : "rgba(242,149,106,0.15)"}`,
-                  boxShadow: selectedGuardian?.id === g.id ? "0 4px 16px rgba(139,58,47,0.08)" : "none",
-                }}
-              >
-                <div className={`w-12 h-12 rounded-full ${g.color} flex items-center justify-center text-white font-black text-sm shadow relative flex-shrink-0`}>
-                  {g.name.charAt(0)}
-                  {g.online && <div className="absolute bottom-0.5 right-0.5 w-3 h-3 rounded-full border-2 border-white" style={{ background: "#3D9970" }} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 14, color: isSOS ? "white" : "#3D2315" }}>{g.name}</p>
-                  <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: isSOS ? "rgba(255,255,255,0.55)" : "#9E7A6A" }}>{g.role} · {g.distance}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                  <span
-                    className="px-2.5 py-1 rounded-full text-xs font-bold"
-                    style={{
-                      fontFamily: "Nunito,sans-serif",
-                      background: g.status === "Online" ? "rgba(61,153,112,0.15)" : g.status === "En Route" ? "rgba(59,130,246,0.15)" : "rgba(242,149,106,0.15)",
-                      color: g.status === "Online" ? "#3D9970" : g.status === "En Route" ? "#3B82F6" : "#8B3A2F",
-                    }}
-                  >{g.status}</span>
-                  <button onClick={e => { e.stopPropagation(); window.location.href = "tel:+919810000001"; handleAction(`Calling ${g.name}…`); }}
-                    className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
-                    style={{ background: isSOS ? "rgba(255,255,255,0.12)" : "rgba(212,69,92,0.1)" }}
-                  >
-                    <Phone className="w-3.5 h-3.5" style={{ color: isSOS ? "white" : "#D4455C" }} />
-                  </button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* ── Safety zones legend ── */}
-          {!isSOS && (
-            <div className="rounded-[22px] p-4" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.05)" }}>
-              <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "#8B3A2F", marginBottom: 12 }}>Safety Zone Key</p>
-              <div className="flex gap-4 flex-wrap">
-                {[{ color: "#3D9970", label: "Safe Area" }, { color: "#F39C12", label: "Moderate" }, { color: "#E74C3C", label: "High Risk" }].map(z => (
-                  <div key={z.label} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ background: z.color }} />
-                    <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 12, color: "#9E7A6A" }}>{z.label}</span>
+                {/* Map View */}
+                <div className="rounded-[24px] overflow-hidden relative" style={{ height: 280, border: "1px solid rgba(255,255,255,0.15)", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+                  <div ref={mapContainerRef} className="absolute inset-0" />
+                  
+                  {/* Map Overlay HUD */}
+                  <div className="absolute top-3 right-3 z-[400] flex flex-col gap-2">
+                    <div className="bg-[#110303]/80 backdrop-blur-md px-3 py-2 rounded-xl border border-white/10 shadow-xl flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-blue-400" />
+                      <div>
+                        <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10, color: "rgba(255,255,255,0.6)", textTransform: "uppercase" }}>Your ETA</p>
+                        <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 13, color: "white" }}>4 mins (1.2km)</p>
+                      </div>
+                    </div>
                   </div>
-                ))}
+                </div>
+
+                {/* Quick Actions (2x3 Grid) */}
+                <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 14, color: "rgba(255,255,255,0.6)" }} className="mt-1">Immediate Response</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: "Call User", icon: Phone, bg: "rgba(59,130,246,0.15)", color: "#60A5FA", border: "rgba(59,130,246,0.3)" },
+                    { label: "Navigate", icon: Navigation, bg: "rgba(167,139,250,0.15)", color: "#C084FC", border: "rgba(167,139,250,0.3)" },
+                    { label: "Call Police (112)", icon: CarFront, bg: "rgba(248,113,113,0.15)", color: "#F87171", border: "rgba(248,113,113,0.3)" },
+                    { label: "Ambulance (108)", icon: Stethoscope, bg: "rgba(251,146,60,0.15)", color: "#FBBF24", border: "rgba(251,146,60,0.3)" },
+                    { label: "Send Msg", icon: MessageSquare, bg: "rgba(255,255,255,0.1)", color: "white", border: "rgba(255,255,255,0.15)" },
+                    { label: "Mark Safe", icon: CheckCircle2, bg: "rgba(52,211,153,0.15)", color: "#34D399", border: "rgba(52,211,153,0.3)", action: () => { setIsResolved(true); resolveSOS(); handleAction("Emergency Resolved"); navigate("/home"); } },
+                  ].map(btn => (
+                    <motion.button 
+                      key={btn.label}
+                      whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.96 }}
+                      onClick={btn.action ? btn.action : () => handleAction(`Action: ${btn.label}`)}
+                      className="rounded-[20px] p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all"
+                      style={{ background: btn.bg, border: `1px solid ${btn.border}` }}
+                    >
+                      <btn.icon className="w-6 h-6" style={{ color: btn.color }} />
+                      <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: btn.color }}>{btn.label}</span>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sidebar Column (Right) */}
+              <div className="md:col-span-4 flex flex-col gap-4 mt-2 md:mt-0">
+                
+                {/* Status Panel */}
+                <div className="rounded-[24px] p-5" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 }}>
+                    Current Situation
+                  </p>
+                  <div className="space-y-4">
+                    {[
+                      { label: "Live Tracking", active: true, color: "emerald" },
+                      { label: "Recording Active", active: true, color: "emerald" },
+                      { label: "3 Guardians Notified", active: true, color: "emerald" },
+                      { label: "Police Not Contacted", active: false, color: "yellow" },
+                      { label: "Ambulance Not Contacted", active: false, color: "yellow" }
+                    ].map((s, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <div className={`w-2.5 h-2.5 rounded-full ${s.active ? 'bg-emerald-400' : 'bg-yellow-400'}`} />
+                        <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 13, color: s.active ? "white" : "rgba(255,255,255,0.6)" }}>
+                          {s.label}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Evidence Summary */}
+                <div className="rounded-[24px] p-5" style={{ background: "linear-gradient(135deg, rgba(220,38,38,0.1), rgba(153,27,27,0.1))", border: "1px solid rgba(220,38,38,0.2)" }}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Shield className="w-4 h-4 text-red-400" />
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "white" }}>Evidence Collected</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    <div className="bg-black/30 rounded-xl p-3 flex flex-col items-center justify-center">
+                      <Camera className="w-4 h-4 text-white/70 mb-1" />
+                      <span className="text-white font-bold text-sm">1 Video</span>
+                    </div>
+                    <div className="bg-black/30 rounded-xl p-3 flex flex-col items-center justify-center">
+                      <Mic className="w-4 h-4 text-white/70 mb-1" />
+                      <span className="text-white font-bold text-sm">1 Audio</span>
+                    </div>
+                  </div>
+                  <button onClick={() => navigate("/evidence-locker")} className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-white/10 hover:bg-white/15 transition-colors cursor-pointer text-white text-sm font-bold">
+                    Open Evidence <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Timeline */}
+                <div className="rounded-[24px] p-5 flex-1" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 16 }}>
+                    Timeline
+                  </p>
+                  <div className="relative pl-3">
+                    <div className="absolute left-[5px] top-2 bottom-2 w-0.5 bg-white/10" />
+                    {timelineEvents.map((ev, i) => (
+                      <div key={i} className="relative mb-5 last:mb-0">
+                        <div className={`absolute -left-[14px] top-1 w-2.5 h-2.5 rounded-full border-2 ${ev.active ? 'bg-red-500 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-[#110303] border-white/30'}`} />
+                        <div className="pl-3">
+                          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: ev.active ? "#F87171" : "rgba(255,255,255,0.4)", marginBottom: 2 }}>
+                            {ev.time}
+                          </p>
+                          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: ev.active ? "white" : "rgba(255,255,255,0.7)" }}>
+                            {ev.msg}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
             </div>
           )}
