@@ -483,12 +483,19 @@ const SOSPage = () => {
             </div>
             {/* Guardian Mode Shortcut */}
             <button
-              onClick={() => navigate("/guardian")}
-              className="icon-btn w-10 h-10 flex items-center justify-center text-[#8B3A2F]"
-              style={{ background: "rgba(242,149,106,0.08)", borderRadius: "12px" }}
-              title="Guardian Dashboard"
+              onClick={() => {
+                if (window.innerWidth > 768) {
+                  window.open("/guardian", "_blank");
+                } else {
+                  navigate("/guardian");
+                }
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
+              style={{ background: "rgba(242,149,106,0.15)", borderRadius: "99px", border: "1px solid rgba(242,149,106,0.3)" }}
+              title="Open Guardian Dashboard"
             >
-              <Users className="w-5 h-5" />
+              <Users className="w-4 h-4 text-[#8B3A2F]" />
+              <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12, color: "#8B3A2F" }}>Guardian View</span>
             </button>
           </div>
 
