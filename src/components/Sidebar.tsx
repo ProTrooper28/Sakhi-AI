@@ -7,6 +7,7 @@ import {
   Archive,
   FileWarning,
   Map,
+  FileText,
   MessageSquare,
   Settings,
   LogOut,
@@ -25,6 +26,7 @@ const navItems = [
   { icon: Map,             label: "Location Tracking",path: "/location" },
   { icon: Archive,         label: "Evidence Locker",  path: "/evidence-locker" },
   { icon: FileWarning,     label: "Anonymous Reports",path: "/report" },
+  { icon: FileText,        label: "My Reports",       path: "/my-reports" },
   { icon: Watch,           label: "Wearable Device",  path: "/wearable" },
   { icon: Settings,        label: "Settings",         path: "/settings" },
 ];
@@ -164,7 +166,7 @@ const Sidebar = () => {
         })}
 
         <p className="section-label px-3 pt-4 pb-2 text-white/30 uppercase tracking-widest text-[9px] font-bold">Safety Tools</p>
-        {navItems.slice(3, 7).map((item) => {
+        {navItems.slice(3, 8).map((item) => {
           const active =
             location.pathname === item.path ||
             (item.path === "/report" && location.pathname.startsWith("/report-review"));
@@ -186,7 +188,7 @@ const Sidebar = () => {
         })}
 
         <p className="section-label px-3 pt-4 pb-2 text-white/30 uppercase tracking-widest text-[9px] font-bold">Account</p>
-        {navItems.slice(7).map((item) => {
+        {navItems.slice(8).map((item) => {
           const active = location.pathname === item.path;
           const Icon = item.icon;
           return (

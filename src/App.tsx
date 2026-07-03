@@ -10,6 +10,7 @@ import SOSPage from "./pages/SOSPage";
 import AssistantPage from "./pages/AssistantPage";
 import ReportPage from "./pages/ReportPage";
 import ReportReviewPage from "./pages/ReportReviewPage";
+import MyReportsPage from "./pages/MyReportsPage";
 import EvidenceLockerPage from "./pages/EvidenceLockerPage";
 import RiskMapPage from "./pages/RiskMapPage";
 import GuardianPage from "./pages/GuardianPage";
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/assistant" element={<AssistantPage />} />
             <Route path="/report" element={<ReportPage />} />
             <Route path="/report-review/:id" element={<ReportReviewPage />} />
+            <Route path="/my-reports" element={<MyReportsPage />} />
             <Route path="/evidence-locker" element={<EvidenceLockerPage />} />
             <Route path="/risk-map" element={<RiskMapPage />} />
             <Route path="/guardian-live" element={<GuardianPage />} />
