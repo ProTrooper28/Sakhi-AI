@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Phone, MapPin, Mic, Video, Users, CheckCircle2, Shield, ArrowLeft, Heart, AlertTriangle } from "lucide-react";
+import { 
+  Phone, MapPin, Mic, Video, Users, CheckCircle2, 
+  Shield, ArrowLeft, AlertTriangle, Camera, ShieldAlert,
+  Settings
+} from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
 import { useNavigate } from "react-router-dom";
@@ -22,21 +26,18 @@ const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
     setIsHeld(true);
     setProgress(0);
 
-    // Progress bar
     const start = Date.now();
     progressTimer.current = setInterval(() => {
       const elapsed = Date.now() - start;
       setProgress(Math.min((elapsed / 1500) * 100, 100));
     }, 30);
 
-    // Ripples
     rippleInterval.current = setInterval(() => {
       const id = rippleId.current++;
       setRipples(prev => [...prev, id]);
       setTimeout(() => setRipples(prev => prev.filter(r => r !== id)), 1100);
     }, 380);
 
-    // Trigger after 1.5 s hold
     holdTimer.current = setTimeout(() => {
       setIsHeld(false);
       if (progressTimer.current)  { clearInterval(progressTimer.current);  progressTimer.current = null; }
@@ -71,8 +72,6 @@ const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
 
   return (
     <div className="relative flex items-center justify-center select-none" style={{ height: 300 }}>
-
-      {/* Full-screen burst on activation */}
       <AnimatePresence>
         {isActivating && (
           <motion.div
@@ -87,7 +86,6 @@ const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
         )}
       </AnimatePresence>
 
-      {/* Ambient outer glow */}
       <motion.div
         animate={isActivating
           ? { scale: 1.7, opacity: 0.5 }
@@ -99,7 +97,6 @@ const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
         style={{ width: 320, height: 320, background: "radial-gradient(circle, rgba(212,69,92,0.22) 0%, transparent 70%)" }}
       />
 
-      {/* Breathing ring */}
       <motion.div
         animate={isHeld ? { scale: 1.12, opacity: 0.45 } : { scale: [1, 1.04, 1], opacity: [0.22, 0.07, 0.22] }}
         transition={{ repeat: isHeld ? 0 : Infinity, duration: 3.5, ease: "easeInOut", delay: 0.3 }}
@@ -107,7 +104,6 @@ const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
         style={{ width: 258, height: 258, background: "rgba(212,69,92,0.1)", border: "1px solid rgba(212,69,92,0.2)" }}
       />
 
-      {/* Hold ripples */}
       <AnimatePresence>
         {ripples.map(id => (
           <motion.div
@@ -122,7 +118,6 @@ const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
         ))}
       </AnimatePresence>
 
-      {/* Main SOS button */}
       <motion.button
         onMouseDown={startHold}
         onMouseUp={cleanup}
@@ -146,7 +141,6 @@ const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
           zIndex: 10,
         }}
       >
-        {/* Progress ring overlay */}
         {isHeld && (
           <svg className="absolute inset-0" width="200" height="200" style={{ transform: "rotate(-90deg)" }}>
             <circle
@@ -167,7 +161,6 @@ const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
           </span>
         </div>
       </motion.button>
-
     </div>
   );
 };
@@ -175,9 +168,18 @@ const SOSButtonArea = ({ onTrigger }: { onTrigger: () => void }) => {
 // ── Main SOS Page ─────────────────────────────────────────────────────────────
 const SOSPage = () => {
   const navigate  = useNavigate();
-  const { sosState, cancelSOS, resolveSOS, triggerSOS, locationState } = useApp();
+  const { sosState, cancelSOS, resolveSOS, triggerSOS, locationState, addEvidence } = useApp();
+  
   const [isMarkingSafe, setIsMarkingSafe] = useState(false);
   const [timeElapsed, setTimeElapsed]     = useState("00:00");
+  
+  // Recording states
+  const [isRecording, setIsRecording]           = useState(false);
+  const [permissionsError, setPermissionsError] = useState<string | null>(null);
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoChunksRef   = useRef<BlobPart[]>([]);
+  const streamRef        = useRef<MediaStream | null>(null);
 
   // Timer
   useEffect(() => {
@@ -192,13 +194,104 @@ const SOSPage = () => {
     return () => clearInterval(id);
   }, [sosState.active, sosState.triggeredAt]);
 
+  // Handle Recording start/stop
+  const startRecording = async () => {
+    try {
+      setPermissionsError(null);
+      
+      // Request camera & mic
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: true
+      });
+      
+      streamRef.current = stream;
+      videoChunksRef.current = [];
+      
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8,opus' });
+      
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          videoChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.start(1000); // chunk every second
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+
+    } catch (err: any) {
+      console.error("Failed to acquire permissions:", err);
+      setIsRecording(false);
+      setPermissionsError(
+        "Camera & Microphone access is needed to secretly record evidence. Please allow permissions when prompted."
+      );
+    }
+  };
+
+  const stopAndSaveRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      
+      // Stop all tracks to release camera/mic
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+      
+      setIsRecording(false);
+
+      // We use a small timeout to let the last chunk process before creating the blob
+      setTimeout(() => {
+        if (videoChunksRef.current.length > 0) {
+          const blob = new Blob(videoChunksRef.current, { type: "video/webm" });
+          const url = URL.createObjectURL(blob);
+          
+          addEvidence({
+            type: "sos-recording",
+            name: `SOS_Evidence_${new Date().toISOString().replace(/[:.]/g, "-")}.webm`,
+            fileUrl: url,
+            fileType: "video/webm",
+            timestamp: new Date().toISOString(),
+            location: locationState.address || undefined
+          });
+        }
+      }, 500);
+    }
+  };
+
+  // Auto-start recording when SOS becomes active
+  useEffect(() => {
+    if (sosState.active) {
+      startRecording();
+    } else {
+      stopAndSaveRecording();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sosState.active]);
+
+  // Clean up on unmount if leaving page during active SOS
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
   const handleMarkSafe = () => {
     setIsMarkingSafe(true);
+    stopAndSaveRecording();
     setTimeout(() => {
       resolveSOS();
       setIsMarkingSafe(false);
       navigate("/home");
     }, 800);
+  };
+
+  const handleCancelSOS = () => {
+    stopAndSaveRecording();
+    cancelSOS();
+    navigate("/home");
   };
 
   // ── ACTIVE SOS: dark emergency mode ───────────────────────────────────────
@@ -225,16 +318,70 @@ const SOSPage = () => {
 
           {/* Back button */}
           <div className="w-full flex items-center mb-6">
-            <button onClick={() => navigate("/home")} className="flex items-center gap-2 cursor-pointer" style={{ color: "rgba(255,255,255,0.6)", fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 14 }}>
+            <button onClick={handleCancelSOS} className="flex items-center gap-2 cursor-pointer" style={{ color: "rgba(255,255,255,0.6)", fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 14 }}>
               <ArrowLeft className="w-4 h-4" /> Back to Home
             </button>
           </div>
 
-          {/* Live badge */}
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full mb-6" style={{ background: "rgba(192,57,43,0.3)", border: "1px solid rgba(255,255,255,0.15)" }}>
-            <motion.div animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 0.9, repeat: Infinity }} className="w-2 h-2 rounded-full" style={{ background: "#E74C3C" }} />
-            <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12, color: "white", letterSpacing: 2, textTransform: "uppercase" }}>Emergency Active</span>
+          {/* Live indicators */}
+          <div className="w-full flex flex-wrap justify-center gap-2 mb-6">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full" style={{ background: "rgba(192,57,43,0.3)", border: "1px solid rgba(255,255,255,0.15)" }}>
+              <motion.div animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 0.9, repeat: Infinity }} className="w-2 h-2 rounded-full" style={{ background: "#E74C3C" }} />
+              <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "white", textTransform: "uppercase" }}>SOS Active</span>
+            </div>
+            
+            {isRecording && (
+              <>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: "rgba(231,76,60,0.15)", border: "1px solid rgba(231,76,60,0.3)" }}>
+                  <motion.div animate={{ opacity: [1, 0.5, 1] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                    <Camera className="w-3.5 h-3.5 text-red-400" />
+                  </motion.div>
+                  <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "#FCA5A5", textTransform: "uppercase" }}>Rec Video</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: "rgba(231,76,60,0.15)", border: "1px solid rgba(231,76,60,0.3)" }}>
+                  <motion.div animate={{ opacity: [1, 0.5, 1] }} transition={{ duration: 1.5, repeat: Infinity, delay: 0.5 }}>
+                    <Mic className="w-3.5 h-3.5 text-red-400" />
+                  </motion.div>
+                  <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "#FCA5A5", textTransform: "uppercase" }}>Rec Audio</span>
+                </div>
+              </>
+            )}
+
+            {!locationState.error && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: "rgba(46,204,113,0.15)", border: "1px solid rgba(46,204,113,0.3)" }}>
+                <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "#6EE7B7", textTransform: "uppercase" }}>Live Loc</span>
+              </div>
+            )}
           </div>
+
+          {/* Permissions Error Block */}
+          <AnimatePresence>
+            {permissionsError && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="w-full mb-6 overflow-hidden"
+              >
+                <div className="rounded-[20px] p-4 flex flex-col gap-3" style={{ background: "rgba(243,156,18,0.15)", border: "1px solid rgba(243,156,18,0.4)" }}>
+                  <div className="flex items-start gap-3">
+                    <ShieldAlert className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 13, color: "#FDE047", lineHeight: 1.5 }}>
+                      {permissionsError}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={startRecording}
+                    className="self-start px-4 py-2 rounded-xl"
+                    style={{ background: "rgba(243,156,18,0.3)", color: "#FEF08A", fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12 }}
+                  >
+                    Grant Permissions
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* SOS indicator */}
           <motion.div
@@ -260,7 +407,7 @@ const SOSPage = () => {
               { label: "Time Elapsed", value: timeElapsed, emoji: "⏱️" },
               { label: "Location",     value: locationState.address || sosState.location || "Fetching…", emoji: "📍" },
               { label: "Apnewale",     value: "3 Notified",    emoji: "👥" },
-              { label: "Status",       value: "Tracking Live", emoji: "🛰️" },
+              { label: "Evidence",     value: isRecording ? "Recording..." : "Standby", emoji: "📹" },
             ].map(card => (
               <div key={card.label} className="rounded-[20px] p-4" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
                 <div className="text-xl mb-1">{card.emoji}</div>
@@ -305,8 +452,8 @@ const SOSPage = () => {
           </motion.button>
 
           {/* Cancel */}
-          <button onClick={() => { cancelSOS(); navigate("/home"); }}
-            className="mt-4 cursor-pointer"
+          <button onClick={handleCancelSOS}
+            className="mt-4 cursor-pointer mb-6"
             style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 13, color: "rgba(255,255,255,0.45)", textDecoration: "underline" }}
           >
             Cancel Alert
