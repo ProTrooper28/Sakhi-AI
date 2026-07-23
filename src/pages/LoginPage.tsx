@@ -1,13 +1,90 @@
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Shield, ArrowRight, Eye, EyeOff, Lock, User, Phone, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+/* ─── Color & Style Tokens (Bright Pink Sunset Palette) ──────────────────── */
+const C = {
+  primaryDark:   "#7A2B73", // Dark Magenta/Purple for headings, logo, features text
+  mainAccent:    "#D552A3", // Button background & Active indicators
+  hoverAccent:   "#C63B95", // Button hover background
+  highlightPink: "#FF70BF", // Top highlight/dot
+  indicatorDot:  "#831C91", // Progress dot/accent
+  
+  canvasBg:      "linear-gradient(135deg, #FFF7FC 0%, #FFEAF6 50%, #FFDDF1 100%)", // Bright, dreamy page background
+  cardBg:        "#FFFFFF", // Floating premium onboarding card (White)
+  cardBorder:    "rgba(214, 82, 163, 0.08)", // Subtle card border
+  inputBg:       "#FFF6FA", // Input field background
+  inputBorder:   "rgba(214, 82, 163, 0.12)", // Subtle pink-tinted input border
+  
+  paper:         "#ffffff", // High-emphasis white text (for buttons)
+  textMuted:     "rgba(122, 43, 115, 0.75)", // Secondary muted text
+};
+
+/* ─── Feature list ────────────────────────────────────────────────────────── */
+const features = [
+  {
+    title: "Instant SOS Assistance",
+    description: "Real-time emergency response and guardian alerts.",
+  },
+  {
+    title: "Live Guardian Tracking",
+    description: "Share location securely with trusted contacts.",
+  },
+  {
+    title: "AI Safety Companion",
+    description: "Context-aware support whenever needed.",
+  },
+  {
+    title: "Secure Evidence Locker",
+    description: "Encrypted storage for important records and reports.",
+  },
+];
+
+/* ─── Shared Input Style ──────────────────────────────────────────────────── */
+const inputStyle = (isFocused: boolean): React.CSSProperties => ({
+  width: "100%",
+  paddingLeft: "2.875rem",
+  paddingRight: "1rem",
+  paddingTop: "0.6875rem",
+  paddingBottom: "0.6875rem",
+  background: C.inputBg,
+  border: `1px solid ${isFocused ? C.mainAccent : C.inputBorder}`,
+  borderRadius: "8px",
+  color: C.primaryDark,
+  fontSize: "0.875rem",
+  fontFamily: "'Poppins', sans-serif",
+  fontWeight: 400,
+  outline: "none",
+  transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+  boxSizing: "border-box",
+});
+
+/* ─── Progress Indicator Component ────────────────────────────────────────── */
+const ProgressIndicator = ({ current }: { current: "identity" | "contact" }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+    {(["identity", "contact"] as const).map((s) => (
+      <div
+        key={s}
+        style={{
+          width: current === s ? "18px" : "6px",
+          height: "6px",
+          borderRadius: "9999px",
+          background: current === s ? C.mainAccent : "rgba(214, 82, 163, 0.2)",
+          transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+        }}
+      />
+    ))}
+  </div>
+);
+
+/* ─── Main Onboarding Component ───────────────────────────────────────────── */
 const LoginPage = () => {
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: "", aadhaar: "", mobile: "", email: "" });
   const [showAadhaar, setShowAadhaar] = useState(false);
   const [step, setStep] = useState<"identity" | "contact">("identity");
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,212 +94,582 @@ const LoginPage = () => {
 
   return (
     <div
-      className="min-h-screen flex"
-      style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f2332 100%)" }}
+      className="sakhi-grain-overlay"
+      style={{
+        height: "100vh",
+        background: C.canvasBg,
+        fontFamily: "'Poppins', sans-serif",
+        padding: "1.75rem 1.5rem",
+        boxSizing: "border-box",
+        position: "relative",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+      }}
     >
-      {/* ── Left panel (branding) — desktop only ── */}
-      <div className="hidden lg:flex flex-col justify-between w-[480px] flex-shrink-0 p-14"
-        style={{ borderRight: "1px solid rgba(255,255,255,0.06)" }}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: "rgba(20,184,166,0.2)" }}>
-            <Shield style={{ width: 20, height: 20, color: "#14b8a6" }} />
-          </div>
-          <span style={{ fontFamily: "Manrope,sans-serif", fontWeight: 800, color: "white", fontSize: "1.125rem" }}>
-            Sakhi AI
-          </span>
-        </div>
+      {/* ── Poppins Font Injection & Custom CSS classes ── */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
-        <div>
-          <p style={{ fontFamily: "Manrope,sans-serif", fontWeight: 800, fontSize: "2.5rem", color: "white", lineHeight: 1.1 }}>
-            Your safety,<br />
-            <span style={{ color: "#14b8a6" }}>always with you.</span>
-          </p>
-          <p style={{ color: "rgba(255,255,255,0.5)", marginTop: "1.25rem", lineHeight: 1.7, fontSize: "0.9375rem" }}>
-            Sakhi is a personal safety companion powered by AI — helping you stay safe, document incidents, and stay connected with people who care.
-          </p>
-          <div className="mt-10 space-y-4">
-            {[
-              { icon: "🛡️", label: "Real-time SOS emergency alerts" },
-              { icon: "📍", label: "Live location sharing with guardians" },
-              { icon: "🤖", label: "AI companion monitoring" },
-              { icon: "🔒", label: "Evidence locker with PIN protection" },
-            ].map(f => (
-              <div key={f.label} className="flex items-center gap-3">
-                <span style={{ fontSize: "1.125rem" }}>{f.icon}</span>
-                <span style={{ color: "rgba(255,255,255,0.65)", fontSize: "0.875rem" }}>{f.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        .sakhi-input::placeholder { color: rgba(122, 43, 115, 0.45) !important; }
+        .sakhi-input:focus { outline: none !important; }
 
-        <p style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.75rem" }}>
-          © 2025 Sakhi AI. All data is encrypted and never shared.
-        </p>
-      </div>
+        .sakhi-btn-cta {
+          background: ${C.mainAccent};
+          border: 1px solid ${C.mainAccent};
+          color: ${C.paper};
+          border-radius: 4px;
+          padding: 0.6875rem 1.5rem;
+          font-family: 'Poppins', sans-serif;
+          font-weight: 500;
+          font-size: 0.875rem;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          width: 100%;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+          margin-top: 0.5rem;
+          letter-spacing: 0.02em;
+        }
+        .sakhi-btn-cta:hover {
+          background: ${C.hoverAccent};
+          border-color: ${C.hoverAccent};
+        }
+        .sakhi-btn-cta:active {
+          opacity: 0.9;
+          transform: scale(0.985);
+        }
 
-      {/* ── Right panel (form) ── */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-16">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="w-full max-w-[400px]"
+        .sakhi-btn-back-link {
+          background: none;
+          border: none;
+          color: ${C.primaryDark};
+          opacity: 0.8;
+          font-family: 'Poppins', sans-serif;
+          font-size: 0.8125rem;
+          cursor: pointer;
+          width: 100%;
+          margin-top: 0.625rem;
+          padding: 0.5rem;
+          transition: opacity 0.2s ease;
+          letter-spacing: 0.01em;
+          text-align: center;
+        }
+        .sakhi-btn-back-link:hover { opacity: 1; }
+
+        /* Grain texture overlay to maintain developer-grade cleanliness */
+        .sakhi-grain-overlay::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");
+          pointer-events: none;
+          z-index: 2;
+        }
+      `}</style>
+
+      {/* Dreamy mountain visual background on the right side (30% reduced opacity) */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          right: 0,
+          width: "55%",
+          height: "60%",
+          backgroundImage: "url('/sakhi_sunset_bg.png')",
+          backgroundSize: "contain",
+          backgroundPosition: "bottom right",
+          backgroundRepeat: "no-repeat",
+          pointerEvents: "none",
+          zIndex: 1,
+          opacity: 0.7, // Reduced opacity by 30% (70% remaining)
+        }}
+      />
+
+      {/* ── Spaced Centered Wrapper ── */}
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "1200px",
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          flex: 1,
+          position: "relative",
+          zIndex: 3,
+        }}
+      >
+        {/* ── Top Navigation Bar ── */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            width: "100%",
+            marginBottom: "1.75rem",
+          }}
         >
-          {/* Mobile logo */}
-          <div className="flex lg:hidden items-center gap-2 mb-10">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{ background: "rgba(20,184,166,0.2)" }}>
-              <Shield style={{ width: 16, height: 16, color: "#14b8a6" }} />
-            </div>
-            <span style={{ fontFamily: "Manrope,sans-serif", fontWeight: 800, color: "white" }}>Sakhi AI</span>
+          {/* Logo brand signature */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <svg
+              width="16"
+              height="18"
+              viewBox="0 0 16 18"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ flexShrink: 0 }}
+            >
+              <path
+                d="M8 0L1 2.5V8.5C1 12.8 3.9 16.5 8 18C12.1 16.5 15 12.8 15 8.5V2.5L8 0Z"
+                fill="#8C3A86"
+              />
+            </svg>
+            <span style={{ fontSize: "0.9375rem", color: C.primaryDark, fontWeight: 600, letterSpacing: "0.06em", fontFamily: "'Poppins', sans-serif" }}>
+              SAKHI AI
+            </span>
           </div>
 
-          {/* Heading */}
-          <div className="mb-8">
-            <p style={{ color: "#14b8a6", fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-              Step {step === "identity" ? "1" : "2"} of 2
-            </p>
-            <h1 style={{ fontFamily: "Manrope,sans-serif", fontWeight: 800, color: "white", fontSize: "1.75rem", marginTop: "0.5rem" }}>
-              {step === "identity" ? "Create your profile" : "Contact details"}
-            </h1>
-            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.875rem", marginTop: "0.5rem" }}>
-              {step === "identity"
-                ? "Your identity is stored locally and never shared."
-                : "Used only for emergency notifications."}
-            </p>
-          </div>
-
-          <form onSubmit={handleNext} className="space-y-4">
-            {step === "identity" ? (
-              <>
-                {/* Full Name */}
-                <div>
-                  <label style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.5rem" }}>
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <User style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "rgba(255,255,255,0.3)" }} />
-                    <input
-                      id="name"
-                      placeholder="Preeti Sharma"
-                      value={form.name}
-                      onChange={e => setForm({ ...form, name: e.target.value })}
-                      required
-                      style={{
-                        width: "100%", paddingLeft: "2.75rem", paddingRight: "1rem", paddingTop: "0.75rem", paddingBottom: "0.75rem",
-                        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10,
-                        color: "white", fontSize: "0.9375rem", outline: "none",
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Aadhaar */}
-                <div>
-                  <label style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.5rem" }}>
-                    Aadhaar Number
-                  </label>
-                  <div className="relative">
-                    <Lock style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "rgba(255,255,255,0.3)" }} />
-                    <input
-                      id="aadhaar"
-                      type={showAadhaar ? "text" : "password"}
-                      placeholder="XXXX XXXX XXXX"
-                      maxLength={14}
-                      value={form.aadhaar}
-                      onChange={e => setForm({ ...form, aadhaar: e.target.value })}
-                      required
-                      style={{
-                        width: "100%", paddingLeft: "2.75rem", paddingRight: "3rem", paddingTop: "0.75rem", paddingBottom: "0.75rem",
-                        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10,
-                        color: "white", fontSize: "0.9375rem", outline: "none",
-                      }}
-                    />
-                    <button type="button" onClick={() => setShowAadhaar(v => !v)}
-                      style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", background: "none", border: "none", cursor: "pointer" }}>
-                      {showAadhaar ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Mobile */}
-                <div>
-                  <label style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.5rem" }}>
-                    Mobile Number
-                  </label>
-                  <div className="relative">
-                    <Phone style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "rgba(255,255,255,0.3)" }} />
-                    <input
-                      id="mobile"
-                      type="tel"
-                      placeholder="+91 98765 43210"
-                      value={form.mobile}
-                      onChange={e => setForm({ ...form, mobile: e.target.value })}
-                      required
-                      style={{
-                        width: "100%", paddingLeft: "2.75rem", paddingRight: "1rem", paddingTop: "0.75rem", paddingBottom: "0.75rem",
-                        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10,
-                        color: "white", fontSize: "0.9375rem", outline: "none",
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.5rem" }}>
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <Mail style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "rgba(255,255,255,0.3)" }} />
-                    <input
-                      id="email"
-                      type="email"
-                      placeholder="preeti@example.com"
-                      value={form.email}
-                      onChange={e => setForm({ ...form, email: e.target.value })}
-                      required
-                      style={{
-                        width: "100%", paddingLeft: "2.75rem", paddingRight: "1rem", paddingTop: "0.75rem", paddingBottom: "0.75rem",
-                        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10,
-                        color: "white", fontSize: "0.9375rem", outline: "none",
-                      }}
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* CTA */}
-            <button
-              type="submit"
-              className="w-full flex items-center justify-center gap-2 font-bold transition-all duration-250 hover:opacity-90 active:scale-95"
+          {/* Top-right menu items & Progress state indicator */}
+          <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+            <span className="hidden sm:inline" style={{ fontSize: "0.8125rem", color: C.primaryDark, opacity: 0.8, fontWeight: 500 }}>
+              Privacy First
+            </span>
+            <span className="hidden sm:inline" style={{ fontSize: "0.8125rem", color: C.primaryDark, opacity: 0.8, fontWeight: 500 }}>
+              Local Encryption
+            </span>
+            <div
               style={{
-                background: "linear-gradient(135deg, #14b8a6, #0d9488)",
-                color: "white", borderRadius: 10, padding: "0.875rem 1.5rem",
-                fontSize: "0.9375rem", marginTop: "0.75rem",
-                boxShadow: "0 4px 20px rgba(20,184,166,0.35)", border: "none", cursor: "pointer",
+                background: C.cardBg,
+                color: C.primaryDark,
+                borderRadius: "9999px",
+                padding: "0.25rem 0.875rem",
+                fontSize: "0.8125rem",
+                fontWeight: 500,
+                letterSpacing: "0.02em",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                border: `1px solid ${C.cardBorder}`,
+                boxShadow: "0 4px 12px rgba(122, 43, 115, 0.03)",
               }}
             >
-              {step === "identity" ? "Continue" : "Enter Sakhi"}
-              <ArrowRight style={{ width: 18, height: 18 }} />
-            </button>
+              <span style={{ color: C.primaryDark }}>Step {step === "identity" ? "1" : "2"} of 2</span>
+              <ProgressIndicator current={step} />
+            </div>
+          </div>
+        </div>
 
-            {step === "contact" && (
-              <button type="button" onClick={() => setStep("identity")}
-                style={{ width: "100%", marginTop: "0.5rem", color: "rgba(255,255,255,0.4)", background: "none", border: "none", fontSize: "0.875rem", cursor: "pointer" }}>
-                ← Go back
-              </button>
-            )}
-          </form>
+        {/* ── Two-Column Layout ── */}
+        <div
+          style={{
+            display: "flex",
+            flex: 1,
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: "2rem",
+            alignItems: "center",
+            width: "100%",
+          }}
+        >
+          {/* LEFT SIDE (Branding & Feature terminal container) */}
+          <div
+            style={{
+              flex: "1 1 500px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
+              maxWidth: "580px",
+            }}
+          >
+            {/* Eyebrow Label */}
+            <div style={{ fontSize: "0.75rem", color: C.primaryDark, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+              PERSONAL SAFETY <span style={{ fontWeight: 700 }}>COMPANION</span>
+            </div>
 
-          <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.75rem", textAlign: "center", marginTop: "2rem" }}>
-            All data is encrypted locally. We never sell or share your information.
-          </p>
-        </motion.div>
+            {/* Headline with weight 300 and weight 700 contrast */}
+            <h1
+              style={{
+                fontSize: "2.375rem",
+                color: C.primaryDark,
+                fontWeight: 300,
+                lineHeight: 1.05,
+                margin: 0,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Your <span style={{ fontWeight: 700 }}>safety</span>,<br />
+              always by your side.
+            </h1>
+
+            {/* Soft Premium Feature Card (Apple Health/Wellness style) */}
+            <div
+              style={{
+                background: "rgba(255, 255, 255, 0.45)",
+                border: "1px solid rgba(255, 255, 255, 0.55)",
+                borderRadius: "16px",
+                padding: "1.25rem 1.75rem",
+                position: "relative",
+                width: "100%",
+                maxWidth: "480px",
+                boxSizing: "border-box",
+                boxShadow: "0 12px 32px rgba(213, 82, 163, 0.04)",
+              }}
+            >
+              {/* Feature List (Minimal Premium Typography) */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.875rem",
+                }}
+              >
+                {features.map((f, idx) => (
+                  <div
+                    key={f.title}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.875rem",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.2rem",
+                      }}
+                    >
+                      <h3
+                        style={{
+                          fontSize: "0.875rem",
+                          color: C.primaryDark,
+                          fontWeight: 500,
+                          fontFamily: "'Poppins', sans-serif",
+                          margin: 0,
+                          letterSpacing: "0.01em",
+                          lineHeight: "1.3",
+                        }}
+                      >
+                        {f.title}
+                      </h3>
+                      <p
+                        style={{
+                          fontSize: "0.775rem",
+                          color: C.textMuted,
+                          fontWeight: 400,
+                          fontFamily: "'Poppins', sans-serif",
+                          margin: 0,
+                          lineHeight: "1.4",
+                        }}
+                      >
+                        {f.description}
+                      </p>
+                    </div>
+                    {idx < features.length - 1 && (
+                      <div
+                        style={{
+                          height: "1px",
+                          background: "rgba(122, 43, 115, 0.06)",
+                        }}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Description Subtext */}
+            <p
+              style={{
+                fontSize: "0.875rem",
+                color: C.primaryDark,
+                opacity: 0.8,
+                lineHeight: 1.5,
+                margin: 0,
+                maxWidth: "460px",
+              }}
+            >
+              Sakhi AI is your personal safety companion — helping you stay connected with loved ones, reach help quickly during emergencies, and feel safer wherever life takes you.
+            </p>
+          </div>
+
+          {/* RIGHT SIDE (Create Profile Card Hero Element - White Floating Card) */}
+          <div
+            style={{
+              flex: "1 1 360px",
+              maxWidth: "420px",
+              background: C.cardBg,
+              border: `1px solid ${C.cardBorder}`,
+              borderRadius: "12px",
+              padding: "1.75rem 1.5rem",
+              boxSizing: "border-box",
+              boxShadow: "0 25px 60px rgba(122, 43, 115, 0.08)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.125rem",
+            }}
+          >
+            {/* Step Header */}
+            <div>
+              <span
+                style={{
+                  fontSize: "0.6875rem",
+                  color: C.mainAccent,
+                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {step === "identity" ? "Verification Details" : "Emergency Contact"}
+              </span>
+              <h2
+                style={{
+                  fontSize: "1.4375rem",
+                  color: C.primaryDark,
+                  fontWeight: 300,
+                  fontFamily: "'Poppins', sans-serif",
+                  letterSpacing: "0.04em",
+                  margin: "0.375rem 0 0.625rem 0",
+                }}
+              >
+                {step === "identity" ? "Create your profile" : "Contact details"}
+              </h2>
+              <p style={{ fontSize: "0.8125rem", color: C.textMuted, margin: 0, lineHeight: 1.4 }}>
+                {step === "identity"
+                  ? "Your identity is stored locally and never shared."
+                  : "Used only for emergency notifications."}
+              </p>
+            </div>
+
+            {/* Action Form */}
+            <form onSubmit={handleNext} style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+              <AnimatePresence mode="wait">
+                {step === "identity" ? (
+                  <motion.div
+                    key="identity"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}
+                  >
+                    {/* Full Name */}
+                    <div>
+                      <label style={{ display: "block", color: C.primaryDark, fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.25rem" }}>
+                        Full Name
+                      </label>
+                      <div style={{ position: "relative" }}>
+                        <User
+                          style={{
+                            position: "absolute",
+                            left: 14,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            width: 15,
+                            height: 15,
+                            color: focusedField === "name" ? C.mainAccent : C.primaryDark,
+                            opacity: focusedField === "name" ? 1 : 0.75,
+                            transition: "opacity 0.2s ease",
+                            pointerEvents: "none",
+                          }}
+                        />
+                        <input
+                          id="name"
+                          className="sakhi-input"
+                          placeholder="Preeti Sharma"
+                          value={form.name}
+                          onChange={(e) => setForm({ ...form, name: e.target.value })}
+                          onFocus={() => setFocusedField("name")}
+                          onBlur={() => setFocusedField(null)}
+                          required
+                          style={inputStyle(focusedField === "name")}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Aadhaar Number */}
+                    <div>
+                      <label style={{ display: "block", color: C.primaryDark, fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.25rem" }}>
+                        Aadhaar Number
+                      </label>
+                      <div style={{ position: "relative" }}>
+                        <Lock
+                          style={{
+                            position: "absolute",
+                            left: 14,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            width: 15,
+                            height: 15,
+                            color: focusedField === "aadhaar" ? C.mainAccent : C.primaryDark,
+                            opacity: focusedField === "aadhaar" ? 1 : 0.75,
+                            transition: "opacity 0.2s ease",
+                            pointerEvents: "none",
+                          }}
+                        />
+                        <input
+                          id="aadhaar"
+                          className="sakhi-input"
+                          type={showAadhaar ? "text" : "password"}
+                          placeholder="XXXX XXXX XXXX"
+                          maxLength={14}
+                          value={form.aadhaar}
+                          onChange={(e) => setForm({ ...form, aadhaar: e.target.value })}
+                          onFocus={() => setFocusedField("aadhaar")}
+                          onBlur={() => setFocusedField(null)}
+                          required
+                          style={inputStyle(focusedField === "aadhaar")}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAadhaar((v) => !v)}
+                          style={{
+                            position: "absolute",
+                            right: 14,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            color: C.primaryDark,
+                            opacity: 0.75,
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: 0,
+                            display: "flex",
+                            alignItems: "center",
+                          }}
+                        >
+                          {showAadhaar ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="contact"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}
+                  >
+                    {/* Mobile Number */}
+                    <div>
+                      <label style={{ display: "block", color: C.primaryDark, fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.25rem" }}>
+                        Mobile Number
+                      </label>
+                      <div style={{ position: "relative" }}>
+                        <Phone
+                          style={{
+                            position: "absolute",
+                            left: 14,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            width: 15,
+                            height: 15,
+                            color: C.primaryDark,
+                            opacity: focusedField === "mobile" ? 1 : 0.75,
+                            transition: "opacity 0.2s ease",
+                            pointerEvents: "none",
+                          }}
+                        />
+                        <input
+                          id="mobile"
+                          className="sakhi-input"
+                          type="tel"
+                          placeholder="+91 98765 43210"
+                          value={form.mobile}
+                          onChange={(e) => setForm({ ...form, mobile: e.target.value })}
+                          onFocus={() => setFocusedField("mobile")}
+                          onBlur={() => setFocusedField(null)}
+                          required
+                          style={inputStyle(focusedField === "mobile")}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Email Address */}
+                    <div>
+                      <label style={{ display: "block", color: C.primaryDark, fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.25rem" }}>
+                        Email Address
+                      </label>
+                      <div style={{ position: "relative" }}>
+                        <Mail
+                          style={{
+                            position: "absolute",
+                            left: 14,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            width: 15,
+                            height: 15,
+                            color: C.primaryDark,
+                            opacity: focusedField === "email" ? 1 : 0.75,
+                            transition: "opacity 0.2s ease",
+                            pointerEvents: "none",
+                          }}
+                        />
+                        <input
+                          id="email"
+                          className="sakhi-input"
+                          type="email"
+                          placeholder="preeti@example.com"
+                          value={form.email}
+                          onChange={(e) => setForm({ ...form, email: e.target.value })}
+                          onFocus={() => setFocusedField("email")}
+                          onBlur={() => setFocusedField(null)}
+                          required
+                          style={inputStyle(focusedField === "email")}
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Actions */}
+              <div>
+                <button
+                  id="onboarding-continue"
+                  type="submit"
+                  className="sakhi-btn-cta"
+                >
+                  {step === "identity" ? "Continue" : "Enter Sakhi"}
+                  <ArrowRight style={{ width: 15, height: 15 }} />
+                </button>
+
+                {step === "contact" && (
+                  <button
+                    type="button"
+                    className="sakhi-btn-back-link"
+                    onClick={() => setStep("identity")}
+                  >
+                    ← Go back
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* ── Footer Info ── */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            width: "100%",
+            marginTop: "1.5rem",
+            justifyContent: "flex-start",
+          }}
+        >
+          <Lock style={{ width: 12, height: 12, color: C.primaryDark, opacity: 0.6 }} />
+          <span style={{ fontSize: "0.75rem", color: C.primaryDark, opacity: 0.7, fontWeight: 400 }}>
+            Your information stays private and encrypted locally.
+          </span>
+        </div>
       </div>
     </div>
   );
