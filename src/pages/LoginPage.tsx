@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, ArrowRight, Eye, EyeOff, Lock, User, Phone, Mail } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -86,6 +86,14 @@ const LoginPage = () => {
   const [step, setStep] = useState<"identity" | "contact">("identity");
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
+  // Scroll to top on initial page load and disable browser automatic scroll restoration
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+    window.scrollTo(0, 0);
+  }, []);
+
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
     if (step === "identity") { setStep("contact"); return; }
@@ -93,22 +101,8 @@ const LoginPage = () => {
   };
 
   return (
-    <div
-      className="sakhi-grain-overlay"
-      style={{
-        height: "100vh",
-        background: C.canvasBg,
-        fontFamily: "'Poppins', sans-serif",
-        padding: "1.75rem 1.5rem",
-        boxSizing: "border-box",
-        position: "relative",
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-      }}
-    >
-      {/* ── Poppins Font Injection & Custom CSS classes ── */}
+    <div className="sakhi-grain-overlay sakhi-onboarding-root">
+      {/* ── Poppins Font Injection & Custom Responsive CSS ── */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
@@ -160,7 +154,6 @@ const LoginPage = () => {
         }
         .sakhi-btn-back-link:hover { opacity: 1; }
 
-        /* Grain texture overlay to maintain developer-grade cleanliness */
         .sakhi-grain-overlay::after {
           content: '';
           position: absolute;
@@ -169,27 +162,213 @@ const LoginPage = () => {
           pointer-events: none;
           z-index: 2;
         }
+
+        /* ── Desktop Layout (>= 1024px): Pixel-Perfect Exact Original ── */
+        @media (min-width: 1024px) {
+          .sakhi-onboarding-root {
+            height: 100vh;
+            background: ${C.canvasBg};
+            font-family: 'Poppins', sans-serif;
+            padding: 1.75rem 1.5rem;
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+          }
+          .sakhi-mountains-bg {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 55%;
+            height: 60%;
+            background-image: url('/sakhi_sunset_bg.png');
+            background-size: contain;
+            background-position: bottom right;
+            background-repeat: no-repeat;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.7;
+          }
+          .sakhi-nav-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 1.75rem;
+          }
+          .sakhi-body-grid {
+            display: flex;
+            flex: 1;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 2rem;
+            align-items: center;
+            width: 100%;
+          }
+          .sakhi-hero-col {
+            flex: 1 1 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-width: 580px;
+          }
+          .sakhi-hero-heading {
+            font-size: 2.375rem;
+            color: ${C.primaryDark};
+            font-weight: 300;
+            line-height: 1.05;
+            margin: 0;
+            letter-spacing: -0.01em;
+          }
+          .sakhi-feature-box {
+            background: rgba(255, 255, 255, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            border-radius: 16px;
+            padding: 1.25rem 1.75rem;
+            position: relative;
+            width: 100%;
+            max-width: 480px;
+            box-sizing: border-box;
+            box-shadow: 0 12px 32px rgba(213, 82, 163, 0.04);
+          }
+          .sakhi-profile-card {
+            flex: 1 1 360px;
+            max-width: 420px;
+            background: ${C.cardBg};
+            border: 1px solid ${C.cardBorder};
+            border-radius: 12px;
+            padding: 1.75rem 1.5rem;
+            box-sizing: border-box;
+            box-shadow: 0 25px 60px rgba(122, 43, 115, 0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 1.125rem;
+          }
+          .sakhi-footer-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+            margin-top: 1.5rem;
+            justify-content: flex-start;
+          }
+        }
+
+        /* ── Mobile & Tablet Layout (< 1024px): Optimized Mobile Experience ── */
+        @media (max-width: 1023px) {
+          .sakhi-onboarding-root {
+            min-height: 100vh;
+            min-height: 100dvh;
+            min-height: -webkit-fill-available;
+            height: auto;
+            background: ${C.canvasBg};
+            font-family: 'Poppins', sans-serif;
+            padding-top: max(1rem, env(safe-area-inset-top));
+            padding-bottom: max(2rem, env(safe-area-inset-bottom));
+            padding-left: max(1rem, env(safe-area-inset-left));
+            padding-right: max(1rem, env(safe-area-inset-right));
+            box-sizing: border-box;
+            position: relative;
+            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+          }
+          .sakhi-input {
+            font-size: 16px !important; /* Prevents auto-zoom on mobile Safari */
+          }
+          .sakhi-mountains-bg {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 100%;
+            height: 180px;
+            background-image: url('/sakhi_sunset_bg.png');
+            background-size: contain;
+            background-position: bottom right;
+            background-repeat: no-repeat;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.4;
+          }
+          .sakhi-nav-bar {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.625rem;
+            width: 100%;
+            margin-bottom: 1rem;
+          }
+          .sakhi-body-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            width: 100%;
+            align-items: center;
+          }
+          .sakhi-profile-card {
+            order: 1;
+            width: min(88vw, calc(100% - 1rem));
+            max-width: 420px;
+            background: ${C.cardBg};
+            border: 1px solid ${C.cardBorder};
+            border-radius: 12px;
+            padding: 1.375rem 1.25rem;
+            box-sizing: border-box;
+            box-shadow: 0 15px 40px rgba(122, 43, 115, 0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+          }
+          .sakhi-hero-col {
+            order: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 1.125rem;
+            width: 100%;
+            max-width: 480px;
+            align-items: center;
+            text-align: center;
+            overflow-wrap: break-word;
+          }
+          .sakhi-hero-heading {
+            font-size: 1.75rem;
+            color: ${C.primaryDark};
+            font-weight: 300;
+            line-height: 1.15;
+            margin: 0;
+            letter-spacing: -0.01em;
+          }
+          .sakhi-feature-box {
+            background: rgba(255, 255, 255, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            border-radius: 16px;
+            padding: 1rem 1.125rem;
+            position: relative;
+            width: 100%;
+            max-width: 480px;
+            box-sizing: border-box;
+            box-shadow: 0 12px 32px rgba(213, 82, 163, 0.04);
+            text-align: left;
+          }
+          .sakhi-footer-container {
+            order: 3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            width: 100%;
+            margin-top: 1rem;
+          }
+        }
       `}</style>
 
-      {/* Dreamy mountain visual background on the right side (30% reduced opacity) */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 0,
-          right: 0,
-          width: "55%",
-          height: "60%",
-          backgroundImage: "url('/sakhi_sunset_bg.png')",
-          backgroundSize: "contain",
-          backgroundPosition: "bottom right",
-          backgroundRepeat: "no-repeat",
-          pointerEvents: "none",
-          zIndex: 1,
-          opacity: 0.7, // Reduced opacity by 30% (70% remaining)
-        }}
-      />
+      {/* Dreamy mountain visual background */}
+      <div className="sakhi-mountains-bg" />
 
-      {/* ── Spaced Centered Wrapper ── */}
+      {/* ── Main Container ── */}
       <div
         style={{
           width: "100%",
@@ -204,15 +383,7 @@ const LoginPage = () => {
         }}
       >
         {/* ── Top Navigation Bar ── */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            width: "100%",
-            marginBottom: "1.75rem",
-          }}
-        >
+        <div className="sakhi-nav-bar">
           {/* Logo brand signature */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <svg
@@ -263,63 +434,24 @@ const LoginPage = () => {
           </div>
         </div>
 
-        {/* ── Two-Column Layout ── */}
-        <div
-          style={{
-            display: "flex",
-            flex: 1,
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: "2rem",
-            alignItems: "center",
-            width: "100%",
-          }}
-        >
-          {/* LEFT SIDE (Branding & Feature terminal container) */}
-          <div
-            style={{
-              flex: "1 1 500px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "1rem",
-              maxWidth: "580px",
-            }}
-          >
+        {/* ── Main Layout Body (Grid / Flex Container) ── */}
+        <div className="sakhi-body-grid">
+          {/* LEFT SIDE (Branding & Feature terminal container on desktop / Order 2 on mobile) */}
+          <div className="sakhi-hero-col">
             {/* Eyebrow Label */}
             <div style={{ fontSize: "0.75rem", color: C.primaryDark, fontWeight: 500, letterSpacing: "0.15em", textTransform: "uppercase" }}>
               PERSONAL SAFETY <span style={{ fontWeight: 700 }}>COMPANION</span>
             </div>
 
             {/* Headline with weight 300 and weight 700 contrast */}
-            <h1
-              style={{
-                fontSize: "2.375rem",
-                color: C.primaryDark,
-                fontWeight: 300,
-                lineHeight: 1.05,
-                margin: 0,
-                letterSpacing: "-0.01em",
-              }}
-            >
+            <h1 className="sakhi-hero-heading">
               Your <span style={{ fontWeight: 700 }}>safety</span>,<br />
               always by your side.
             </h1>
 
             {/* Soft Premium Feature Card (Apple Health/Wellness style) */}
-            <div
-              style={{
-                background: "rgba(255, 255, 255, 0.45)",
-                border: "1px solid rgba(255, 255, 255, 0.55)",
-                borderRadius: "16px",
-                padding: "1.25rem 1.75rem",
-                position: "relative",
-                width: "100%",
-                maxWidth: "480px",
-                boxSizing: "border-box",
-                boxShadow: "0 12px 32px rgba(213, 82, 163, 0.04)",
-              }}
-            >
-              {/* Feature List (Minimal Premium Typography) */}
+            <div className="sakhi-feature-box">
+              {/* Feature List */}
               <div
                 style={{
                   display: "flex",
@@ -397,22 +529,8 @@ const LoginPage = () => {
             </p>
           </div>
 
-          {/* RIGHT SIDE (Create Profile Card Hero Element - White Floating Card) */}
-          <div
-            style={{
-              flex: "1 1 360px",
-              maxWidth: "420px",
-              background: C.cardBg,
-              border: `1px solid ${C.cardBorder}`,
-              borderRadius: "12px",
-              padding: "1.75rem 1.5rem",
-              boxSizing: "border-box",
-              boxShadow: "0 25px 60px rgba(122, 43, 115, 0.08)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "1.125rem",
-            }}
-          >
+          {/* RIGHT SIDE (Create Profile Card - Order 1 on mobile) */}
+          <div className="sakhi-profile-card">
             {/* Step Header */}
             <div>
               <span
@@ -655,16 +773,7 @@ const LoginPage = () => {
         </div>
 
         {/* ── Footer Info ── */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            width: "100%",
-            marginTop: "1.5rem",
-            justifyContent: "flex-start",
-          }}
-        >
+        <div className="sakhi-footer-container">
           <Lock style={{ width: 12, height: 12, color: C.primaryDark, opacity: 0.6 }} />
           <span style={{ fontSize: "0.75rem", color: C.primaryDark, opacity: 0.7, fontWeight: 400 }}>
             Your information stays private and encrypted locally.
