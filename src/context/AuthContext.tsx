@@ -83,12 +83,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // ── Load profile whenever the authenticated user changes ────────────────
   const loadProfile = useCallback(async (userId: string) => {
     if (!supabase) return;
+    // limit(1) keeps a stray duplicate row (from an earlier registration
+    // attempt) from erroring the fetch; a missing row is not fatal either —
+    // the app falls back to the auth user's metadata for name/role.
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
+      .limit(1)
       .maybeSingle();
-    if (!error && data) setProfile(data as Profile);
+    if (error) {
+      // RLS misconfiguration or schema drift — surface it, but don't brick
+      // sign-in over a profile row: navigation uses the metadata fallback.
+      console.error("Failed to load profile:", error);
+      return;
+    }
+    if (data) setProfile(data as Profile);
   }, []);
 
   // ── Restore persisted session + subscribe to auth changes ───────────────
@@ -161,7 +171,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // ── Derived values ───────────────────────────────────────────────────────
   const user = session?.user ?? null;
-  const role = (profile?.role as Role) ?? null;
+  // Role comes from the profiles row when available; otherwise fall back to
+  // the auth user's signup metadata (always saved during Create Account).
+  // Without this, a missing/unreadable profile row leaves `role` null forever
+  // and the Sign In screen never navigates past login.
+  const role = (profile?.role ??
+    (user?.user_metadata?.role as Role | undefined) ??
+    null) as Role | null;
   // Authenticated users get their profile name; guest/demo uses the
   // sample persona "Preeti" to stay consistent with the demo data.
   const displayName =
@@ -170,8 +186,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // A profile only counts as "incomplete" for regular users missing the
   // Aadhaar last-4 (parents don't provide Aadhaar; email is always present
-  // because it's the OTP identifier). Derived from the loaded profile, so it
-  // never triggers while the profile is still being fetched on startup.
+  // because it's the OTP identifier). Requires the loaded profile row — a
+  // missing/unreadable row is NOT treated as incomplete, so users are never
+  // trapped in the Profile Completion screen when the backend can't save.
   const needsProfileCompletion =
     user !== null && profile !== null && profile.role === "user" && !profile.aadhaar_last4;
 

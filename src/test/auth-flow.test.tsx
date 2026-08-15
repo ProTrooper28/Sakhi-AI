@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { AuthProvider } from "../context/AuthContext";
 import AuthChoicePage from "../pages/AuthChoicePage";
 import SignInPage from "../pages/SignInPage";
+import ForgotPasswordPage from "../pages/ForgotPasswordPage";
 
 /**
  * Smoke tests — mounts the new auth screens (choice + sign-in) with the real
@@ -43,11 +44,27 @@ describe("auth flow screens", () => {
     expect(screen.getByRole("button", { name: /create account/i })).toBeInTheDocument();
   });
 
-  it("sign-in asks only for the email address", async () => {
+  it("sign-in asks for email + password (no OTP)", async () => {
     renderAt("/signin", { role: "user" }, <SignInPage />);
 
-    expect(await screen.findByText("Sign in with your email")).toBeInTheDocument();
+    expect(await screen.findByText(/sign in to your safety app/i)).toBeInTheDocument();
     expect(screen.getByLabelText("Email Address")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /send otp/i })).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /forgot password/i })).toBeInTheDocument();
+  });
+
+  it("forgot-password collects the email for the recovery link", async () => {
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={[{ pathname: "/forgot-password", state: { role: "user" } }]} initialIndex={0}>
+          <ForgotPasswordPage />
+        </MemoryRouter>
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByText(/reset your password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Email Address")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /send reset link/i })).toBeInTheDocument();
   });
 });

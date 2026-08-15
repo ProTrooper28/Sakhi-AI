@@ -62,7 +62,8 @@ const NotificationsContent = ({ onClose }: { onClose: () => void }) => (
 
 // ── Profile dropdown ─────────────────────────────────────────────────────────
 const ProfileContent = ({ navigate, onClose }: { navigate: (p: string) => void; onClose: () => void }) => {
-  const { displayName, initials, guest, signOut } = useAuth();
+  const { displayName, initials, guest, role, signOut } = useAuth();
+  const isParent = role === "parent";
   const go = (path: string) => { onClose(); navigate(path); };
   const handleLogout = () => { onClose(); void signOut(); navigate("/"); };
   return (
@@ -80,7 +81,9 @@ const ProfileContent = ({ navigate, onClose }: { navigate: (p: string) => void; 
       <div className="py-1">
         {[
           { label: "Safety Preferences", path: "/settings", icon: Settings },
-          { label: "Aapke Apnewale",     path: "/guardian", icon: Shield },
+          ...(isParent
+            ? [{ label: "Guardian Dashboard", path: "/guardian", icon: Shield }]
+            : [{ label: "Aapke Apnewale", path: "/guardians", icon: Shield }]),
         ].map(({ label, path, icon: Icon }) => (
           <button
             key={path} onClick={() => go(path)}
@@ -113,7 +116,8 @@ const ProfileContent = ({ navigate, onClose }: { navigate: (p: string) => void; 
 const MobileHeader = () => {
   const navigate = useNavigate();
   const { setSidebarOpen } = useApp();
-  const { guest } = useAuth();
+  const { guest, role } = useAuth();
+  const isParent = role === "parent";
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -153,9 +157,9 @@ const MobileHeader = () => {
       {/* Right Controls: Guardian Mode Button + Notif */}
       <div className="flex items-center gap-1.5">
         <button
-          onClick={() => navigate("/guardian")}
+          onClick={() => navigate(isParent ? "/guardian" : "/guardians")}
           className="icon-btn w-9 h-9 flex items-center justify-center text-[#8B3A2F]"
-          title="Guardian Mode"
+          title={isParent ? "Guardian Dashboard" : "Guardian Management"}
         >
           <Users className="w-5 h-5" />
         </button>
@@ -196,7 +200,8 @@ const MobileHeader = () => {
 const DesktopTopBar = () => {
   const navigate = useNavigate();
   const { isSidebarOpen, setSidebarOpen } = useApp();
-  const { initials, guest } = useAuth();
+  const { initials, guest, role } = useAuth();
+  const isParent = role === "parent";
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -236,15 +241,15 @@ const DesktopTopBar = () => {
           <span className="badge-muted" style={{ fontSize: 9, fontWeight: 800, padding: "3px 10px", letterSpacing: "0.04em" }}>👀 Demo Mode</span>
         )}
 
-        {/* Guardian Mode Quick Button */}
+        {/* Guardian Quick Button — role-aware destination */}
         <button
-          onClick={() => navigate("/guardian")}
+          onClick={() => navigate(isParent ? "/guardian" : "/guardians")}
           className="icon-btn px-3.5 py-1.5 flex items-center gap-2 rounded-xl text-xs font-bold text-[#8B3A2F]"
           style={{ background: "rgba(242,149,106,0.08)" }}
-          title="Guardian Mode Dashboard"
+          title={isParent ? "Guardian Dashboard" : "Guardian Management"}
         >
           <Users className="w-4 h-4 text-[#F2956A]" />
-          <span>Apne Guardian</span>
+          <span>{isParent ? "Guardian Dashboard" : "Apne Guardian"}</span>
         </button>
 
         <div className="relative" ref={notifRef}>

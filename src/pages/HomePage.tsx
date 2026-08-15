@@ -504,7 +504,7 @@ const HomePage = () => {
                 Aapke Apnewale 💛
               </h2>
               <button
-                onClick={() => navigate("/guardian")}
+                onClick={() => navigate("/guardians")}
                 className="flex items-center gap-1 cursor-pointer"
                 style={{
                   fontFamily: "Nunito,sans-serif",
@@ -578,7 +578,7 @@ const HomePage = () => {
                 <motion.button
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.92 }}
-                  onClick={() => navigate("/guardian")}
+                  onClick={() => navigate("/guardians")}
                   className="flex flex-col items-center gap-1.5 cursor-pointer"
                   style={{ minWidth: 64, background: "none", border: "none" }}
                 >

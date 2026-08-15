@@ -33,12 +33,13 @@ const maskEmail = (email: string) => {
 
 /**
  * OTP verification screen. Receives the pending registration via router
- * location state ({ email, role, profile }) and:
+ * location state ({ email, role, profile, mode }) and:
  *  1. Verifies the 6-digit email code with Supabase Auth (signs the user in
  *     directly — no magic link, no confirmation link).
- *  2. First-time users (no Aadhaar last-4 on the profile yet) are routed to
- *     the Profile Completion screen; returning users go straight to the app.
- *  3. The session persists across restarts.
+ *  2. Sign-up flows continue to the Create Password step; legacy sign-in
+ *     flows route straight to the app by stored role.
+ *  3. The session persists across restarts — OTP is only ever asked during
+ *     account creation, never for normal sign-in.
  */
 const OtpPage = () => {
   const navigate = useNavigate();
@@ -109,25 +110,28 @@ const OtpPage = () => {
         );
       }
 
-      // 1. Verify the code with Supabase Auth — this signs the user in and
-      //    persists the session (AuthContext reacts to SIGNED_IN).
+      // 1. Verify the code with Supabase Auth — this signs the user in,
+      //    persists the session, and (for a brand-new email) creates the auth
+      //    user + profile row at verification time.
       const userId = await verifyOtpCode({ email, token: digits });
 
-      // 2. First-login detection. The DB trigger already created the profile
-      //    row from the signup metadata (email is always recorded, since it's
-      //    the auth identifier). A regular user is only "incomplete" while the
-      //    Aadhaar last-4 is missing; parents are complete at signup.
+      // 2. New-account flow: the OTP verification just created this account —
+      //    the next step is Create Password (then Complete Profile for users,
+      //    or straight to the Guardian dashboard for parents). No OTP is ever
+      //    asked again after this point.
+      if (mode === "signup") {
+        navigate("/create-password", { state: { role, email }, replace: true });
+        return;
+      }
+
+      // 3. Legacy sign-in-via-OTP (existing account): route by the stored role
+      //    so the user lands in their own account type.
       const { data: profileRow } = userId
         ? await supabase.from("profiles").select("email, aadhaar_last4, role").eq("id", userId).maybeSingle()
         : { data: null };
       const incomplete =
         !profileRow || (role === "user" && !profileRow.aadhaar_last4);
-      // Route by the STORED role (fetch profile → go to the right experience),
-      // so a returning user lands in their own account type even if they
-      // entered via the other role's sign-in screen.
       const storedRole = (profileRow?.role as Role | undefined) ?? role;
-
-      // 3. Route on — completion screen for first login, app otherwise.
       navigate(
         incomplete
           ? "/complete-profile"

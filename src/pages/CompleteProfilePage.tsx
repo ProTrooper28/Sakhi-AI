@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ShieldCheck, Mail, Lock, IdCard, ArrowRight, Loader2 } from "lucide-react";
+import { ShieldCheck, Mail, IdCard, ArrowRight, Loader2 } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
 import type { Role } from "@/lib/auth-types";
@@ -63,17 +64,48 @@ const CompleteProfilePage = () => {
   const [form, setForm] = useState({
     email: user?.email ?? "",
     aadhaar: "",
-    password: "",
   });
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const role = (profile?.role ?? user?.user_metadata?.role ?? "user") as Role;
+  // Like Create Password, this screen is reached right after OTP verification,
+  // when AuthContext's session state can lag the router by one render. Fall
+  // back to the persisted session so the user is never bounced to Welcome.
+  const [sessionUser, setSessionUser] = useState<User | null>(null);
+  const [authResolved, setAuthResolved] = useState(!ready);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (user || guest) {
+      setAuthResolved(true);
+      return;
+    }
+    let mounted = true;
+    supabase?.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      if (data.session?.user) setSessionUser(data.session.user);
+      setAuthResolved(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [ready, user, guest]);
+
+  // Prefill the email once the auth user is known (first render may have
+  // happened before AuthContext caught up with the freshly-verified session).
+  const activeUser = user ?? sessionUser;
+  useEffect(() => {
+    if (!form.email && activeUser?.email) {
+      setForm((f) => ({ ...f, email: activeUser.email ?? "" }));
+    }
+  }, [activeUser, form.email]);
+
+  const role = (profile?.role ?? activeUser?.user_metadata?.role ?? "user") as Role;
   const needsAadhaar = role === "user";
 
   // Guests have no account — and signed-out visitors have nothing to complete.
-  if (!ready) {
+  if (!ready || !authResolved) {
     return (
       <div
         style={{
@@ -88,7 +120,7 @@ const CompleteProfilePage = () => {
       </div>
     );
   }
-  if (guest || !user) return <Navigate to="/" replace />;
+  if (guest || !activeUser) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,10 +132,6 @@ const CompleteProfilePage = () => {
     }
     if (needsAadhaar && !/^\d{12}$/.test(form.aadhaar.replace(/\s/g, ""))) {
       setError("Aadhaar must be a valid 12-digit number.");
-      return;
-    }
-    if (form.password && form.password.length < 6) {
-      setError("Password must be at least 6 characters.");
       return;
     }
     setError(null);
@@ -139,17 +167,15 @@ const CompleteProfilePage = () => {
         },
         { onConflict: "id" },
       );
-      if (profileError) throw new Error("Could not save your profile. Please try again.");
-
-      // 2. Optional password — enables password-based sign-in for recovery.
-      if (form.password) {
-        const { error: passwordError } = await supabase.auth.updateUser({
-          password: form.password,
-        });
-        if (passwordError) throw new Error("Could not set your password. Please try again.");
+      if (profileError) {
+        // Surface the real Supabase reason (schema mismatch, RLS policy
+        // rejection, constraint violation…) instead of a generic message so
+        // the root cause is visible during setup.
+        console.error("Profile upsert failed:", profileError);
+        throw new Error(`Could not save your profile. ${profileError.message}`);
       }
 
-      // 3. Refresh the in-memory profile so the Protected route guard sees the
+      // 2. Refresh the in-memory profile so the Protected route guard sees the
       //    completed profile and doesn't bounce the user back here.
       await refreshProfile();
 
@@ -162,7 +188,7 @@ const CompleteProfilePage = () => {
   };
 
   const fields: {
-    id: "email" | "aadhaar" | "password";
+    id: "email" | "aadhaar";
     label: string;
     placeholder: string;
     type: string;
@@ -182,14 +208,6 @@ const CompleteProfilePage = () => {
           },
         ]
       : []),
-    {
-      id: "password",
-      label: "Password (optional)",
-      placeholder: "At least 6 characters",
-      type: "password",
-      icon: Lock,
-      hint: "Used only for future account recovery.",
-    },
   ];
 
   return (
@@ -383,7 +401,7 @@ const CompleteProfilePage = () => {
                   onChange={(e) => setForm({ ...form, [id]: e.target.value })}
                   onFocus={() => setFocusedField(id)}
                   onBlur={() => setFocusedField(null)}
-                  required={id !== "password"}
+                  required
                   style={inputStyle(focusedField === id)}
                 />
               </div>

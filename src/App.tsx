@@ -9,9 +9,12 @@ import { AppProvider } from "@/context/AppContext";
 import WelcomePage from "./pages/WelcomePage";
 import AuthChoicePage from "./pages/AuthChoicePage";
 import SignInPage from "./pages/SignInPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import LoginPage from "./pages/LoginPage";
 import ParentRegisterPage from "./pages/ParentRegisterPage";
 import OtpPage from "./pages/OtpPage";
+import CreatePasswordPage from "./pages/CreatePasswordPage";
 import CompleteProfilePage from "./pages/CompleteProfilePage";
 import HomePage from "./pages/HomePage";
 import SOSPage from "./pages/SOSPage";
@@ -22,6 +25,7 @@ import MyReportsPage from "./pages/MyReportsPage";
 import EvidenceLockerPage from "./pages/EvidenceLockerPage";
 import RiskMapPage from "./pages/RiskMapPage";
 import GuardianPage from "./pages/GuardianPage";
+import GuardiansPage from "./pages/GuardiansPage";
 import WearableDemoPage from "./pages/WearableDemoPage";
 import LocationTrackingPage from "./pages/LocationTrackingPage";
 import SecuritySettingsPage from "./pages/SecuritySettingsPage";
@@ -33,6 +37,44 @@ const queryClient = new QueryClient();
  * Route guard: only lets authenticated users or guests through. Signed-out
  * visitors are sent back to the role-selection welcome screen.
  */
+/**
+ * Keeps the two apps separate after login:
+ *
+ *   /guardian   → the Parent/Guardian monitoring app (role must be "parent")
+ *   /guardians  → the user app's Guardian Management (role must be "user")
+ *
+ * Guests keep demo access to either; signed-in users are bounced to their own
+ * app's home. role === null means the profile is still loading — wait for it.
+ */
+const RoleGuard = ({
+  expected,
+  fallback,
+  children,
+}: {
+  expected: "user" | "parent";
+  fallback: string;
+  children: ReactNode;
+}) => {
+  const { ready, role, guest } = useAuth();
+  if (!ready) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "var(--sakhi-cream)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <span className="dot-teal" />
+      </div>
+    );
+  }
+  if (!guest && role !== null && role !== expected) return <Navigate to={fallback} replace />;
+  return <>{children}</>;
+};
+
 const Protected = ({ children }: { children: ReactNode }) => {
   const { ready, user, guest, needsProfileCompletion } = useAuth();
   if (!ready) {
@@ -70,13 +112,17 @@ const App = () => (
               <Route path="/" element={<WelcomePage />} />
               {/* Welcome Back — Sign In vs Create Account (role from state) */}
               <Route path="/auth" element={<AuthChoicePage />} />
-              {/* Sign In — email-only OTP (existing accounts) */}
+              {/* Sign In — email + password (existing accounts, no OTP) */}
               <Route path="/signin" element={<SignInPage />} />
-              {/* Create Account — guided registration (name → phone → email → OTP) */}
+              {/* Password recovery — Supabase reset link flow */}
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              {/* Create Account — guided registration (name → phone → email → OTP → password) */}
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<ParentRegisterPage />} />
               <Route path="/otp" element={<OtpPage />} />
-              {/* First-login only: email + Aadhaar (last 4) + optional password. */}
+              {/* First-login only: create password, then Aadhaar (last 4). */}
+              <Route path="/create-password" element={<CreatePasswordPage />} />
               <Route path="/complete-profile" element={<CompleteProfilePage />} />
 
               {/* ── App (authenticated or guest) ── */}
@@ -152,11 +198,27 @@ const App = () => (
                   </Protected>
                 }
               />
+              {/* Guardian monitoring app — parents only. Users are sent to their
+                  own Guardian Management page (/guardians). */}
               <Route
                 path="/guardian"
                 element={
                   <Protected>
-                    <GuardianPage />
+                    <RoleGuard expected="parent" fallback="/guardians">
+                      <GuardianPage />
+                    </RoleGuard>
+                  </Protected>
+                }
+              />
+              {/* User app — Guardian Management (invite code, accept/reject).
+                  Parents are sent back to their monitoring dashboard. */}
+              <Route
+                path="/guardians"
+                element={
+                  <Protected>
+                    <RoleGuard expected="user" fallback="/guardian">
+                      <GuardiansPage />
+                    </RoleGuard>
                   </Protected>
                 }
               />

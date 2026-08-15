@@ -56,3 +56,35 @@ export type OtpFlowState = {
   profile?: OtpProfilePayload;
   mode?: OtpMode;
 };
+
+/**
+ * A guardian ↔ user link request (public.guardian_links).
+ *
+ * `guardian_name` / `user_name` are denormalized at insert time because RLS
+ * prevents either side from reading the other profile row before a link is
+ * accepted — both sides can still render the other person's name.
+ */
+export type GuardianLink = {
+  id: string;
+  guardian_id: string;
+  user_id: string;
+  relationship: string | null;
+  guardian_name: string | null;
+  user_name: string | null;
+  status: "pending" | "accepted";
+  created_at: string;
+};
+
+/** Relationship options shown when a guardian links a new family member. */
+export const RELATIONSHIPS = [
+  "Mother",
+  "Father",
+  "Brother",
+  "Sister",
+  "Friend",
+  "Spouse",
+  "Guardian",
+  "Other",
+] as const;
+
+export type Relationship = (typeof RELATIONSHIPS)[number];

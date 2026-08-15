@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { sendOtp, isValidEmail } from "@/lib/otp";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { isValidEmail } from "@/lib/otp";
 import type { Role } from "@/lib/auth-types";
 
 /* ─── Color & Style Tokens (Bright Pink Sunset Palette — matches onboarding) ── */
@@ -23,7 +24,7 @@ const C = {
 const inputStyle = (isFocused: boolean): React.CSSProperties => ({
   width: "100%",
   paddingLeft: "2.875rem",
-  paddingRight: "1rem",
+  paddingRight: "2.75rem",
   paddingTop: "0.6875rem",
   paddingBottom: "0.6875rem",
   background: C.inputBg,
@@ -39,32 +40,35 @@ const inputStyle = (isFocused: boolean): React.CSSProperties => ({
 });
 
 /**
- * Sign In — existing accounts only. Asks for the email address, sends a
- * 6-digit Email OTP via Supabase Auth (shouldCreateUser: false — no account
- * is created, no profile metadata is touched), and hands off to the OTP
- * screen. Name / Aadhaar / phone are never asked again: they're already
- * stored on the profile.
+ * Sign In — existing accounts only. Email + password (OTP is NOT used for
+ * normal login; it's reserved for account creation and password recovery).
+ * After Supabase validates the credentials the session flows through
+ * AuthContext, and this screen routes by the stored profile role:
+ * user → Home (or Complete Profile if Aadhaar is still missing),
+ * parent → Guardian dashboard.
  */
 const SignInPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { ready, user, guest } = useAuth();
+  const { ready, user, guest, role, needsProfileCompletion } = useAuth();
 
-  const role = ((location.state as { role?: Role } | null)?.role ?? "user") as Role;
-  const isParent = role === "parent";
+  const roleHint = ((location.state as { role?: Role } | null)?.role ?? "user") as Role;
+  const isParent = roleHint === "parent";
 
   const [email, setEmail] = useState("");
-  const [focused, setFocused] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [focused, setFocused] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [showCreateHint, setShowCreateHint] = useState(false);
 
-  // Already signed in? Skip authentication entirely and open the app.
+  // Already signed in? Skip authentication and open the right app.
   useEffect(() => {
-    if (ready && !guest && user) {
-      navigate(isParent ? "/guardian" : "/home", { replace: true });
-    }
-  }, [ready, guest, user, isParent, navigate]);
+    if (!ready || guest) return;
+    if (!user || role === null) return; // wait for the profile to load
+    if (role === "parent") navigate("/guardian", { replace: true });
+    else navigate(needsProfileCompletion ? "/complete-profile" : "/home", { replace: true });
+  }, [ready, guest, user, role, needsProfileCompletion, navigate]);
 
   if (!ready) {
     return (
@@ -90,18 +94,35 @@ const SignInPage = () => {
       setError("Please enter a valid email address.");
       return;
     }
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
+    if (!isSupabaseConfigured || !supabase) {
+      setError("Backend is not configured yet. Ask your developer to connect Supabase, or continue as a Guest.");
+      return;
+    }
     setError(null);
-    setShowCreateHint(false);
-
     setSending(true);
     try {
-      // Sign-in mode: never create an account, never overwrite stored metadata.
-      await sendOtp({ email: cleanEmail, role, shouldCreateUser: false });
-      navigate("/otp", { state: { email: cleanEmail, role, mode: "signin" } });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Something went wrong. Please try again.";
-      setError(message);
-      setShowCreateHint(message.includes("No Sakhi AI account"));
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+      if (signInError) {
+        const m = signInError.message.toLowerCase();
+        if (m.includes("invalid") || m.includes("credentials")) {
+          setError("Incorrect email or password. Try again, or reset your password below.");
+        } else if (m.includes("confirm")) {
+          setError("Please confirm your email address before signing in.");
+        } else {
+          setError(signInError.message);
+        }
+        return;
+      }
+      // Session + profile load through AuthContext; the effect above navigates.
+    } catch {
+      setError("Network error. Please check your connection and try again.");
     } finally {
       setSending(false);
     }
@@ -230,6 +251,19 @@ const SignInPage = () => {
           padding: 0;
         }
         .signin-switch:hover { text-decoration: underline; }
+
+        .signin-forgot {
+          background: none;
+          border: none;
+          color: ${C.textMuted};
+          font-family: 'Poppins', sans-serif;
+          font-size: 0.75rem;
+          font-weight: 500;
+          cursor: pointer;
+          padding: 0.375rem 0 0;
+          align-self: flex-start;
+        }
+        .signin-forgot:hover { color: ${C.mainAccent}; }
       `}</style>
 
       <div className="sakhi-mountains-bg" />
@@ -240,7 +274,7 @@ const SignInPage = () => {
         transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
         className="signin-card"
       >
-        <button className="signin-back" onClick={() => navigate("/auth", { state: { role } })} type="button">
+        <button className="signin-back" onClick={() => navigate("/auth", { state: { role: roleHint } })} type="button">
           <ArrowLeft style={{ width: 14, height: 14 }} /> Back
         </button>
 
@@ -280,10 +314,10 @@ const SignInPage = () => {
             margin: "0.375rem 0 0.5rem",
           }}
         >
-          Sign in with your email
+          Sign in to {isParent ? "your guardian dashboard" : "your safety app"}
         </h2>
         <p style={{ fontSize: "0.8125rem", color: C.textMuted, margin: "0 0 1.25rem", lineHeight: 1.5 }}>
-          We'll send a {6}-digit code to your email. No password needed.
+          Enter your email and password. No OTP needed for returning users.
         </p>
 
         {error && <div className="signin-error">{error}</div>}
@@ -312,8 +346,8 @@ const SignInPage = () => {
                   transform: "translateY(-50%)",
                   width: 15,
                   height: 15,
-                  color: focused ? C.mainAccent : C.primaryDark,
-                  opacity: focused ? 1 : 0.75,
+                  color: focused === "email" ? C.mainAccent : C.primaryDark,
+                  opacity: focused === "email" ? 1 : 0.75,
                   transition: "opacity 0.2s ease",
                   pointerEvents: "none",
                 }}
@@ -326,22 +360,98 @@ const SignInPage = () => {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                onFocus={() => setFocused(true)}
-                onBlur={() => setFocused(false)}
+                onFocus={() => setFocused("email")}
+                onBlur={() => setFocused(null)}
                 required
-                style={inputStyle(focused)}
+                style={inputStyle(focused === "email")}
               />
             </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="signin-password"
+              style={{
+                display: "block",
+                color: C.primaryDark,
+                fontSize: "0.75rem",
+                fontWeight: 500,
+                marginBottom: "0.25rem",
+                fontFamily: "'Poppins', sans-serif",
+              }}
+            >
+              Password
+            </label>
+            <div style={{ position: "relative" }}>
+              <Lock
+                style={{
+                  position: "absolute",
+                  left: 14,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  width: 15,
+                  height: 15,
+                  color: focused === "password" ? C.mainAccent : C.primaryDark,
+                  opacity: focused === "password" ? 1 : 0.75,
+                  transition: "opacity 0.2s ease",
+                  pointerEvents: "none",
+                }}
+              />
+              <input
+                id="signin-password"
+                className="sakhi-input"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setFocused("password")}
+                onBlur={() => setFocused(null)}
+                required
+                style={inputStyle(focused === "password")}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                style={{
+                  position: "absolute",
+                  right: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: C.textMuted,
+                  display: "flex",
+                  alignItems: "center",
+                  padding: 4,
+                }}
+              >
+                {showPassword ? (
+                  <EyeOff style={{ width: 16, height: 16 }} />
+                ) : (
+                  <Eye style={{ width: 16, height: 16 }} />
+                )}
+              </button>
+            </div>
+            <button
+              type="button"
+              className="signin-forgot"
+              onClick={() => navigate("/forgot-password", { state: { role: roleHint, email } })}
+            >
+              Forgot password?
+            </button>
           </div>
 
           <button className="signin-cta" type="submit" disabled={sending}>
             {sending ? (
               <>
-                <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} /> Sending OTP…
+                <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} /> Signing in…
               </>
             ) : (
               <>
-                Send OTP <ArrowRight style={{ width: 15, height: 15 }} />
+                Sign In <ArrowRight style={{ width: 15, height: 15 }} />
               </>
             )}
           </button>
@@ -356,29 +466,14 @@ const SignInPage = () => {
             fontFamily: "'Poppins', sans-serif",
           }}
         >
-          {showCreateHint ? (
-            <>
-              No account yet?{" "}
-              <button
-                className="signin-switch"
-                type="button"
-                onClick={() => navigate(isParent ? "/register" : "/login", { state: { role, email } })}
-              >
-                Create Account
-              </button>
-            </>
-          ) : (
-            <>
-              New to Sakhi AI?{" "}
-              <button
-                className="signin-switch"
-                type="button"
-                onClick={() => navigate(isParent ? "/register" : "/login", { state: { role, email } })}
-              >
-                Create Account
-              </button>
-            </>
-          )}
+          New to Sakhi AI?{" "}
+          <button
+            className="signin-switch"
+            type="button"
+            onClick={() => navigate(isParent ? "/register" : "/login", { state: { role: roleHint, email } })}
+          >
+            Create Account
+          </button>
         </div>
       </motion.div>
     </div>

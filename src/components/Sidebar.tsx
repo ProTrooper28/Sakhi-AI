@@ -19,24 +19,59 @@ import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState, useRef } from "react";
 
-const navItems = [
-  { icon: LayoutDashboard, label: "Home",             path: "/home" },
-  { icon: AlertOctagon,    label: "SOS Settings",     path: "/sos" },
-  { icon: Users,           label: "Aapke Apnewale",   path: "/guardian" },
-  { icon: MessageSquare,   label: "AI Companion",     path: "/assistant" },
-  { icon: Map,             label: "Location Tracking",path: "/location" },
-  { icon: Archive,         label: "Evidence Locker",  path: "/evidence-locker" },
-  { icon: FileWarning,     label: "Anonymous Reports",path: "/report" },
-  { icon: FileText,        label: "My Reports",       path: "/my-reports" },
-  { icon: Watch,           label: "Wearable Device",  path: "/wearable" },
-  { icon: Settings,        label: "Settings",         path: "/settings" },
+type NavItem = { icon: typeof Shield; label: string; path: string };
+
+// The two apps share a sidebar shell but expose completely different sections:
+//   • user (or guest/demo)  → the personal safety app
+//   • parent                → the emergency monitoring dashboard
+type NavSection = { label: string; items: NavItem[] };
+
+const USER_SECTIONS: NavSection[] = [
+  {
+    label: "Navigation",
+    items: [
+      { icon: LayoutDashboard, label: "Home",                path: "/home" },
+      { icon: AlertOctagon,    label: "SOS Settings",        path: "/sos" },
+      { icon: Users,           label: "Guardian Management", path: "/guardians" },
+      { icon: MessageSquare,   label: "AI Companion",        path: "/assistant" },
+    ],
+  },
+  {
+    label: "Safety Tools",
+    items: [
+      { icon: Map,             label: "Location Tracking",   path: "/location" },
+      { icon: Archive,         label: "Evidence Locker",     path: "/evidence-locker" },
+      { icon: FileWarning,     label: "Anonymous Reports",   path: "/report" },
+      { icon: FileText,        label: "My Reports",          path: "/my-reports" },
+    ],
+  },
+  {
+    label: "Account",
+    items: [
+      { icon: Watch,           label: "Wearable Device",     path: "/wearable" },
+      { icon: Settings,        label: "Settings",            path: "/settings" },
+    ],
+  },
+];
+
+const GUARDIAN_SECTIONS: NavSection[] = [
+  {
+    label: "Guardian App",
+    items: [
+      { icon: LayoutDashboard, label: "Guardian Dashboard", path: "/guardian" },
+      { icon: Users,           label: "Family Members",     path: "/guardian" },
+      { icon: Settings,        label: "Settings",           path: "/settings" },
+    ],
+  },
 ];
 
 const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isSidebarOpen, setSidebarOpen } = useApp();
-  const { displayName, initials, guest, signOut } = useAuth();
+  const { displayName, initials, guest, role, signOut } = useAuth();
+  const isParent = role === "parent";
+  const sections = isParent ? GUARDIAN_SECTIONS : USER_SECTIONS;
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const sidebarContainerRef = useRef<HTMLDivElement>(null);
 
@@ -152,67 +187,33 @@ const Sidebar = () => {
 
       {/* ── Navigation List ── */}
       <nav className="flex-1 px-3 pb-4 space-y-1 overflow-y-auto">
-        <p className="section-label px-3 pb-2 text-white/30 uppercase tracking-widest text-[9px] font-bold">Navigation</p>
-        {navItems.slice(0, 3).map((item) => {
-          const active = location.pathname === item.path;
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.path}
-              onClick={() => handleNavClick(item.path)}
-              className={`sidebar-item flex items-center gap-3 w-full px-4 py-2.5 rounded-full text-left transition-all text-sm font-semibold hover:bg-white/10 active:scale-95 cursor-pointer ${
-                active 
-                  ? "bg-white/15 text-white shadow-sm font-bold border-l-4 border-l-[#F2956A] pl-3" 
-                  : "text-[#FDDCCC]/80 hover:text-white"
-              }`}
-            >
-              <Icon className="w-[18px] h-[18px] flex-shrink-0" />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-
-        <p className="section-label px-3 pt-4 pb-2 text-white/30 uppercase tracking-widest text-[9px] font-bold">Safety Tools</p>
-        {navItems.slice(3, 8).map((item) => {
-          const active =
-            location.pathname === item.path ||
-            (item.path === "/report" && location.pathname.startsWith("/report-review"));
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.path}
-              onClick={() => handleNavClick(item.path)}
-              className={`sidebar-item flex items-center gap-3 w-full px-4 py-2.5 rounded-full text-left transition-all text-sm font-semibold hover:bg-white/10 active:scale-95 cursor-pointer ${
-                active 
-                  ? "bg-white/15 text-white shadow-sm font-bold border-l-4 border-l-[#F2956A] pl-3" 
-                  : "text-[#FDDCCC]/80 hover:text-white"
-              }`}
-            >
-              <Icon className="w-[18px] h-[18px] flex-shrink-0" />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-
-        <p className="section-label px-3 pt-4 pb-2 text-white/30 uppercase tracking-widest text-[9px] font-bold">Account</p>
-        {navItems.slice(8).map((item) => {
-          const active = location.pathname === item.path;
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.path}
-              onClick={() => handleNavClick(item.path)}
-              className={`sidebar-item flex items-center gap-3 w-full px-4 py-2.5 rounded-full text-left transition-all text-sm font-semibold hover:bg-white/10 active:scale-95 cursor-pointer ${
-                active 
-                  ? "bg-white/15 text-white shadow-sm font-bold border-l-4 border-l-[#F2956A] pl-3" 
-                  : "text-[#FDDCCC]/80 hover:text-white"
-              }`}
-            >
-              <Icon className="w-[18px] h-[18px] flex-shrink-0" />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
+        {sections.map((section) => (
+          <div key={section.label} className="mb-1">
+            <p className="section-label px-3 pb-2 pt-3 text-white/30 uppercase tracking-widest text-[9px] font-bold">
+              {section.label}
+            </p>
+            {section.items.map((item) => {
+              const active =
+                location.pathname === item.path ||
+                (item.path === "/report" && location.pathname.startsWith("/report-review"));
+              const Icon = item.icon;
+              return (
+                <button
+                  key={`${section.label}-${item.path}`}
+                  onClick={() => handleNavClick(item.path)}
+                  className={`sidebar-item flex items-center gap-3 w-full px-4 py-2.5 rounded-full text-left transition-all text-sm font-semibold hover:bg-white/10 active:scale-95 cursor-pointer ${
+                    active 
+                      ? "bg-white/15 text-white shadow-sm font-bold border-l-4 border-l-[#F2956A] pl-3" 
+                      : "text-[#FDDCCC]/80 hover:text-white"
+                  }`}
+                >
+                  <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* ── User Footer ── */}
@@ -225,7 +226,9 @@ const Sidebar = () => {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white text-xs font-semibold truncate">{displayName}</p>
-            <p className="text-white/40 text-[10px] truncate">{guest ? "Demo Mode" : "Protected"}</p>
+            <p className="text-white/40 text-[10px] truncate">
+              {guest ? "Demo Mode" : isParent ? "Guardian" : "Protected"}
+            </p>
           </div>
           <button
             onClick={handleLogout}

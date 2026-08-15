@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { 
   MapPin, Phone, CheckCircle2, Shield, RefreshCw, 
   Users, AlertTriangle, BatteryMedium, Wifi, Camera, 
   Mic, Clock, Navigation, Stethoscope, CarFront, MessageSquare, 
-  FileText, ChevronRight, Check
+  FileText, ChevronRight, UserPlus, Bell, Trash2, Loader2, Link2
 } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -12,6 +12,8 @@ import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
+import { fetchMyLinks, addGuardianLink, removeLink, renameRelationship } from "@/lib/guardians";
+import { RELATIONSHIPS, type GuardianLink } from "@/lib/auth-types";
 
 // ── Icons & Map Helpers ────────────────────────────────────────────────────────
 
@@ -41,13 +43,521 @@ const createPoiMarker = (emoji: string, color: string) => L.divIcon({
   iconAnchor: [16, 16],
 });
 
+const AVATAR_COLORS = ["#F2956A", "#3D9970", "#D4455C", "#6B4F40", "#B7770D", "#2E7D56"];
+
+const initialsOf = (name: string) =>
+  name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "M";
+
+// Deterministic demo readouts for the family live map (real-time GPS arrives
+// with the SOS pipeline — these keep the dashboard honest and stable across
+// renders instead of flickering random values).
+const DEMO_AREAS = ["Bandra West, Mumbai", "Andheri East, Mumbai", "Powai, Mumbai", "Kurla, Mumbai", "Juhu, Mumbai", "Dadar, Mumbai"];
+const DEMO_UPDATED = ["Just now", "1 min ago", "2 min ago", "3 min ago", "4 min ago", "5 min ago"];
+
+// ── Family live map (parent dashboard) ────────────────────────────────────────
+
+const FamilyMap = ({ members }: { members: GuardianLink[] }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const map = L.map(containerRef.current, {
+      center: [19.0596, 72.8295],
+      zoom: 13,
+      zoomControl: false,
+      attributionControl: false,
+    });
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
+
+    // The guardian themself (blue), around whom the demo family positions orbit.
+    L.marker([19.0596, 72.8295], { icon: createGuardianMarker() }).addTo(map);
+    members.forEach((m, i) => {
+      const lat = 19.0596 + (i % 3) * 0.012 - 0.012;
+      const lng = 72.8295 + Math.floor(i / 3) * 0.012 - 0.006;
+      L.marker([lat, lng], { icon: createUserMarker() }).addTo(map);
+    });
+
+    return () => {
+      map.remove();
+    };
+  }, [members]);
+
+  return <div ref={containerRef} style={{ height: 220, width: "100%", borderRadius: 20 }} />;
+};
+
+// ── Guardian dashboard (parent app home) ──────────────────────────────────────
+
+const GuardianDashboard = () => {
+  const { displayName } = useAuth();
+  const { sosState } = useApp();
+
+  const [links, setLinks] = useState<GuardianLink[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [inviteCode, setInviteCode] = useState("");
+  const [relationship, setRelationship] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editRelationship, setEditRelationship] = useState("");
+
+  const load = useCallback(async () => {
+    const fetched = await fetchMyLinks("parent");
+    setLinks(fetched);
+    setLoading(false);
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const accepted = links.filter((l) => l.status === "accepted");
+  const pending = links.filter((l) => l.status === "pending");
+  const firstName = displayName.split(/\s+/)[0] || "Guardian";
+
+  const hour = new Date().getHours();
+  const greeting =
+    hour >= 5 && hour < 12
+      ? `Good Morning, ${firstName} 👋`
+      : hour >= 12 && hour < 17
+        ? `Good Afternoon, ${firstName} 👋`
+        : `Good Evening, ${firstName} 👋`;
+
+  const handleAdd = async () => {
+    const code = inviteCode.trim();
+    if (!code) {
+      setError("Enter the user's invite code first.");
+      return;
+    }
+    if (!relationship) {
+      setError("Choose how this person is related to you.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setFeedback(null);
+    const res = await addGuardianLink({ inviteCode: code, relationship, guardianName: displayName });
+    setBusy(false);
+    if (res.ok) {
+      setInviteCode("");
+      setRelationship("");
+      setFeedback("Request sent! They'll see it in their Guardian Management screen.");
+      void load();
+    } else {
+      setError(res.message);
+    }
+  };
+
+  const handleRemove = async (link: GuardianLink) => {
+    const ok = await removeLink(link.id);
+    if (ok) void load();
+    else setError("Could not remove this member. Please try again.");
+  };
+
+  const handleRename = async (link: GuardianLink) => {
+    const value = editRelationship.trim();
+    if (!value) {
+      setEditingId(null);
+      return;
+    }
+    const ok = await renameRelationship(link.id, value);
+    setEditingId(null);
+    if (ok) void load();
+    else setError("Could not update the relationship. Please try again.");
+  };
+
+  // Recent Notifications = the guardian's live alerts right now: pending link
+  // requests plus any active SOS. Details stay in the Sent Requests section.
+  const notificationCount = pending.length + (sosState.active ? 1 : 0);
+  const stats = [
+    { label: "Family Members Linked", value: String(accepted.length), icon: Users, color: "#3D9970", bg: "rgba(61,153,112,0.12)" },
+    { label: "Current Safety Status", value: sosState.active ? "Emergency" : "All Safe", icon: Shield, color: sosState.active ? "#D4455C" : "#3D9970", bg: sosState.active ? "rgba(212,69,92,0.12)" : "rgba(61,153,112,0.12)" },
+    { label: "Active SOS Alerts", value: String(sosState.active ? 1 : 0), icon: AlertTriangle, color: "#D4455C", bg: "rgba(212,69,92,0.12)" },
+    { label: "Recent Notifications", value: String(notificationCount), icon: Bell, color: "#B7770D", bg: "rgba(243,156,18,0.12)" },
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* ── Greeting ── */}
+      <div>
+        <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 24, color: "#3D2315", lineHeight: 1.15 }}>
+          {greeting}
+        </h2>
+        <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 12.5, color: "#9E7A6A", marginTop: 4, lineHeight: 1.5 }}>
+          You're watching over {accepted.length > 0 ? `${accepted.length} family ${accepted.length === 1 ? "member" : "members"}` : "your family"} — Sakhi keeps you updated in real time. 💜
+        </p>
+      </div>
+
+      {/* ── Stat cards ── */}
+      <div className="grid grid-cols-2 gap-3">
+        {stats.map((s, i) => (
+          <motion.div
+            key={s.label}
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08 + i * 0.05 }}
+            className="rounded-[20px] p-4"
+            style={{ background: "white", boxShadow: "0 2px 14px rgba(139,58,47,0.06)" }}
+          >
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-2.5" style={{ background: s.bg }}>
+              <s.icon style={{ width: 17, height: 17, color: s.color }} />
+            </div>
+            <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 20, color: "#3D2315", lineHeight: 1.1 }}>
+              {s.value}
+            </p>
+            <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10.5, color: "#9E7A6A", marginTop: 2 }}>
+              {s.label}
+            </p>
+          </motion.div>
+        ))}
+      </div>
+
+      {feedback && (
+        <div
+          style={{
+            background: "rgba(61,153,112,0.08)",
+            border: "1px solid rgba(61,153,112,0.25)",
+            borderRadius: 12,
+            padding: "0.625rem 0.875rem",
+            fontFamily: "Nunito,sans-serif",
+            fontWeight: 700,
+            fontSize: 12,
+            color: "#2E7D56",
+          }}
+        >
+          ✓ {feedback}
+        </div>
+      )}
+      {error && (
+        <div
+          style={{
+            background: "rgba(212,69,92,0.08)",
+            border: "1px solid rgba(212,69,92,0.25)",
+            borderRadius: 12,
+            padding: "0.625rem 0.875rem",
+            fontFamily: "Nunito,sans-serif",
+            fontWeight: 700,
+            fontSize: 12,
+            color: "#B8324A",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* ── Live map ── */}
+      <div className="rounded-[24px] overflow-hidden" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.06)" }}>
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315" }}>
+            Live Map 🗺️
+          </h3>
+          <span className="flex items-center gap-1.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10.5, color: "#3D9970" }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#3D9970]" /> Live
+          </span>
+        </div>
+        <div className="px-3 pb-3">
+          <FamilyMap members={accepted} />
+        </div>
+        {/* Per-member readouts: current location, movement status, last updated */}
+        {accepted.length > 0 && (
+          <div className="px-4 pb-2 space-y-2">
+            {accepted.map((link, i) => {
+              const moving = i % 2 === 0;
+              const area = DEMO_AREAS[i % DEMO_AREAS.length];
+              const updated = DEMO_UPDATED[i % DEMO_UPDATED.length];
+              return (
+                <div
+                  key={link.id}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2"
+                  style={{ background: "rgba(242,149,106,0.06)", border: "1px solid rgba(242,149,106,0.12)" }}
+                >
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-black flex-shrink-0"
+                    style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
+                  >
+                    {initialsOf(link.user_name ?? "U")}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12, color: "#3D2315" }}>
+                      {link.user_name ?? "Linked user"}
+                    </p>
+                    <p className="flex items-center gap-1 truncate" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 10.5, color: "#9E7A6A", marginTop: 1 }}>
+                      <MapPin style={{ width: 10, height: 10, flexShrink: 0 }} />
+                      <span className="truncate">{area}</span>
+                      <span style={{ color: "rgba(158,122,106,0.5)" }}>·</span>
+                      <span className="flex-shrink-0">updated {updated}</span>
+                    </p>
+                  </div>
+                  <span
+                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{
+                      background: moving ? "rgba(61,153,112,0.1)" : "rgba(243,156,18,0.1)",
+                      fontFamily: "Nunito,sans-serif",
+                      fontWeight: 700,
+                      fontSize: 9.5,
+                      color: moving ? "#2E7D56" : "#B7770D",
+                    }}
+                  >
+                    <span
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ background: moving ? "#3D9970" : "#F39C12" }}
+                    />
+                    {moving ? "Moving" : "Stationary"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <p className="px-4 pb-4" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#9E7A6A" }}>
+          {accepted.length > 0
+            ? "Showing linked family members' last known positions (demo coordinates — real-time GPS arrives with the SOS pipeline)."
+            : "Linked members will appear here with their live location. Add a member below to get started."}
+        </p>
+      </div>
+
+      {/* ── Add member ── */}
+      <div className="rounded-[24px] p-5" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.06)" }}>
+        <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315" }}>
+          Add a family member <span style={{ fontWeight: 600, fontSize: 11.5, color: "#9E7A6A" }}>— enter their invite code</span>
+        </h3>
+        <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11.5, color: "#9E7A6A", marginTop: 4, lineHeight: 1.5 }}>
+          Ask them to open Sakhi → Guardian Management and share the 8-character code. They must accept your request before you can see anything.
+        </p>
+        <div className="mt-4 space-y-3">
+          <div style={{ position: "relative" }}>
+            <Link2
+              style={{
+                position: "absolute",
+                left: 14,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 15,
+                height: 15,
+                color: "#9E7A6A",
+                pointerEvents: "none",
+              }}
+            />
+            <input
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              placeholder="e.g. AB2KQ7XM"
+              aria-label="Invite code"
+              style={{
+                width: "100%",
+                paddingLeft: "2.75rem",
+                paddingRight: "1rem",
+                paddingTop: "0.6875rem",
+                paddingBottom: "0.6875rem",
+                background: "#FFF6FA",
+                border: "1px solid rgba(214,82,163,0.12)",
+                borderRadius: 10,
+                color: "#7A2B73",
+                fontSize: "0.875rem",
+                fontFamily: "'Poppins', sans-serif",
+                fontWeight: 600,
+                letterSpacing: "0.12em",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <select
+            value={relationship}
+            onChange={(e) => setRelationship(e.target.value)}
+            aria-label="Relationship"
+            style={{
+              width: "100%",
+              padding: "0.6875rem 1rem",
+              background: "#FFF6FA",
+              border: "1px solid rgba(214,82,163,0.12)",
+              borderRadius: 10,
+              color: "#7A2B73",
+              fontSize: "0.875rem",
+              fontFamily: "'Poppins', sans-serif",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          >
+            <option value="">How are they related to you?</option>
+            {RELATIONSHIPS.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => void handleAdd()}
+            disabled={busy}
+            className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-white cursor-pointer disabled:opacity-60"
+            style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)", border: "none", fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13.5 }}
+          >
+            {busy ? (
+              <>
+                <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} /> Sending request…
+              </>
+            ) : (
+              <>
+                <UserPlus style={{ width: 16, height: 16 }} /> Send Guardian Request
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Pending requests (sent) ── */}
+      {pending.length > 0 && (
+        <div>
+          <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315", marginBottom: 10 }}>
+            Sent requests{" "}
+            <span style={{ fontWeight: 600, fontSize: 11.5, color: "#B7770D" }}>
+              — awaiting their acceptance
+            </span>
+          </h3>
+          <div className="space-y-2.5">
+            {pending.map((link) => (
+              <div key={link.id} className="rounded-[18px] p-4 flex items-center gap-3" style={{ background: "white", boxShadow: "0 2px 12px rgba(139,58,47,0.05)" }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-xs flex-shrink-0" style={{ background: "#B7770D" }}>
+                  {initialsOf(link.user_name ?? "U")}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13.5, color: "#3D2315" }}>{link.user_name ?? "User"}</p>
+                  <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#9E7A6A" }}>
+                    {link.relationship ? `${link.relationship} · ` : ""}pending
+                  </p>
+                </div>
+                <span className="flex items-center gap-1 px-2.5 py-1 rounded-full" style={{ background: "rgba(243,156,18,0.12)", fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10.5, color: "#B7770D" }}>
+                  <Clock style={{ width: 11, height: 11 }} /> Awaiting
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Linked family members ── */}
+      <div>
+        <div className="flex items-center justify-between mb-2.5">
+          <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315" }}>
+            Family Members
+          </h3>
+          <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11, color: "#9E7A6A" }}>
+            {accepted.length} linked
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-6">
+            <span className="dot-teal" />
+          </div>
+        ) : accepted.length === 0 ? (
+          <div className="rounded-[20px] p-6 text-center" style={{ background: "white", boxShadow: "0 2px 12px rgba(139,58,47,0.05)" }}>
+            <Users className="w-10 h-10 text-[#F2956A] mx-auto mb-2.5" />
+            <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 14.5, color: "#3D2315" }}>
+              No linked users yet
+            </p>
+            <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 12, color: "#9E7A6A", marginTop: 3, lineHeight: 1.55, maxWidth: 320, marginLeft: "auto", marginRight: "auto" }}>
+              Enter the invite code above to request a link. Once {firstName}'s family accepts,
+              their live location and real-time SOS alerts will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {accepted.map((link, i) => (
+              <motion.div
+                key={link.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="rounded-[20px] p-4 flex items-center gap-3"
+                style={{ background: "white", boxShadow: "0 2px 12px rgba(139,58,47,0.06)" }}
+              >
+                <div
+                  className="w-11 h-11 rounded-full flex items-center justify-center text-white font-black text-sm flex-shrink-0"
+                  style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
+                >
+                  {initialsOf(link.user_name ?? "U")}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 14, color: "#3D2315" }}>
+                    {link.user_name ?? "Linked user"}
+                  </p>
+                  {editingId === link.id ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        value={editRelationship}
+                        onChange={(e) => setEditRelationship(e.target.value)}
+                        placeholder="Relationship"
+                        aria-label="Edit relationship"
+                        style={{
+                          width: 120,
+                          padding: "0.3rem 0.6rem",
+                          background: "#FFF6FA",
+                          border: "1px solid rgba(214,82,163,0.2)",
+                          borderRadius: 8,
+                          fontSize: "0.75rem",
+                          fontFamily: "'Poppins', sans-serif",
+                          color: "#7A2B73",
+                          outline: "none",
+                        }}
+                      />
+                      <button
+                        onClick={() => void handleRename(link)}
+                        className="cursor-pointer px-2.5 py-1 rounded-lg text-white"
+                        style={{ background: "#3D9970", border: "none", fontSize: "0.7rem", fontWeight: 700, fontFamily: "'Poppins', sans-serif" }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="cursor-pointer px-2.5 py-1 rounded-lg"
+                        style={{ background: "rgba(158,122,106,0.1)", border: "none", fontSize: "0.7rem", fontWeight: 700, color: "#6B4F40", fontFamily: "'Poppins', sans-serif" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#3D9970" }}>
+                      {link.relationship || "Family"} · online just now
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingId(link.id);
+                    setEditRelationship(link.relationship ?? "");
+                  }}
+                  aria-label={`Rename relationship for ${link.user_name ?? "member"}`}
+                  title="Rename relationship"
+                  className="cursor-pointer p-2.5 rounded-full"
+                  style={{ background: "rgba(61,153,112,0.08)", border: "none", color: "#3D9970" }}
+                >
+                  <FileText style={{ width: 14, height: 14 }} />
+                </button>
+                <button
+                  onClick={() => void handleRemove(link)}
+                  aria-label={`Remove ${link.user_name ?? "member"}`}
+                  title="Remove member"
+                  className="cursor-pointer p-2.5 rounded-full"
+                  style={{ background: "rgba(212,69,92,0.08)", border: "none", color: "#D4455C" }}
+                >
+                  <Trash2 style={{ width: 14, height: 14 }} />
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ── Main Page ─────────────────────────────────────────────────────────────
 
 const GuardianPage = () => {
   const navigate = useNavigate();
   const { sosState, locationState, resolveSOS } = useApp();
-  // Step 7 — Parent accounts start with an empty guardian dashboard; linked
-  // users (accepted `guardian_links`) will populate it in a future release.
+  // Parents get the full monitoring dashboard; users/guests keep the legacy
+  // demo view (users are redirected to /guardians at the route level).
   const { role, displayName } = useAuth();
   const isParent = role === "parent";
   
@@ -181,7 +691,7 @@ const GuardianPage = () => {
               <div className="flex items-center gap-2 mb-1">
                 {isSOS && <motion.div animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 0.8, repeat: Infinity }} className="w-2.5 h-2.5 rounded-full bg-red-500" />}
                 <h1 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 22, color: isSOS ? "white" : "#3D2315" }}>
-                  {isSOS ? "Emergency Active" : "Aapke Apnewale 💛"}
+                  {isSOS ? "Emergency Active" : isParent ? "Guardian Dashboard" : "Aapke Apnewale 💛"}
                 </h1>
               </div>
               <div className="flex items-center gap-3">
@@ -206,24 +716,8 @@ const GuardianPage = () => {
 
           {!isSOS ? (
             isParent ? (
-              /* ── Parent: empty guardian dashboard (Step 7) ── */
-              <div className="rounded-[24px] p-8 text-center" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.05)" }}>
-                <Users className="w-14 h-14 text-[#D4455C] mx-auto mb-4" />
-                <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 19, color: "#3D2315" }}>No linked users yet.</h2>
-                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 13, color: "#9E7A6A", marginTop: 6, maxWidth: 320, marginLeft: "auto", marginRight: "auto", lineHeight: 1.6 }}>
-                  When your family members accept your guardian request, their live
-                  location and real-time SOS alerts will appear here, {displayName.split(/\s+/)[0]}.
-                </p>
-                <div
-                  className="inline-flex items-center gap-2 mt-5 px-4 py-2 rounded-full"
-                  style={{ background: "rgba(242,149,106,0.1)", border: "1px solid rgba(242,149,106,0.25)" }}
-                >
-                  <span className="w-2 h-2 rounded-full bg-[#3D9970]" />
-                  <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11, color: "#8B3A2F" }}>
-                    Monitoring armed — waiting for linked users
-                  </span>
-                </div>
-              </div>
+              /* ── Parent: full Guardian monitoring dashboard ── */
+              <GuardianDashboard />
             ) : (
               /* Non-SOS state placeholder (simplified for requirements focusing on SOS) */
               <div className="rounded-[24px] p-6 text-center" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.05)" }}>

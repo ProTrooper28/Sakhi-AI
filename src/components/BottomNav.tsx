@@ -1,18 +1,32 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, Heart, Users, Map, AlertTriangle } from "lucide-react";
+import { Home, Heart, Users, Map, AlertTriangle, Settings } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAuth } from "@/context/AuthContext";
 
-const navItems = [
+// Role-aware bottom navigation — the guardian app is a different product with
+// its own quick actions (monitoring dashboard), the user app keeps SOS.
+type NavItem = { icon: typeof Home; path: string; label: string; isSos?: boolean };
+
+const USER_NAV: NavItem[] = [
   { icon: Home,          path: "/home",      label: "Home" },
   { icon: Heart,         path: "/assistant", label: "Help" },
   { icon: AlertTriangle, path: "/sos",       label: "SOS", isSos: true },
-  { icon: Users,         path: "/guardian",  label: "Apne" },
+  { icon: Users,         path: "/guardians", label: "Apne" },
   { icon: Map,           path: "/location",  label: "Path" },
+];
+
+const GUARDIAN_NAV: NavItem[] = [
+  { icon: Home,   path: "/guardian", label: "Home" },
+  { icon: Users,  path: "/guardian", label: "Family" },
+  { icon: Map,    path: "/guardian", label: "Live" },
+  { icon: Settings, path: "/settings", label: "Settings" },
 ];
 
 const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { role } = useAuth();
+  const navItems = role === "parent" ? GUARDIAN_NAV : USER_NAV;
 
   return (
     <div
