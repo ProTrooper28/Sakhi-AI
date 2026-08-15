@@ -1,7 +1,24 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, ArrowRight, Eye, EyeOff, Lock, User, Phone, Mail } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Shield, ArrowRight, Lock, User, Phone, Mail, Loader2 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { sendOtp, normalizePhone, isValidIndianMobile, isValidEmail } from "@/lib/otp";
+
+/* ─── Field validation (clean, user-facing errors) ──────────────────────────── */
+const validateName = (name: string): string | null => {
+  if (name.trim().length < 2) return "Please enter your full name.";
+  return null;
+};
+
+const validateMobile = (mobile: string): string | null => {
+  if (!isValidIndianMobile(mobile)) return "Please enter a valid 10-digit Indian mobile number.";
+  return null;
+};
+
+const validateEmail = (email: string): string | null => {
+  if (!isValidEmail(email)) return "Please enter a valid email address.";
+  return null;
+};
 
 /* ─── Color & Style Tokens (Bright Pink Sunset Palette) ──────────────────── */
 const C = {
@@ -61,9 +78,12 @@ const inputStyle = (isFocused: boolean): React.CSSProperties => ({
 });
 
 /* ─── Progress Indicator Component ────────────────────────────────────────── */
-const ProgressIndicator = ({ current }: { current: "identity" | "contact" }) => (
+const STEPS = ["identity", "contact", "email"] as const;
+type Step = (typeof STEPS)[number];
+
+const ProgressIndicator = ({ current }: { current: Step }) => (
   <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-    {(["identity", "contact"] as const).map((s) => (
+    {STEPS.map((s) => (
       <div
         key={s}
         style={{
@@ -81,10 +101,15 @@ const ProgressIndicator = ({ current }: { current: "identity" | "contact" }) => 
 /* ─── Main Onboarding Component ───────────────────────────────────────────── */
 const LoginPage = () => {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", aadhaar: "", mobile: "", email: "" });
-  const [showAadhaar, setShowAadhaar] = useState(false);
-  const [step, setStep] = useState<"identity" | "contact">("identity");
+  const location = useLocation();
+  // Email handed off from the Sign In screen ("No account found → Create
+  // Account") is prefilled so the user doesn't have to retype it.
+  const prefilledEmail = ((location.state as { email?: string } | null)?.email ?? "") as string;
+  const [form, setForm] = useState({ name: "", mobile: "", email: prefilledEmail });
+  const [step, setStep] = useState<Step>("identity");
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   // Scroll to top on initial page load and disable browser automatic scroll restoration
   useEffect(() => {
@@ -94,10 +119,48 @@ const LoginPage = () => {
     window.scrollTo(0, 0);
   }, []);
 
-  const handleNext = (e: React.FormEvent) => {
+  const handleNext = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (step === "identity") { setStep("contact"); return; }
-    navigate("/home");
+
+    // Validate each step before advancing.
+    if (step === "identity") {
+      const err = validateName(form.name);
+      if (err) { setFormError(err); return; }
+      setFormError(null);
+      setStep("contact");
+      return;
+    }
+    if (step === "contact") {
+      const err = validateMobile(form.mobile);
+      if (err) { setFormError(err); return; }
+      setFormError(null);
+      setStep("email");
+      return;
+    }
+
+    const err = validateEmail(form.email);
+    if (err) { setFormError(err); return; }
+    setFormError(null);
+
+    // Email OTP flow: send a 6-digit code via Supabase Auth and continue to
+    // /otp. The phone number is stored on the auth user + profile (for future
+    // SMS OTP / SOS alerts), but the login code itself goes to the email.
+    // Aadhaar is collected after OTP verification on the first-login Profile
+    // Completion screen.
+    setSending(true);
+    try {
+      const phone = normalizePhone(form.mobile);
+      const email = form.email.trim().toLowerCase();
+      const profile = { full_name: form.name.trim(), phone };
+      await sendOtp({ email, role: "user", profile });
+      navigate("/otp", { state: { email, role: "user", profile, mode: "signup" } });
+    } catch (err) {
+      setFormError(
+        err instanceof Error ? err.message : "Something went wrong. Please try again.",
+      );
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -428,7 +491,9 @@ const LoginPage = () => {
                 boxShadow: "0 4px 12px rgba(122, 43, 115, 0.03)",
               }}
             >
-              <span style={{ color: C.primaryDark }}>Step {step === "identity" ? "1" : "2"} of 2</span>
+              <span style={{ color: C.primaryDark }}>
+                Step {STEPS.indexOf(step) + 1} of {STEPS.length}
+              </span>
               <ProgressIndicator current={step} />
             </div>
           </div>
@@ -542,7 +607,11 @@ const LoginPage = () => {
                   textTransform: "uppercase",
                 }}
               >
-                {step === "identity" ? "Verification Details" : "Emergency Contact"}
+                {step === "identity"
+                  ? "Verification Details"
+                  : step === "contact"
+                    ? "Mobile Number"
+                    : "Email Verification"}
               </span>
               <h2
                 style={{
@@ -554,12 +623,18 @@ const LoginPage = () => {
                   margin: "0.375rem 0 0.625rem 0",
                 }}
               >
-                {step === "identity" ? "Create your profile" : "Contact details"}
+                {step === "identity"
+                  ? "Create your profile"
+                  : step === "contact"
+                    ? "Your mobile number"
+                    : "Verify your email"}
               </h2>
               <p style={{ fontSize: "0.8125rem", color: C.textMuted, margin: 0, lineHeight: 1.4 }}>
                 {step === "identity"
-                  ? "Your identity is stored locally and never shared."
-                  : "Used only for emergency notifications."}
+                  ? "We only need your name to personalize your experience."
+                  : step === "contact"
+                    ? "Stored privately on your profile — used for future safety alerts."
+                    : "We'll send a 6-digit OTP code to your email."}
               </p>
             </div>
 
@@ -609,63 +684,8 @@ const LoginPage = () => {
                       </div>
                     </div>
 
-                    {/* Aadhaar Number */}
-                    <div>
-                      <label style={{ display: "block", color: C.primaryDark, fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.25rem" }}>
-                        Aadhaar Number
-                      </label>
-                      <div style={{ position: "relative" }}>
-                        <Lock
-                          style={{
-                            position: "absolute",
-                            left: 14,
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            width: 15,
-                            height: 15,
-                            color: focusedField === "aadhaar" ? C.mainAccent : C.primaryDark,
-                            opacity: focusedField === "aadhaar" ? 1 : 0.75,
-                            transition: "opacity 0.2s ease",
-                            pointerEvents: "none",
-                          }}
-                        />
-                        <input
-                          id="aadhaar"
-                          className="sakhi-input"
-                          type={showAadhaar ? "text" : "password"}
-                          placeholder="XXXX XXXX XXXX"
-                          maxLength={14}
-                          value={form.aadhaar}
-                          onChange={(e) => setForm({ ...form, aadhaar: e.target.value })}
-                          onFocus={() => setFocusedField("aadhaar")}
-                          onBlur={() => setFocusedField(null)}
-                          required
-                          style={inputStyle(focusedField === "aadhaar")}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowAadhaar((v) => !v)}
-                          style={{
-                            position: "absolute",
-                            right: 14,
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            color: C.primaryDark,
-                            opacity: 0.75,
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            padding: 0,
-                            display: "flex",
-                            alignItems: "center",
-                          }}
-                        >
-                          {showAadhaar ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
-                        </button>
-                      </div>
-                    </div>
                   </motion.div>
-                ) : (
+                ) : step === "contact" ? (
                   <motion.div
                     key="contact"
                     initial={{ opacity: 0, x: 10 }}
@@ -709,6 +729,16 @@ const LoginPage = () => {
                       </div>
                     </div>
 
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="email"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.2 }}
+                    style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}
+                  >
                     {/* Email Address */}
                     <div>
                       <label style={{ display: "block", color: C.primaryDark, fontSize: "0.75rem", fontWeight: 500, marginBottom: "0.25rem" }}>
@@ -723,7 +753,7 @@ const LoginPage = () => {
                             transform: "translateY(-50%)",
                             width: 15,
                             height: 15,
-                            color: C.primaryDark,
+                            color: focusedField === "email" ? C.mainAccent : C.primaryDark,
                             opacity: focusedField === "email" ? 1 : 0.75,
                             transition: "opacity 0.2s ease",
                             pointerEvents: "none",
@@ -743,26 +773,55 @@ const LoginPage = () => {
                         />
                       </div>
                     </div>
+
                   </motion.div>
                 )}
               </AnimatePresence>
 
               {/* Actions */}
               <div>
+                {formError && (
+                  <div
+                    style={{
+                      background: "rgba(212, 69, 92, 0.08)",
+                      border: "1px solid rgba(212, 69, 92, 0.25)",
+                      borderRadius: 8,
+                      padding: "0.625rem 0.75rem",
+                      fontFamily: "'Poppins', sans-serif",
+                      fontSize: "0.75rem",
+                      fontWeight: 500,
+                      color: "#B8324A",
+                      lineHeight: 1.4,
+                      marginBottom: "0.75rem",
+                    }}
+                  >
+                    {formError}
+                  </div>
+                )}
                 <button
                   id="onboarding-continue"
                   type="submit"
                   className="sakhi-btn-cta"
+                  disabled={sending}
                 >
-                  {step === "identity" ? "Continue" : "Enter Sakhi"}
-                  <ArrowRight style={{ width: 15, height: 15 }} />
+                  {sending ? (
+                    <>
+                      <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} />
+                      Sending OTP…
+                    </>
+                  ) : step === "email" ? (
+                    "Send OTP"
+                  ) : (
+                    "Continue"
+                  )}
+                  {!sending && <ArrowRight style={{ width: 15, height: 15 }} />}
                 </button>
 
-                {step === "contact" && (
+                {step !== "identity" && (
                   <button
                     type="button"
                     className="sakhi-btn-back-link"
-                    onClick={() => setStep("identity")}
+                    onClick={() => setStep(step === "contact" ? "identity" : "contact")}
                   >
                     ← Go back
                   </button>

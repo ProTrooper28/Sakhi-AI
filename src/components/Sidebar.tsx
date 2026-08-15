@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState, useRef } from "react";
 
@@ -35,8 +36,14 @@ const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isSidebarOpen, setSidebarOpen } = useApp();
+  const { displayName, initials, guest, signOut } = useAuth();
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const sidebarContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleLogout = () => {
+    void signOut();
+    handleNavClick("/");
+  };
 
   // Sync mobile/desktop view width
   useEffect(() => {
@@ -214,14 +221,14 @@ const Sidebar = () => {
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0 bg-teal-400/30"
           >
-            P
+            {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white text-xs font-semibold truncate">Preeti Sharma</p>
-            <p className="text-white/40 text-[10px] truncate">Protected</p>
+            <p className="text-white text-xs font-semibold truncate">{displayName}</p>
+            <p className="text-white/40 text-[10px] truncate">{guest ? "Demo Mode" : "Protected"}</p>
           </div>
           <button
-            onClick={() => handleNavClick("/")}
+            onClick={handleLogout}
             className="text-white/40 hover:text-white/70 transition-colors p-1 rounded-lg hover:bg-white/5 cursor-pointer"
             title="Log out"
           >

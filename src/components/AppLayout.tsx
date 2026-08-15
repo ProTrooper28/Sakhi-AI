@@ -4,6 +4,7 @@ import BottomNav from "./BottomNav";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bell, Settings, LogOut, Shield, ChevronRight, X, CheckCircle2, AlertOctagon, MapPin, Sparkles, Menu, Users } from "lucide-react";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 interface AppLayoutProps {
@@ -61,17 +62,19 @@ const NotificationsContent = ({ onClose }: { onClose: () => void }) => (
 
 // ── Profile dropdown ─────────────────────────────────────────────────────────
 const ProfileContent = ({ navigate, onClose }: { navigate: (p: string) => void; onClose: () => void }) => {
+  const { displayName, initials, guest, signOut } = useAuth();
   const go = (path: string) => { onClose(); navigate(path); };
+  const handleLogout = () => { onClose(); void signOut(); navigate("/"); };
   return (
     <div>
       <div className="px-4 py-4 flex items-center gap-3" style={{ borderBottom: "1px solid rgba(242,149,106,0.14)" }}>
         <div
           className="w-10 h-10 rounded-full flex items-center justify-center text-white font-black text-xs"
           style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)" }}
-        >PS</div>
+        >{initials}</div>
         <div>
-          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "#3D2315" }}>Preeti Sharma</p>
-          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10, color: "#3D9970" }}>✓ Sakhi Protected</p>
+          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "#3D2315" }}>{displayName}</p>
+          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10, color: "#3D9970" }}>{guest ? "👀 Demo Mode" : "✓ Sakhi Protected"}</p>
         </div>
       </div>
       <div className="py-1">
@@ -92,7 +95,7 @@ const ProfileContent = ({ navigate, onClose }: { navigate: (p: string) => void; 
         ))}
         <div style={{ borderTop: "1px solid rgba(242,149,106,0.14)" }} className="mt-1">
           <button
-            onClick={() => go("/")}
+            onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-2.5 cursor-pointer text-left transition-colors"
             onMouseEnter={e => (e.currentTarget.style.background = "rgba(212,69,92,0.06)")}
             onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
@@ -110,6 +113,7 @@ const ProfileContent = ({ navigate, onClose }: { navigate: (p: string) => void; 
 const MobileHeader = () => {
   const navigate = useNavigate();
   const { setSidebarOpen } = useApp();
+  const { guest } = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -141,6 +145,9 @@ const MobileHeader = () => {
           <Sparkles className="w-4 h-4 text-white" />
         </div>
         <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 17, color: "#8B3A2F" }}>Sakhi</span>
+        {guest && (
+          <span className="badge-muted" style={{ fontSize: 9, fontWeight: 800, padding: "2px 8px", letterSpacing: "0.04em" }}>👀 Demo</span>
+        )}
       </div>
 
       {/* Right Controls: Guardian Mode Button + Notif */}
@@ -189,6 +196,7 @@ const MobileHeader = () => {
 const DesktopTopBar = () => {
   const navigate = useNavigate();
   const { isSidebarOpen, setSidebarOpen } = useApp();
+  const { initials, guest } = useAuth();
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -223,6 +231,11 @@ const DesktopTopBar = () => {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Demo Mode indicator (guest only) */}
+        {guest && (
+          <span className="badge-muted" style={{ fontSize: 9, fontWeight: 800, padding: "3px 10px", letterSpacing: "0.04em" }}>👀 Demo Mode</span>
+        )}
+
         {/* Guardian Mode Quick Button */}
         <button
           onClick={() => navigate("/guardian")}
@@ -250,7 +263,7 @@ const DesktopTopBar = () => {
 
         <div className="relative" ref={profileRef}>
           <button id="desktop-profile-btn" onClick={() => { setProfileOpen(v => !v); setNotifOpen(false); }} className="icon-btn w-9 h-9 overflow-hidden rounded-full border-2" style={{ borderColor: "rgba(242,149,106,0.3)" }}>
-            <div className="w-full h-full rounded-full flex items-center justify-center text-white font-black text-xs" style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)" }}>PS</div>
+            <div className="w-full h-full rounded-full flex items-center justify-center text-white font-black text-xs" style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)" }}>{initials}</div>
           </button>
           <AnimatePresence>
             {profileOpen && (

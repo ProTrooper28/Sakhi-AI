@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 
 // ── Helpline data ─────────────────────────────────────────────────────────────
 const HELPLINES = [
@@ -57,16 +58,16 @@ const RISK_CONFIG = {
   },
 };
 
-// ── Dynamic greeting ──────────────────────────────────────────────────────────
-const getDynamicGreeting = (): { hindi: string; english: string; emoji: string } => {
+// ── Dynamic greeting (personalized with the authenticated user's name) ────────
+const getDynamicGreeting = (firstName: string): { hindi: string; english: string; emoji: string } => {
   const hour = new Date().getHours();
   if (hour >= 5 && hour < 12)
-    return { hindi: "सुप्रभात 🌅", english: "Good Morning, Preeti didi", emoji: "☀️" };
+    return { hindi: "सुप्रभात 🌅", english: `Good Morning, ${firstName} 👋`, emoji: "☀️" };
   if (hour >= 12 && hour < 17)
-    return { hindi: "नमस्ते 🌸", english: "Good Afternoon, Preeti didi", emoji: "🌺" };
+    return { hindi: "नमस्ते 🌸", english: `Good Afternoon, ${firstName} 👋`, emoji: "🌺" };
   if (hour >= 17 && hour < 20)
-    return { hindi: "शुभ संध्या 🌇", english: "Good Evening, Preeti didi", emoji: "🌸" };
-  return { hindi: "रात सुरक्षित हो 🌙", english: "Stay Safe Tonight, Preeti didi", emoji: "🌙" };
+    return { hindi: "शुभ संध्या 🌇", english: `Good Evening, ${firstName} 👋`, emoji: "🌸" };
+  return { hindi: "रात सुरक्षित हो 🌙", english: `Stay Safe Tonight, ${firstName} 👋`, emoji: "🌙" };
 };
 
 // ── Guardian status pill ──────────────────────────────────────────────────────
@@ -274,7 +275,9 @@ const AreaStatusCard = ({ level, location }: { level: RiskLevel; location: strin
 const HomePage = () => {
   const navigate = useNavigate();
   const { triggerSOS, sosState, locationState } = useApp();
-  const greeting = getDynamicGreeting();
+  const { displayName, initials, guest } = useAuth();
+  const firstName = displayName.split(/\s+/)[0] || "Preeti";
+  const greeting = getDynamicGreeting(firstName);
 
   // Simulate area risk based on time (rotates every 10 min for demo)
   const [riskLevel, setRiskLevel] = useState<RiskLevel>("low");
@@ -334,18 +337,27 @@ const HomePage = () => {
                 Sakhi is always here for you 💜
               </p>
             </div>
-            {/* Avatar */}
-            <div className="relative mt-1 flex-shrink-0">
+            {/* Avatar + Demo Mode badge (guest mode only) */}
+            <div className="relative mt-1 flex-shrink-0 flex flex-col items-center gap-1.5">
               <div
                 className="w-13 h-13 rounded-full flex items-center justify-center text-white font-black text-sm shadow-lg"
                 style={{ width: 52, height: 52, background: "linear-gradient(135deg,#F2956A,#D4455C)" }}
               >
-                PS
+                {initials}
               </div>
               <div
                 className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full border-2"
                 style={{ background: "#3D9970", borderColor: "var(--sakhi-cream)" }}
               />
+              {guest && (
+                <span
+                  className="badge-muted"
+                  style={{ fontSize: 9, fontWeight: 800, padding: "3px 10px", letterSpacing: "0.04em" }}
+                  title="You are exploring with demo data. Real emergency notifications are disabled."
+                >
+                  👀 Demo Mode
+                </span>
+              )}
             </div>
           </motion.div>
 
@@ -527,7 +539,6 @@ const HomePage = () => {
                         className="w-12 h-12 rounded-full flex items-center justify-center text-white font-black text-sm shadow"
                         style={{
                           background: p.color,
-                          ring: p.status === "online" ? `2px solid ${p.color}` : "none",
                           boxShadow:
                             p.status === "online"
                               ? `0 0 0 2.5px ${p.color}55, 0 2px 8px rgba(0,0,0,0.08)`

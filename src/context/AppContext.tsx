@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import { startSOSAlarmLoop, stopSOSAlarmLoop, playSuccessChimeSound } from "@/lib/audio";
+import { useAuth } from "./AuthContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -105,7 +106,10 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  
+  // Use the authenticated user's name for SOS broadcasts (falls back to the
+  // demo persona "Preeti" for guests / before profile load).
+  const { displayName } = useAuth();
+
   const [reports, setReports] = useState<Report[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_REPORTS);
@@ -275,7 +279,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const next: SOSState = {
       active: true,
       triggeredAt: new Date().toISOString(),
-      userName: "Preeti",
+      userName: displayName || "Preeti",
       location: activeAddress,
       coords: activeCoords,
     };
@@ -297,7 +301,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       },
       ...prev
     ]);
-  }, [locationState.coords, locationState.address]);
+  }, [locationState.coords, locationState.address, displayName]);
 
   const cancelSOS = useCallback(() => {
     const next: SOSState = { ...DEFAULT_SOS_STATE, active: false, resolved: false };

@@ -9,6 +9,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 
@@ -45,6 +46,10 @@ const createPoiMarker = (emoji: string, color: string) => L.divIcon({
 const GuardianPage = () => {
   const navigate = useNavigate();
   const { sosState, locationState, resolveSOS } = useApp();
+  // Step 7 — Parent accounts start with an empty guardian dashboard; linked
+  // users (accepted `guardian_links`) will populate it in a future release.
+  const { role, displayName } = useAuth();
+  const isParent = role === "parent";
   
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
@@ -200,14 +205,35 @@ const GuardianPage = () => {
           </div>
 
           {!isSOS ? (
-            /* Non-SOS state placeholder (simplified for requirements focusing on SOS) */
-            <div className="rounded-[24px] p-6 text-center" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.05)" }}>
-              <Users className="w-12 h-12 text-[#D4455C] mx-auto mb-3" />
-              <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 18, color: "#3D2315" }}>No Active Emergencies</h2>
-              <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 13, color: "#9E7A6A", marginTop: 4 }}>
-                Preeti is safe. You will be notified if an SOS is triggered.
-              </p>
-            </div>
+            isParent ? (
+              /* ── Parent: empty guardian dashboard (Step 7) ── */
+              <div className="rounded-[24px] p-8 text-center" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.05)" }}>
+                <Users className="w-14 h-14 text-[#D4455C] mx-auto mb-4" />
+                <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 19, color: "#3D2315" }}>No linked users yet.</h2>
+                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 13, color: "#9E7A6A", marginTop: 6, maxWidth: 320, marginLeft: "auto", marginRight: "auto", lineHeight: 1.6 }}>
+                  When your family members accept your guardian request, their live
+                  location and real-time SOS alerts will appear here, {displayName.split(/\s+/)[0]}.
+                </p>
+                <div
+                  className="inline-flex items-center gap-2 mt-5 px-4 py-2 rounded-full"
+                  style={{ background: "rgba(242,149,106,0.1)", border: "1px solid rgba(242,149,106,0.25)" }}
+                >
+                  <span className="w-2 h-2 rounded-full bg-[#3D9970]" />
+                  <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11, color: "#8B3A2F" }}>
+                    Monitoring armed — waiting for linked users
+                  </span>
+                </div>
+              </div>
+            ) : (
+              /* Non-SOS state placeholder (simplified for requirements focusing on SOS) */
+              <div className="rounded-[24px] p-6 text-center" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.05)" }}>
+                <Users className="w-12 h-12 text-[#D4455C] mx-auto mb-3" />
+                <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 18, color: "#3D2315" }}>No Active Emergencies</h2>
+                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 13, color: "#9E7A6A", marginTop: 4 }}>
+                  Preeti is safe. You will be notified if an SOS is triggered.
+                </p>
+              </div>
+            )
           ) : (
             
             /* ── EMERGENCY DASHBOARD GRID ── */

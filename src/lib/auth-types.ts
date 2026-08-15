@@ -1,0 +1,58 @@
+/**
+ * Shared authentication types for Sakhi AI.
+ */
+
+/** Account role — determines which experience the user lands in. */
+export type Role = "user" | "parent";
+
+/**
+ * Public profile record stored in Supabase (`public.profiles`).
+ * NOTE: `aadhaar_last4` only ever holds the LAST FOUR DIGITS of the Aadhaar
+ * number. The full number is never sent to the backend or stored.
+ */
+export type Profile = {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  aadhaar_last4: string | null;
+  role: Role;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
+ * Registration data collected before the OTP step (Email OTP flow).
+ *
+ *   full_name — shown on the home greeting.
+ *   phone     — stored on the auth user (raw_user_meta_data) and copied into
+ *               `profiles.phone` by a database trigger, so it is available
+ *               later for a seamless migration to phone/SMS OTP and for
+ *               future SOS SMS alerts. The phone number is NEVER used to send
+ *               the login OTP in this flow.
+ *
+ * The OTP itself is delivered by Supabase Auth to the user's EMAIL (a 6-digit
+ * one-time code — not a magic link, not a confirmation link).
+ */
+export type OtpProfilePayload = {
+  full_name: string;
+  phone: string;
+};
+
+/** Which half of the auth flow the OTP screen belongs to. */
+export type OtpMode = "signup" | "signin";
+
+/**
+ * State passed from a registration / sign-in page to the OTP screen.
+ *
+ *   mode    — "signup" (new account, profile metadata present) or
+ *             "signin" (existing account, email only — no name/phone).
+ *   profile — the onboarding metadata (full name, phone) collected during
+ *             sign-up; absent for sign-in.
+ */
+export type OtpFlowState = {
+  email: string;
+  role: Role;
+  profile?: OtpProfilePayload;
+  mode?: OtpMode;
+};
