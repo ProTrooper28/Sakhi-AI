@@ -73,6 +73,13 @@ export default function WearableDemoPage() {
         <ArrowLeft className="w-4 h-4" /> Exit Demo
       </button>
 
+      <button
+        onClick={() => navigate("/wearable")}
+        className="absolute top-6 right-6 text-muted-foreground flex items-center gap-2 text-sm z-10 hover:text-foreground transition-colors cursor-pointer"
+      >
+        View 3D Model
+      </button>
+
       <div className="text-center mb-10 z-10">
         <h1 className="text-xl font-bold tracking-tight text-white font-heading">Wearable Integration</h1>
         <p className="text-sm text-gray-500 mt-1 max-w-[250px]">

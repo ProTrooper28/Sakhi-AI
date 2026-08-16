@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { UserRound, ShieldCheck, Eye } from "lucide-react";
+import { UserRound, ShieldCheck, Eye, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { readPendingSignup } from "@/lib/otp";
@@ -49,20 +49,39 @@ const ROLE_CARDS = [
  */
 const WelcomePage = () => {
   const navigate = useNavigate();
-  const { ready, user, guest, role, enterGuest } = useAuth();
+  const { ready, user, guest, role, displayName, enterGuest, signOut } = useAuth();
+  // Short "welcome back" window before auto-login: a valid restored session
+  // still opens the dashboard automatically, but the presenter gets a beat to
+  // tap "Reset Demo Session" instead of being yanked into the app. Guests are
+  // never auto-redirected (they picked demo mode deliberately).
+  const [restoring, setRestoring] = useState(false);
 
   // Already signed in (not guest)? Skip straight to their experience. A
   // freshly verified account (verification link just clicked) still owes the
   // Create Password step, so it goes there first.
   useEffect(() => {
     if (!ready || guest || !user) return;
-    const pending = readPendingSignup();
-    if (pending && pending.email.toLowerCase() === user.email.toLowerCase()) {
-      navigate("/create-password", { replace: true });
-      return;
-    }
-    navigate(roleHomePath(role), { replace: true });
+    setRestoring(true);
+    const t = setTimeout(() => {
+      const pending = readPendingSignup();
+      if (pending && pending.email.toLowerCase() === user.email.toLowerCase()) {
+        navigate("/create-password", { replace: true });
+        return;
+      }
+      navigate(roleHomePath(role), { replace: true });
+    }, 1800);
+    return () => {
+      clearTimeout(t);
+      setRestoring(false);
+    };
   }, [ready, guest, user, role, navigate]);
+
+  const handleResetDemo = async () => {
+    // Clear the session (and guest flag) so the next demo starts from the
+    // Welcome/Login screen — deterministic for presentations.
+    await signOut();
+    setRestoring(false);
+  };
 
   const handleSelect = (key: "user" | "parent" | "guest") => {
     if (key === "guest") {
@@ -283,6 +302,28 @@ const WelcomePage = () => {
         >
           Privacy First · Local Encryption
         </span>
+
+        {restoring && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 rounded-full px-3 py-1.5"
+            style={{ background: "rgba(214,82,163,0.1)", border: "1px solid rgba(214,82,163,0.25)" }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: C.mainAccent }} />
+            <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: "0.6875rem", fontWeight: 600, color: C.primaryDark }}>
+              Resuming session{displayName ? ` as ${displayName}` : ""}…
+            </span>
+            <button
+              type="button"
+              onClick={() => void handleResetDemo()}
+              className="flex items-center gap-1 rounded-full px-2 py-0.5 cursor-pointer"
+              style={{ background: "none", border: "none", color: C.mainAccent, fontFamily: "'Poppins', sans-serif", fontSize: "0.6875rem", fontWeight: 600 }}
+            >
+              <RotateCcw style={{ width: 11, height: 11 }} /> Reset Demo Session
+            </button>
+          </motion.div>
+        )}
       </div>
 
       {/* ── Hero ── */}

@@ -27,6 +27,7 @@ import RiskMapPage from "./pages/RiskMapPage";
 import GuardianPage from "./pages/GuardianPage";
 import GuardiansPage from "./pages/GuardiansPage";
 import WearableDemoPage from "./pages/WearableDemoPage";
+import Watch3DPage from "./pages/Watch3DPage";
 import LocationTrackingPage from "./pages/LocationTrackingPage";
 import SecuritySettingsPage from "./pages/SecuritySettingsPage";
 import NotFound from "./pages/NotFound";
@@ -226,8 +227,19 @@ const App = () => (
                   </Protected>
                 }
               />
+              {/* Sakhi AI Smart Safety Watch — photorealistic 3D product showcase.
+                  /wearable opens this directly (the Sidebar's "Wearable Device"). */}
               <Route
                 path="/wearable"
+                element={
+                  <Protected>
+                    <Watch3DPage />
+                  </Protected>
+                }
+              />
+              {/* Interactive watch-face SOS simulation (reached from the 3D page) */}
+              <Route
+                path="/wearable-demo"
                 element={
                   <Protected>
                     <WearableDemoPage />

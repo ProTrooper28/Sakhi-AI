@@ -148,8 +148,6 @@ const GuardianDashboard = ({
   const firstName = displayName.split(/\s+/)[0] || "Guardian";
 
   // Real-time safety data (Supabase Realtime → RLS-scoped to linked users).
-  const activeSos = events.find((e) => e.type === "sos" && e.status === "active");
-  const activeSosCount = events.filter((e) => e.type === "sos" && e.status === "active").length;
   const recentEvents = events.slice(0, 6);
   const notificationCount = pending.length + recentEvents.length;
   const userNameFor = (userId: string) =>
@@ -162,6 +160,12 @@ const GuardianDashboard = ({
       : hour >= 12 && hour < 17
         ? `Good Afternoon, ${firstName} 👋`
         : `Good Evening, ${firstName} 👋`;
+
+  // Calm-state readouts: first linked member (for Quick Actions).
+  const firstMember = accepted[0];
+  const firstLoc = firstMember ? locations[firstMember.user_id] : undefined;
+  const firstLat = firstLoc?.latitude ?? 19.0596;
+  const firstLng = firstLoc?.longitude ?? 72.8295;
 
   const handleAdd = async () => {
     const code = inviteCode.trim();
@@ -206,12 +210,19 @@ const GuardianDashboard = ({
     else setError("Could not update the relationship. Please try again.");
   };
 
-  // Recent Notifications = the guardian's live alerts right now: pending link
-  // requests plus any active SOS. Details stay in the Sent Requests section.
+  // Calm-state stats — this view only renders while no SOS is active, so the
+  // numbers are deliberately reassuring (no red/emergency cards here).
+  // "Members Online" counts linked users whose live location updated within
+  // the last 5 minutes.
+  const membersOnline = accepted.filter((link) => {
+    const loc = locations[link.user_id];
+    return loc ? Date.now() - new Date(loc.updated_at).getTime() < 300_000 : false;
+  }).length;
+
   const stats = [
     { label: "Family Members Linked", value: String(accepted.length), icon: Users, color: "#3D9970", bg: "rgba(61,153,112,0.12)" },
-    { label: "Current Safety Status", value: activeSos ? "Emergency" : "All Safe", icon: Shield, color: activeSos ? "#D4455C" : "#3D9970", bg: activeSos ? "rgba(212,69,92,0.12)" : "rgba(61,153,112,0.12)" },
-    { label: "Active SOS Alerts", value: String(activeSosCount), icon: AlertTriangle, color: "#D4455C", bg: "rgba(212,69,92,0.12)" },
+    { label: "Safety Status", value: "All Safe", icon: Shield, color: "#3D9970", bg: "rgba(61,153,112,0.12)" },
+    { label: "Members Online", value: String(membersOnline), icon: Wifi, color: "#2563EB", bg: "rgba(37,99,235,0.1)" },
     { label: "Recent Notifications", value: String(notificationCount), icon: Bell, color: "#B7770D", bg: "rgba(243,156,18,0.12)" },
   ];
 
@@ -284,8 +295,110 @@ const GuardianDashboard = ({
         </div>
       )}
 
+      {/* ── All Safe banner (no active SOS) ── */}
+      <div
+        className="rounded-[24px] p-5 flex items-center gap-4"
+        style={{
+          background: "linear-gradient(135deg, rgba(61,153,112,0.1), rgba(61,153,112,0.03))",
+          border: "1px solid rgba(61,153,112,0.22)",
+        }}
+      >
+        <div
+          className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ background: "rgba(61,153,112,0.14)" }}
+        >
+          <CheckCircle2 style={{ width: 22, height: 22, color: "#2E7D56" }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 16, color: "#2E7D56" }}>
+            All Safe
+          </p>
+          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11.5, color: "#6B8F7C", marginTop: 2, lineHeight: 1.5 }}>
+            {accepted.length > 0
+              ? `${accepted.map((l) => l.user_name ?? "Linked user").join(", ")} ${accepted.length === 1 ? "is" : "are"} accounted for — no active emergencies right now.`
+              : "No linked members yet — no active emergencies right now."}
+          </p>
+        </div>
+        <span
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full flex-shrink-0"
+          style={{
+            background: "rgba(61,153,112,0.12)",
+            fontFamily: "Nunito,sans-serif",
+            fontWeight: 800,
+            fontSize: 10,
+            color: "#2E7D56",
+            letterSpacing: "0.05em",
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#3D9970" }} /> SAFE
+        </span>
+      </div>
+
+      {/* ── Quick Actions (calm state) ── */}
+      {accepted.length > 0 && (
+        <div className="rounded-[24px] p-5" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.06)" }}>
+          <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315", marginBottom: 12 }}>
+            Quick Actions
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              {
+                label: "Call",
+                icon: Phone,
+                color: "#2563EB",
+                bg: "rgba(37,99,235,0.1)",
+                action: () => {
+                  window.location.href = "tel:112";
+                },
+              },
+              {
+                label: "Message",
+                icon: MessageSquare,
+                color: "#7A2B73",
+                bg: "rgba(122,43,115,0.1)",
+                action: () => {
+                  window.location.href = `sms:112?body=${encodeURIComponent(`Sakhi: how are you doing? Reply to confirm you're safe.`)}`;
+                },
+              },
+              {
+                label: "Navigate",
+                icon: Navigation,
+                color: "#B7770D",
+                bg: "rgba(183,119,13,0.1)",
+                action: () => {
+                  window.open(`https://www.google.com/maps?q=${firstLat},${firstLng}`, "_blank");
+                },
+              },
+              {
+                label: "Live Map",
+                icon: MapPin,
+                color: "#3D9970",
+                bg: "rgba(61,153,112,0.1)",
+                action: () => {
+                  document.getElementById("guardian-calmmap")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                },
+              },
+            ].map((btn) => (
+              <motion.button
+                key={btn.label}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={btn.action}
+                className="rounded-[18px] p-3.5 flex items-center gap-2.5 cursor-pointer transition-all"
+                style={{ background: btn.bg, border: "1px solid transparent" }}
+              >
+                <btn.icon style={{ width: 16, height: 16, color: btn.color }} />
+                <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12.5, color: btn.color }}>
+                  {btn.label}
+                </span>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Live map ── */}
-      <div className="rounded-[24px] overflow-hidden" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.06)" }}>
+      <div id="guardian-calmmap" className="rounded-[24px] overflow-hidden" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.06)" }}>
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315" }}>
             Live Map 🗺️
@@ -584,15 +697,21 @@ const GuardianDashboard = ({
           </div>
         ) : (
           <div className="space-y-2.5">
-            {accepted.map((link, i) => (
-              <motion.div
-                key={link.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="rounded-[20px] p-4 flex items-center gap-3"
-                style={{ background: "white", boxShadow: "0 2px 12px rgba(139,58,47,0.06)" }}
-              >
+            {accepted.map((link, i) => {
+              const linkLoc = locations[link.user_id];
+              const linkAgo = linkLoc
+                ? Math.max(0, Math.floor((Date.now() - new Date(linkLoc.updated_at).getTime()) / 1000))
+                : null;
+              const linkOnline = linkAgo !== null && linkAgo < 300;
+              return (
+                <motion.div
+                  key={link.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="rounded-[20px] p-4 flex items-center gap-3"
+                  style={{ background: "white", boxShadow: "0 2px 12px rgba(139,58,47,0.06)" }}
+                >
                 <div
                   className="w-11 h-11 rounded-full flex items-center justify-center text-white font-black text-sm flex-shrink-0"
                   style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
@@ -637,11 +756,12 @@ const GuardianDashboard = ({
                         Cancel
                       </button>
                     </div>
-                  ) : (
-                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#3D9970" }}>
-                      {link.relationship || "Family"} · online just now
-                    </p>
-                  )}
+                    ) : (
+                      <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#3D9970" }}>
+                        {link.relationship || "Family"} ·{" "}
+                        {linkOnline ? "online now" : linkAgo !== null ? `last seen ${timeAgo(linkLoc!.updated_at)}` : "offline"}
+                      </p>
+                    )}
                 </div>
                 <button
                   onClick={() => {
@@ -663,9 +783,10 @@ const GuardianDashboard = ({
                   style={{ background: "rgba(212,69,92,0.08)", border: "none", color: "#D4455C" }}
                 >
                   <Trash2 style={{ width: 14, height: 14 }} />
-                </button>
-              </motion.div>
-            ))}
+                  </button>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -740,8 +861,15 @@ const GuardianPage = () => {
   const userNameFor = (userId: string) =>
     links.find((l) => l.user_id === userId)?.user_name ?? null;
 
-  // Local SOS (same device / demo) OR the remote event — both drive the same
-  // emergency dashboard, so two devices behave identically.
+  // The Guardian dashboard responds ONLY to realtime SOS status: an active
+  // safety_events row from a linked user flips it into Emergency Mode, and it
+  // returns to the calm view the moment that event resolves (status
+  // resolved/cancelled → activeRemoteSos disappears → isSOS goes false).
+  //
+  // The local AppContext `sosState` is a PERSISTED demo flag on this device
+  // (localStorage sakhi_sos_state) — it must never drive emergency mode here,
+  // otherwise a stale demo SOS keeps the dashboard red on every visit. It is
+  // only a fallback when the backend isn't configured (pure offline demo).
   const effectiveSos: SOSState = activeRemoteSos
     ? {
         active: true,
@@ -754,7 +882,16 @@ const GuardianPage = () => {
         },
         resolved: false,
       }
-    : sosState;
+    : !isSupabaseConfigured
+      ? sosState
+      : {
+          active: false,
+          triggeredAt: null,
+          userName: "Linked user",
+          location: "",
+          coords: { lat: 19.0596, lng: 72.8295 },
+          resolved: false,
+        };
 
   const userLat = effectiveSos.active
     ? (locations[activeRemoteSos?.user_id ?? ""]?.latitude ?? effectiveSos.coords.lat)
@@ -876,7 +1013,20 @@ const GuardianPage = () => {
   return (
     <AppLayout>
       <div style={{ background: isSOS ? "#110303" : "var(--sakhi-cream)", minHeight: "100vh", transition: "background 0.5s ease", paddingBottom: "7rem" }}>
-        
+
+        {/* Dark emergency overlay (only while SOS is active) */}
+        {isSOS && (
+          <div
+            className="fixed inset-0 pointer-events-none"
+            style={{
+              background:
+                "radial-gradient(ellipse at 50% 0%, rgba(220,38,38,0.22), rgba(17,3,3,0.55) 55%, rgba(17,3,3,0.9) 100%)",
+              zIndex: 30,
+              transition: "opacity 0.6s ease",
+            }}
+          />
+        )}
+
         {/* Toast */}
         <AnimatePresence>
           {actionFeedback && (
@@ -898,7 +1048,7 @@ const GuardianPage = () => {
               <div className="flex items-center gap-2 mb-1">
                 {isSOS && <motion.div animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 0.8, repeat: Infinity }} className="w-2.5 h-2.5 rounded-full bg-red-500" />}
                 <h1 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 22, color: isSOS ? "white" : "#3D2315" }}>
-                  {isSOS ? "Emergency Active" : isParent ? "Guardian Dashboard" : "Aapke Apnewale 💛"}
+                  {isSOS ? "🚨 ACTIVE SOS" : isParent ? "Guardian Dashboard" : "Aapke Apnewale 💛"}
                 </h1>
               </div>
               <div className="flex items-center gap-3">
@@ -922,22 +1072,41 @@ const GuardianPage = () => {
           </div>
 
           {!isSOS ? (
-            isParent ? (
-              /* ── Parent: full Guardian monitoring dashboard ── */
-              <GuardianDashboard events={events} locations={locations} />
-            ) : (
-              /* Non-SOS state placeholder (simplified for requirements focusing on SOS) */
-              <div className="rounded-[24px] p-6 text-center" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.05)" }}>
-                <Users className="w-12 h-12 text-[#D4455C] mx-auto mb-3" />
-                <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 18, color: "#3D2315" }}>No Active Emergencies</h2>
-                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 13, color: "#9E7A6A", marginTop: 4 }}>
-                  Preeti is safe. You will be notified if an SOS is triggered.
-                </p>
-              </div>
-            )
+            <AnimatePresence mode="wait">
+              <motion.div
+                key="calm"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {isParent ? (
+                  /* ── Parent: full Guardian monitoring dashboard (calm) ── */
+                  <GuardianDashboard events={events} locations={locations} />
+                ) : (
+                  /* Non-SOS state placeholder (simplified for requirements focusing on SOS) */
+                  <div className="rounded-[24px] p-6 text-center" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.05)" }}>
+                    <Users className="w-12 h-12 text-[#D4455C] mx-auto mb-3" />
+                    <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 18, color: "#3D2315" }}>No Active Emergencies</h2>
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 13, color: "#9E7A6A", marginTop: 4 }}>
+                      Preeti is safe. You will be notified if an SOS is triggered.
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
           ) : (
-            
-            /* ── EMERGENCY DASHBOARD GRID ── */
+            <AnimatePresence mode="wait">
+              <motion.div
+                key="emergency"
+                initial={{ opacity: 0, scale: 0.985 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.01 }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <div className="relative" style={{ zIndex: 40 }}>
+                
+            {/* ── EMERGENCY DASHBOARD GRID ── */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               
               {/* Main Column (Left) */}
@@ -1105,6 +1274,9 @@ const GuardianPage = () => {
 
               </div>
             </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
           )}
 
         </div>

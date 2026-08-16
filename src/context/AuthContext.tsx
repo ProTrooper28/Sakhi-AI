@@ -182,6 +182,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (supabase) await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
+    // Fresh demo start: drop every leftover local marker (an abandoned Create
+    // Account attempt, a persisted demo SOS) so the next visitor begins from
+    // the Welcome/Login screen with no stale state.
+    try {
+      localStorage.removeItem("sakhi_pending_signup");
+      localStorage.removeItem("sakhi_sos_state");
+    } catch {
+      // ignore storage errors
+    }
   }, [exitGuest]);
 
   // ── Derived values ───────────────────────────────────────────────────────
