@@ -4,8 +4,8 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { isValidEmail } from "@/lib/otp";
-import type { Role } from "@/lib/auth-types";
+import { clearPendingSignup, readPendingSignup, resolveLoginEmail } from "@/lib/otp";
+import { roleHomePath, type Role } from "@/lib/auth-types";
 
 /* ─── Color & Style Tokens (Bright Pink Sunset Palette — matches onboarding) ── */
 const C = {
@@ -40,17 +40,18 @@ const inputStyle = (isFocused: boolean): React.CSSProperties => ({
 });
 
 /**
- * Sign In — existing accounts only. Email + password (OTP is NOT used for
- * normal login; it's reserved for account creation and password recovery).
- * After Supabase validates the credentials the session flows through
- * AuthContext, and this screen routes by the stored profile role:
- * user → Home (or Complete Profile if Aadhaar is still missing),
- * parent → Guardian dashboard.
+ * Sign In — existing accounts only. Accepts an EMAIL or a 10-digit MOBILE
+ * number plus the password (OTP is never used for normal login; it's only
+ * for account creation and password recovery). A mobile number is resolved
+ * to the account email via the lookup_email_by_phone RPC, then Supabase
+ * validates email + password. On success the session flows through
+ * AuthContext and this screen routes by role: user → Home, parent →
+ * Guardian dashboard.
  */
 const SignInPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { ready, user, guest, role, needsProfileCompletion } = useAuth();
+  const { ready, user, guest, role } = useAuth();
 
   const roleHint = ((location.state as { role?: Role } | null)?.role ?? "user") as Role;
   const isParent = roleHint === "parent";
@@ -62,13 +63,17 @@ const SignInPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
-  // Already signed in? Skip authentication and open the right app.
+  // Already signed in? Skip authentication and open the right app. A
+  // freshly verified account still owes the Create Password step.
   useEffect(() => {
-    if (!ready || guest) return;
-    if (!user || role === null) return; // wait for the profile to load
-    if (role === "parent") navigate("/guardian", { replace: true });
-    else navigate(needsProfileCompletion ? "/complete-profile" : "/home", { replace: true });
-  }, [ready, guest, user, role, needsProfileCompletion, navigate]);
+    if (!ready || guest || !user) return;
+    const pending = readPendingSignup();
+    if (pending && pending.email.toLowerCase() === user.email.toLowerCase()) {
+      navigate("/create-password", { replace: true });
+      return;
+    }
+    navigate(roleHomePath(role), { replace: true });
+  }, [ready, guest, user, role, navigate]);
 
   if (!ready) {
     return (
@@ -88,12 +93,7 @@ const SignInPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanEmail = email.trim().toLowerCase();
 
-    if (!isValidEmail(cleanEmail)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
     if (!password) {
       setError("Please enter your password.");
       return;
@@ -105,6 +105,8 @@ const SignInPage = () => {
     setError(null);
     setSending(true);
     try {
+      // Email OR Mobile → account email, then Supabase email + password auth.
+      const cleanEmail = await resolveLoginEmail(email);
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password,
@@ -120,9 +122,15 @@ const SignInPage = () => {
         }
         return;
       }
+      // Password login succeeded → this user does NOT owe the Create Password
+      // step, so drop any stale signup marker (e.g. an abandoned Create
+      // Account attempt for this email during earlier testing). Without this,
+      // the effect below would wrongly send a returning user to
+      // /create-password instead of straight to their dashboard.
+      clearPendingSignup();
       // Session + profile load through AuthContext; the effect above navigates.
-    } catch {
-      setError("Network error. Please check your connection and try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setSending(false);
     }
@@ -317,7 +325,7 @@ const SignInPage = () => {
           Sign in to {isParent ? "your guardian dashboard" : "your safety app"}
         </h2>
         <p style={{ fontSize: "0.8125rem", color: C.textMuted, margin: "0 0 1.25rem", lineHeight: 1.5 }}>
-          Enter your email and password. No OTP needed for returning users.
+          Enter your email or mobile number and password. No OTP needed for returning users.
         </p>
 
         {error && <div className="signin-error">{error}</div>}
@@ -335,7 +343,7 @@ const SignInPage = () => {
                 fontFamily: "'Poppins', sans-serif",
               }}
             >
-              Email Address
+              Email or Mobile Number
             </label>
             <div style={{ position: "relative" }}>
               <Mail
@@ -355,8 +363,9 @@ const SignInPage = () => {
               <input
                 id="signin-email"
                 className="sakhi-input"
-                type="email"
-                placeholder="preeti@example.com"
+                type="text"
+                inputMode="email"
+                placeholder="preeti@example.com or +91 98765 43210"
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

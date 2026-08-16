@@ -38,14 +38,6 @@ type AuthContextType = {
   displayName: string;
   /** Initials derived from the display name (avatar). */
   initials: string;
-  /**
-   * True when the signed-in user has not completed their first-login profile
-   * (Aadhaar last-4 missing for "user" role). Email is always recorded at
-   * signup (it's the OTP identifier), so a missing Aadhaar last-4 is the
-   * first-login signal. Such users are routed to the Profile Completion
-   * screen; parents never need it.
-   */
-  needsProfileCompletion: boolean;
   /** Enter Guest/Demo mode (persisted across reloads). */
   enterGuest: () => void;
   /** Leave Guest/Demo mode. */
@@ -174,23 +166,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Role comes from the profiles row when available; otherwise fall back to
   // the auth user's signup metadata (always saved during Create Account).
   // Without this, a missing/unreadable profile row leaves `role` null forever
-  // and the Sign In screen never navigates past login.
+  // and the Sign In screen never navigates past login. Last resort is the
+  // default "user" role so a signed-in user is never stranded on the login
+  // screen — a broken profile fetch must not brick sign-in.
   const role = (profile?.role ??
     (user?.user_metadata?.role as Role | undefined) ??
-    null) as Role | null;
+    "user") as Role;
   // Authenticated users get their profile name; guest/demo uses the
   // sample persona "Preeti" to stay consistent with the demo data.
   const displayName =
     profile?.full_name || (user?.user_metadata?.full_name as string | undefined) || "Preeti";
   const initials = initialsOf(displayName);
-
-  // A profile only counts as "incomplete" for regular users missing the
-  // Aadhaar last-4 (parents don't provide Aadhaar; email is always present
-  // because it's the OTP identifier). Requires the loaded profile row — a
-  // missing/unreadable row is NOT treated as incomplete, so users are never
-  // trapped in the Profile Completion screen when the backend can't save.
-  const needsProfileCompletion =
-    user !== null && profile !== null && profile.role === "user" && !profile.aadhaar_last4;
 
   return (
     <AuthContext.Provider
@@ -203,7 +189,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         guest,
         displayName,
         initials,
-        needsProfileCompletion,
         refreshProfile,
         enterGuest,
         exitGuest,

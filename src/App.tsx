@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { AppProvider } from "@/context/AppContext";
+import { canAccess, roleHomePath } from "@/lib/auth-types";
 import WelcomePage from "./pages/WelcomePage";
 import AuthChoicePage from "./pages/AuthChoicePage";
 import SignInPage from "./pages/SignInPage";
@@ -15,7 +16,6 @@ import LoginPage from "./pages/LoginPage";
 import ParentRegisterPage from "./pages/ParentRegisterPage";
 import OtpPage from "./pages/OtpPage";
 import CreatePasswordPage from "./pages/CreatePasswordPage";
-import CompleteProfilePage from "./pages/CompleteProfilePage";
 import HomePage from "./pages/HomePage";
 import SOSPage from "./pages/SOSPage";
 import AssistantPage from "./pages/AssistantPage";
@@ -41,18 +41,19 @@ const queryClient = new QueryClient();
  * Keeps the two apps separate after login:
  *
  *   /guardian   → the Parent/Guardian monitoring app (role must be "parent")
- *   /guardians  → the user app's Guardian Management (role must be "user")
+ *   /guardians  → the user app's Guardian Management (role must be "user";
+ *                 admins may use it too — admin uses the user app)
  *
- * Guests keep demo access to either; signed-in users are bounced to their own
- * app's home. role === null means the profile is still loading — wait for it.
+ * Guests keep demo access to either; signed-in users are bounced to a route
+ * they can actually open (their own app's home or the user-app counterpart),
+ * so the two role guards can never ping-pong each other.
+ *   role === null means the profile is still loading — wait for it.
  */
 const RoleGuard = ({
   expected,
-  fallback,
   children,
 }: {
   expected: "user" | "parent";
-  fallback: string;
   children: ReactNode;
 }) => {
   const { ready, role, guest } = useAuth();
@@ -71,12 +72,19 @@ const RoleGuard = ({
       </div>
     );
   }
-  if (!guest && role !== null && role !== expected) return <Navigate to={fallback} replace />;
+  if (!guest && role !== null && !canAccess(role, expected)) {
+    // Never bounce to the other role-guard's route (that loops). Go to the
+    // user-app counterpart (user → their Guardian Management) or, for any
+    // other role (e.g. admin), to that role's home.
+    const fallback =
+      expected === "parent" && role === "user" ? "/guardians" : roleHomePath(role);
+    return <Navigate to={fallback} replace />;
+  }
   return <>{children}</>;
 };
 
 const Protected = ({ children }: { children: ReactNode }) => {
-  const { ready, user, guest, needsProfileCompletion } = useAuth();
+  const { ready, user, guest } = useAuth();
   if (!ready) {
     return (
       <div
@@ -92,9 +100,6 @@ const Protected = ({ children }: { children: ReactNode }) => {
       </div>
     );
   }
-  // Signed-in users who never finished first-login profile completion are
-  // sent to that screen before they can use the app.
-  if (user && needsProfileCompletion) return <Navigate to="/complete-profile" replace />;
   if (!user && !guest) return <Navigate to="/" replace />;
   return <>{children}</>;
 };
@@ -121,9 +126,8 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<ParentRegisterPage />} />
               <Route path="/otp" element={<OtpPage />} />
-              {/* First-login only: create password, then Aadhaar (last 4). */}
+              {/* Create Account step 3: password (account created at OTP verify). */}
               <Route path="/create-password" element={<CreatePasswordPage />} />
-              <Route path="/complete-profile" element={<CompleteProfilePage />} />
 
               {/* ── App (authenticated or guest) ── */}
               <Route
@@ -204,7 +208,7 @@ const App = () => (
                 path="/guardian"
                 element={
                   <Protected>
-                    <RoleGuard expected="parent" fallback="/guardians">
+                    <RoleGuard expected="parent">
                       <GuardianPage />
                     </RoleGuard>
                   </Protected>
@@ -216,7 +220,7 @@ const App = () => (
                 path="/guardians"
                 element={
                   <Protected>
-                    <RoleGuard expected="user" fallback="/guardian">
+                    <RoleGuard expected="user">
                       <GuardiansPage />
                     </RoleGuard>
                   </Protected>

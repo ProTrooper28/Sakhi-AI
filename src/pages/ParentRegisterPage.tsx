@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ShieldCheck, User, Phone, Mail, ArrowRight, Loader2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { sendOtp, normalizePhone, isValidIndianMobile, isValidEmail } from "@/lib/otp";
+import { signUpWithEmail, savePendingSignup, normalizePhone, isValidIndianMobile, isValidEmail } from "@/lib/otp";
 
 /* ─── Color & Style Tokens (Bright Pink Sunset Palette — matches onboarding) ── */
 const C = {
@@ -60,9 +60,9 @@ const ProgressIndicator = ({ current }: { current: Step }) => (
 /**
  * Parent / Guardian registration (Create Account flow) — Step 1 collects the
  * Full Name + Mobile Number (kept on the profile for future SMS OTP / SOS
- * alerts), Step 2 collects the Email Address (the OTP channel). On submit it
- * requests a 6-digit Email OTP via Supabase Auth (no magic links, no
- * confirmation links) and continues to the OTP screen.
+ * alerts), Step 2 collects the Email Address. On submit it creates the
+ * Supabase Auth account; the built-in email provider sends a verification
+ * LINK and the flow continues on the Verify Email screen (/otp).
  */
 const ParentRegisterPage = () => {
   const navigate = useNavigate();
@@ -94,7 +94,7 @@ const ParentRegisterPage = () => {
       return;
     }
 
-    // ── Step 2: Email (the OTP channel) ──
+    // ── Step 2: Email (the verification channel) ──
     if (!isValidEmail(form.email)) {
       setError("Please enter a valid email address.");
       return;
@@ -106,7 +106,8 @@ const ParentRegisterPage = () => {
       const phone = normalizePhone(form.mobile);
       const email = form.email.trim().toLowerCase();
       const profile = { full_name: form.name.trim(), phone };
-      await sendOtp({ email, role: "parent", profile });
+      await signUpWithEmail({ email, role: "parent", profile });
+      savePendingSignup(email, "parent");
       navigate("/otp", { state: { email, role: "parent", profile, mode: "signup" } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
@@ -300,7 +301,7 @@ const ParentRegisterPage = () => {
         <p style={{ fontSize: "0.8125rem", color: C.textMuted, margin: "0 0 1.25rem", lineHeight: 1.4 }}>
           {step === "identity"
             ? "Stored privately on your profile — used for future safety alerts."
-            : "We'll send a 6-digit OTP code to your email."}
+            : "We'll email you a secure verification link to confirm your account."}
         </p>
 
         {error && <div className="parent-error">{error}</div>}
@@ -423,10 +424,10 @@ const ParentRegisterPage = () => {
           <button className="parent-cta" type="submit" disabled={sending}>
             {sending ? (
               <>
-                <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} /> Sending OTP…
+                <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} /> Creating account…
               </>
             ) : step === "email" ? (
-              "Send OTP"
+              "Create Account"
             ) : (
               <>
                 Continue <ArrowRight style={{ width: 15, height: 15 }} />

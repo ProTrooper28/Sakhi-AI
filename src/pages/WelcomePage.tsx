@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { UserRound, ShieldCheck, Eye } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { readPendingSignup } from "@/lib/otp";
+import { roleHomePath } from "@/lib/auth-types";
 
 /* ─── Color & Style Tokens (Bright Pink Sunset Palette — matches LoginPage) ── */
 const C = {
@@ -28,7 +30,7 @@ const ROLE_CARDS = [
     key: "parent",
     emoji: "🛡",
     icon: ShieldCheck,
-    title: "Continue as Parent / Guardian",
+    title: "Continue as Guardian",
     description: "Register to monitor your loved ones and receive real-time SOS updates.",
   },
   {
@@ -49,11 +51,17 @@ const WelcomePage = () => {
   const navigate = useNavigate();
   const { ready, user, guest, role, enterGuest } = useAuth();
 
-  // Already signed in (not guest)? Skip straight to their experience.
+  // Already signed in (not guest)? Skip straight to their experience. A
+  // freshly verified account (verification link just clicked) still owes the
+  // Create Password step, so it goes there first.
   useEffect(() => {
-    if (ready && !guest && user) {
-      navigate(role === "parent" ? "/guardian" : "/home", { replace: true });
+    if (!ready || guest || !user) return;
+    const pending = readPendingSignup();
+    if (pending && pending.email.toLowerCase() === user.email.toLowerCase()) {
+      navigate("/create-password", { replace: true });
+      return;
     }
+    navigate(roleHomePath(role), { replace: true });
   }, [ready, guest, user, role, navigate]);
 
   const handleSelect = (key: "user" | "parent" | "guest") => {

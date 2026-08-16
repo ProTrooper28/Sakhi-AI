@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LogIn, UserPlus, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import type { Role } from "@/lib/auth-types";
+import { readPendingSignup } from "@/lib/otp";
+import { roleHomePath, type Role } from "@/lib/auth-types";
 
 /* ─── Color & Style Tokens (Bright Pink Sunset Palette — matches onboarding) ── */
 const C = {
@@ -34,11 +35,16 @@ const AuthChoicePage = () => {
   const role = ((location.state as { role?: Role } | null)?.role ?? "user") as Role;
   const isParent = role === "parent";
 
-  // Already signed in? Skip authentication entirely and open the app.
+  // Already signed in? Skip authentication entirely and open the app. A
+  // freshly verified account still owes the Create Password step.
   useEffect(() => {
-    if (ready && !guest && user) {
-      navigate(isParent ? "/guardian" : "/home", { replace: true });
+    if (!ready || guest || !user) return;
+    const pending = readPendingSignup();
+    if (pending && pending.email.toLowerCase() === user.email.toLowerCase()) {
+      navigate("/create-password", { replace: true });
+      return;
     }
+    navigate(roleHomePath(role), { replace: true });
   }, [ready, guest, user, isParent, navigate]);
 
   if (!ready) {
@@ -268,7 +274,7 @@ const AuthChoicePage = () => {
         className="auth-choice-card"
       >
         <span className="auth-choice-eyebrow">
-          {isParent ? "Parent / Guardian" : "Your safety companion"}
+          {isParent ? "Guardian" : "Your safety companion"}
         </span>
         <h1 className="auth-choice-title">Welcome Back</h1>
         <p className="auth-choice-sub">

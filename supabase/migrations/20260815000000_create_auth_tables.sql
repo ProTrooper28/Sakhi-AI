@@ -9,7 +9,7 @@
 --   * profiles.aadhaar_last4 stores ONLY the last four digits of the Aadhaar
 --     number. The full number is never sent to the backend, stored, or
 --     exposed by any policy.
---   * Role values: 'user' | 'parent'.
+--   * Role values: 'user' | 'parent' | 'admin' ('admin' uses the User app).
 --   * guardian_links.status: 'pending' | 'accepted'.
 -- ============================================================================
 
@@ -20,7 +20,7 @@ create table if not exists public.profiles (
   aadhaar_last4  text, -- last 4 digits only — never the full Aadhaar number
   phone          text,
   email          text,
-  role           text not null default 'user' check (role in ('user', 'parent')),
+  role           text not null default 'user' check (role in ('user', 'parent', 'admin')),
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );

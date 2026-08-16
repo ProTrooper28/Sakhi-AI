@@ -2,8 +2,39 @@
  * Shared authentication types for Sakhi AI.
  */
 
-/** Account role — determines which experience the user lands in. */
-export type Role = "user" | "parent";
+/**
+ * Account role — determines which experience the user lands in.
+ *
+ *   "user"    → the User app (/home)
+ *   "parent"  → the Guardian / Parent monitoring app (/guardian)
+ *   "admin"   → no dedicated admin app yet; uses the User app (/home)
+ *
+ * NOTE: the Welcome screen calls the parent role "Guardian"; inside the app
+ * the role value is `"parent"` (the DB CHECK constraint and all guards use
+ * it). Dev accounts created by scripts/seed-dev-accounts.ts use the same
+ * values, so "Guardian" in the UI maps to role `parent`.
+ */
+export type Role = "user" | "parent" | "admin";
+
+/**
+ * The home route for a signed-in user, by role.
+ *   user  → /home        (User dashboard)
+ *   parent → /guardian   (Guardian monitoring dashboard)
+ *   admin  → /home       (User dashboard — no admin app implemented yet)
+ *
+ * Every post-login redirect uses this single helper so the three roles can
+ * never be routed inconsistently.
+ */
+export const roleHomePath = (role: Role): string =>
+  role === "parent" ? "/guardian" : "/home";
+
+/**
+ * Whether a signed-in role may open a role-gated route.
+ *   parent app routes accept only `parent`;
+ *   user app routes accept `user` and `admin` (admin uses the user app).
+ */
+export const canAccess = (role: Role, expected: "user" | "parent"): boolean =>
+  role === expected || (expected === "user" && role === "admin");
 
 /**
  * Public profile record stored in Supabase (`public.profiles`).

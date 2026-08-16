@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, ArrowRight, Lock, User, Phone, Mail, Loader2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { sendOtp, normalizePhone, isValidIndianMobile, isValidEmail } from "@/lib/otp";
+import { signUpWithEmail, savePendingSignup, normalizePhone, isValidIndianMobile, isValidEmail } from "@/lib/otp";
 
 /* ─── Field validation (clean, user-facing errors) ──────────────────────────── */
 const validateName = (name: string): string | null => {
@@ -142,17 +142,18 @@ const LoginPage = () => {
     if (err) { setFormError(err); return; }
     setFormError(null);
 
-    // Email OTP flow: send a 6-digit code via Supabase Auth and continue to
-    // /otp. The phone number is stored on the auth user + profile (for future
-    // SMS OTP / SOS alerts), but the login code itself goes to the email.
-    // Aadhaar is collected after OTP verification on the first-login Profile
-    // Completion screen.
+    // Create the Supabase Auth account: Supabase's built-in email provider
+    // sends a verification LINK (no OTP anywhere). The phone number is stored
+    // on the auth user + profile (for future SMS OTP / SOS alerts). The
+    // pending-signup marker lets the app continue to Create Password right
+    // after the link is clicked.
     setSending(true);
     try {
       const phone = normalizePhone(form.mobile);
       const email = form.email.trim().toLowerCase();
       const profile = { full_name: form.name.trim(), phone };
-      await sendOtp({ email, role: "user", profile });
+      await signUpWithEmail({ email, role: "user", profile });
+      savePendingSignup(email, "user");
       navigate("/otp", { state: { email, role: "user", profile, mode: "signup" } });
     } catch (err) {
       setFormError(
@@ -634,7 +635,7 @@ const LoginPage = () => {
                   ? "We only need your name to personalize your experience."
                   : step === "contact"
                     ? "Stored privately on your profile — used for future safety alerts."
-                    : "We'll send a 6-digit OTP code to your email."}
+                    : "We'll email you a secure verification link to confirm your account."}
               </p>
             </div>
 
@@ -807,10 +808,10 @@ const LoginPage = () => {
                   {sending ? (
                     <>
                       <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} />
-                      Sending OTP…
+                      Creating account…
                     </>
                   ) : step === "email" ? (
-                    "Send OTP"
+                    "Create Account"
                   ) : (
                     "Continue"
                   )}

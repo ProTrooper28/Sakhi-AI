@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { normalizePhone, isValidIndianMobile, isValidEmail } from "../lib/otp";
 
-describe("otp helpers (Supabase Auth, Email OTP)", () => {
+describe("signup helpers (Supabase Auth)", () => {
   it("normalizes Indian mobile numbers to E.164", () => {
     expect(normalizePhone("9876543210")).toBe("+919876543210");
     expect(normalizePhone("+91 98765 43210")).toBe("+919876543210");
@@ -20,7 +20,7 @@ describe("otp helpers (Supabase Auth, Email OTP)", () => {
     expect(isValidIndianMobile("")).toBe(false);
   });
 
-  it("validates email addresses (the OTP channel)", () => {
+  it("validates email addresses (the verification channel)", () => {
     expect(isValidEmail("preeti@example.com")).toBe(true);
     expect(isValidEmail("  preeti@example.com  ")).toBe(true);
     expect(isValidEmail("not-an-email")).toBe(false);

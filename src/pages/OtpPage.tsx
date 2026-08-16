@@ -1,10 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ShieldCheck, Loader2 } from "lucide-react";
-import { sendOtp, verifyOtpCode } from "@/lib/otp";
+import { ArrowLeft, MailCheck, Loader2, ArrowRight } from "lucide-react";
+import {
+  OtpError,
+  readPendingSignup,
+  resendVerificationEmail,
+  signUpWithEmail,
+} from "@/lib/otp";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import type { OtpFlowState, Role } from "@/lib/auth-types";
+import { useAuth } from "@/context/AuthContext";
+import type { Role, OtpProfilePayload } from "@/lib/auth-types";
 
 /* ─── Color & Style Tokens (Bright Pink Sunset Palette — matches onboarding) ── */
 const C = {
@@ -20,8 +26,21 @@ const C = {
   textMuted: "rgba(122, 43, 115, 0.75)",
 };
 
-const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
+
+/** Surface the real backend error (message + HTTP status + GoTrue code). */
+const describeError = (err: unknown): string => {
+  if (err instanceof OtpError && (err.status !== undefined || err.supabaseCode)) {
+    const extra = [
+      err.status !== undefined ? `status ${err.status}` : null,
+      err.supabaseCode ? `code ${err.supabaseCode}` : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    return `${err.message} (backend ${extra})`;
+  }
+  return err instanceof Error ? err.message : "Something went wrong. Please try again.";
+};
 
 const maskEmail = (email: string) => {
   const [local = "", domain = ""] = email.split("@");
@@ -32,118 +51,124 @@ const maskEmail = (email: string) => {
 };
 
 /**
- * OTP verification screen. Receives the pending registration via router
- * location state ({ email, role, profile, mode }) and:
- *  1. Verifies the 6-digit email code with Supabase Auth (signs the user in
- *     directly — no magic link, no confirmation link).
- *  2. Sign-up flows continue to the Create Password step; legacy sign-in
- *     flows route straight to the app by stored role.
- *  3. The session persists across restarts — OTP is only ever asked during
- *     account creation, never for normal sign-in.
+ * Email verification screen (route: /otp). Shown right after Create Account
+ * submits. Supabase's built-in email provider has sent a "Confirm signup"
+ * email containing a verification LINK (not a numeric code — no OTP is used
+ * anywhere in the app).
+ *
+ * The screen waits for the verification to land:
+ *   - the user clicks the link in the email → implicit flow signs them in and
+ *     redirects to the app; this screen (and the Welcome screen) detect the
+ *     new session and continue automatically;
+ *   - a "I've verified — Continue" button offers a manual path;
+ *   - "Resend email" re-sends the verification link after 60s.
+ *
+ * Once verified, the user continues to Create Password, then their dashboard.
+ * The session persists across restarts — email verification is only ever
+ * needed once during account creation.
  */
 const OtpPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { ready, user, guest } = useAuth();
+  const navigatedRef = useRef(false);
 
-  const state = useMemo<OtpFlowState | null>(
-    () => (location.state as OtpFlowState | null) ?? null,
-    [location.state],
-  );
+  // Registration details come from router state (fresh submit) or, when this
+  // screen is re-opened (e.g. after the verification link redirect), from the
+  // pending-signup marker saved at submit time.
+  const state = useMemo<{
+    email?: string;
+    role?: Role;
+    profile?: OtpProfilePayload;
+  } | null>(() => (location.state as { email?: string; role?: Role; profile?: OtpProfilePayload } | null) ?? null, [location.state]);
+  const pending = useMemo(() => readPendingSignup(), []);
 
-  const [code, setCode] = useState("");
+  const email = state?.email ?? pending?.email ?? "";
+  const role = state?.role ?? pending?.role ?? "user";
+  const profile = state?.profile;
+
   const [error, setError] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [countdown, setCountdown] = useState(RESEND_SECONDS);
   const [sentMessage, setSentMessage] = useState<string | null>(null);
 
-  // Redirect if someone lands here without a pending flow.
+  // Redirect if someone lands here without any pending flow.
   useEffect(() => {
-    if (!state) navigate("/", { replace: true });
-  }, [state, navigate]);
+    if (!email) navigate("/", { replace: true });
+  }, [email, navigate]);
 
-  // Countdown timer for the "Resend OTP" button.
+  // Countdown for the "Resend email" button.
   useEffect(() => {
     if (countdown <= 0) return;
     const id = setInterval(() => setCountdown((c) => c - 1), 1000);
     return () => clearInterval(id);
   }, [countdown]);
 
-  if (!state) return null;
+  const continueIfVerified = (sessionEmail: string | undefined) => {
+    if (navigatedRef.current) return;
+    if (!email || !sessionEmail || sessionEmail.toLowerCase() !== email.toLowerCase()) return;
+    navigatedRef.current = true;
+    navigate("/create-password", { state: { role }, replace: true });
+  };
 
-  const { email, role, profile, mode = "signup" } = state;
+  // Auto-continue the moment the verification session appears (context
+  // covers the same tab; the poll covers the link being opened in another
+  // tab / device while this screen is still open).
+  useEffect(() => {
+    if (!ready || guest) return;
+    if (user) continueIfVerified(user.email);
+  }, [ready, guest, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!email || !isSupabaseConfigured || !supabase) return;
+    const id = setInterval(() => {
+      void supabase.auth.getSession().then(({ data }) => {
+        continueIfVerified(data.session?.user?.email);
+      });
+    }, 2000);
+    return () => clearInterval(id);
+  }, [email]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!email) return null;
 
   const handleResend = async () => {
     setResending(true);
     setError(null);
     setSentMessage(null);
     try {
-      // Resend in the same mode as the original request: sign-up keeps the
-      // onboarding metadata, sign-in never creates an account.
-      await sendOtp({
-        email,
-        role,
-        profile,
-        shouldCreateUser: mode === "signup" ? undefined : false,
-      });
+      await resendVerificationEmail({ email });
       setCountdown(RESEND_SECONDS);
-      setSentMessage("A new OTP has been sent to your email.");
+      setSentMessage("A new verification email has been sent. Check your inbox.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not resend the OTP. Please try again.");
+      setError(describeError(err));
     } finally {
       setResending(false);
     }
   };
 
-  const handleVerify = async () => {
-    const digits = code.replace(/\D/g, "");
-    if (digits.length !== OTP_LENGTH) {
-      setError(`Please enter the ${OTP_LENGTH}-digit OTP.`);
-      return;
-    }
+  const handleContinue = async () => {
+    setChecking(true);
     setError(null);
-    setVerifying(true);
     try {
       if (!isSupabaseConfigured || !supabase) {
         throw new Error(
           "Backend is not configured yet. Ask your developer to connect Supabase, or continue as a Guest.",
         );
       }
-
-      // 1. Verify the code with Supabase Auth — this signs the user in,
-      //    persists the session, and (for a brand-new email) creates the auth
-      //    user + profile row at verification time.
-      const userId = await verifyOtpCode({ email, token: digits });
-
-      // 2. New-account flow: the OTP verification just created this account —
-      //    the next step is Create Password (then Complete Profile for users,
-      //    or straight to the Guardian dashboard for parents). No OTP is ever
-      //    asked again after this point.
-      if (mode === "signup") {
-        navigate("/create-password", { state: { role, email }, replace: true });
+      const { data } = await supabase.auth.getSession();
+      const sessionEmail = data.session?.user?.email;
+      if (!sessionEmail || sessionEmail.toLowerCase() !== email.toLowerCase()) {
+        setError(
+          "We couldn't find a verified session in this browser. Open the verification link from the email on this device to continue.",
+        );
         return;
       }
-
-      // 3. Legacy sign-in-via-OTP (existing account): route by the stored role
-      //    so the user lands in their own account type.
-      const { data: profileRow } = userId
-        ? await supabase.from("profiles").select("email, aadhaar_last4, role").eq("id", userId).maybeSingle()
-        : { data: null };
-      const incomplete =
-        !profileRow || (role === "user" && !profileRow.aadhaar_last4);
-      const storedRole = (profileRow?.role as Role | undefined) ?? role;
-      navigate(
-        incomplete
-          ? "/complete-profile"
-          : storedRole === "parent"
-            ? "/guardian"
-            : "/home",
-        { replace: true },
-      );
+      continueIfVerified(sessionEmail);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setError(describeError(err));
     } finally {
-      setVerifying(false);
+      setChecking(false);
     }
   };
 
@@ -223,27 +248,6 @@ const OtpPage = () => {
         }
         .otp-back:hover { opacity: 1; }
 
-        .otp-input {
-          width: 100%;
-          box-sizing: border-box;
-          background: ${C.inputBg};
-          border: 1px solid ${C.inputBorder};
-          border-radius: 8px;
-          padding: 0.875rem 1rem;
-          color: ${C.primaryDark};
-          font-family: 'Poppins', sans-serif;
-          font-size: 1.5rem;
-          font-weight: 600;
-          letter-spacing: 0.6em;
-          text-align: center;
-          outline: none;
-          transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-        .otp-input:focus {
-          border-color: ${C.mainAccent};
-          box-shadow: 0 0 0 3px rgba(214, 82, 163, 0.12);
-        }
-
         .otp-cta {
           width: 100%;
           background: ${C.mainAccent};
@@ -288,6 +292,19 @@ const OtpPage = () => {
           color: #B8324A;
           line-height: 1.4;
         }
+
+        .otp-info {
+          background: rgba(255, 112, 191, 0.08);
+          border: 1px solid rgba(255, 112, 191, 0.25);
+          border-radius: 8px;
+          padding: 0.625rem 0.75rem;
+          font-family: 'Poppins', sans-serif;
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: ${C.primaryDark};
+          line-height: 1.4;
+          margin-bottom: 0.875rem;
+        }
       `}</style>
 
       <div className="sakhi-mountains-bg" />
@@ -314,7 +331,7 @@ const OtpPage = () => {
             marginBottom: "0.875rem",
           }}
         >
-          <ShieldCheck style={{ width: 22, height: 22, color: C.mainAccent }} />
+          <MailCheck style={{ width: 22, height: 22, color: C.mainAccent }} />
         </div>
 
         <span
@@ -338,10 +355,11 @@ const OtpPage = () => {
             margin: "0.375rem 0 0.5rem",
           }}
         >
-          Enter OTP
+          Verify your email
         </h2>
         <p style={{ fontSize: "0.8125rem", color: C.textMuted, margin: "0 0 1.25rem", lineHeight: 1.5 }}>
-          We sent a {OTP_LENGTH}-digit code to <strong>{maskEmail(email)}</strong>
+          We sent a verification link to <strong>{maskEmail(email)}</strong>. Open it in
+          this browser to confirm your account — we'll take it from there.
         </p>
 
         <AnimatePresence>
@@ -377,31 +395,25 @@ const OtpPage = () => {
           )}
         </AnimatePresence>
 
-        <input
-          className="otp-input"
-          inputMode="numeric"
-          autoFocus
-          maxLength={OTP_LENGTH}
-          placeholder="••••••"
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, OTP_LENGTH))}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void handleVerify();
-          }}
-        />
+        <div className="otp-info">
+          No 6-digit code needed — clicking the link in the email is all it takes.
+          This screen continues automatically once your email is verified.
+        </div>
 
         <button
           className="otp-cta"
-          disabled={verifying}
-          onClick={() => void handleVerify()}
+          disabled={checking}
+          onClick={() => void handleContinue()}
           type="button"
         >
-          {verifying ? (
+          {checking ? (
             <>
-              <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} /> Verifying…
+              <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} /> Checking…
             </>
           ) : (
-            "Verify"
+            <>
+              I've verified — Continue <ArrowRight style={{ width: 15, height: 15 }} />
+            </>
           )}
         </button>
 
@@ -424,8 +436,8 @@ const OtpPage = () => {
             {resending
               ? "Resending…"
               : countdown > 0
-                ? `Resend OTP in ${countdown}s`
-                : "Resend OTP"}
+                ? `Resend email in ${countdown}s`
+                : "Resend email"}
           </button>
         </div>
       </motion.div>

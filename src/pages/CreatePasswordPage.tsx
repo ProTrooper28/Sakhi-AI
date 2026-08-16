@@ -4,7 +4,9 @@ import { motion } from "framer-motion";
 import { KeyRound, Loader2, Eye, EyeOff, ArrowRight } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { clearPendingSignup } from "@/lib/otp";
 import { useAuth } from "@/context/AuthContext";
+import { SessionLostScreen } from "@/components/SessionLostScreen";
 import {
   scorePassword,
   passwordStrengthLabel,
@@ -12,7 +14,7 @@ import {
   validatePassword,
   MIN_PASSWORD_LENGTH,
 } from "@/lib/password";
-import type { Role } from "@/lib/auth-types";
+import { roleHomePath, type Role } from "@/lib/auth-types";
 
 const C = {
   primaryDark: "#7A2B73",
@@ -46,10 +48,11 @@ const inputStyle = (isFocused: boolean): React.CSSProperties => ({
 });
 
 /**
- * Create Password — Step 5 of account creation, shown right after the email
- * OTP is verified. Saves the password to Supabase Auth (never to the profiles
- * table), then sends users to Complete Profile (Aadhaar last-4) and parents
- * straight to their Guardian dashboard.
+ * Create Password — the step right after email verification during account
+ * creation. Saves the password to Supabase Auth (never to the profiles
+ * table), clears the pending-signup marker, and opens the User or Guardian
+ * dashboard. Returning users sign in with Email + Password and never see
+ * this screen.
  */
 const CreatePasswordPage = () => {
   const navigate = useNavigate();
@@ -70,11 +73,20 @@ const CreatePasswordPage = () => {
       return;
     }
     let mounted = true;
-    supabase?.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      if (data.session?.user) setSessionUser(data.session.user);
-      setAuthResolved(true);
-    });
+    supabase?.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        if (data.session?.user) setSessionUser(data.session.user);
+      })
+      .catch(() => {
+        // Storage/network hiccup — fall through to the recoverable screen
+        // instead of hanging on a spinner forever.
+        console.error("[sakhi-auth] getSession failed on Create Password step");
+      })
+      .finally(() => {
+        if (mounted) setAuthResolved(true);
+      });
     return () => {
       mounted = false;
     };
@@ -117,7 +129,12 @@ const CreatePasswordPage = () => {
       </div>
     );
   }
-  if (guest || !activeUser) return <Navigate to="/" replace />;
+  // Guests never reach this screen through the normal flow — send them back
+  // to the role selection. A signed-out visitor (or a session that failed to
+  // restore right after OTP verification) gets a recoverable Sign In screen
+  // instead of a silent bounce to Welcome.
+  if (guest) return <Navigate to="/" replace />;
+  if (!activeUser) return <SessionLostScreen title="Session not found" />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,7 +155,12 @@ const CreatePasswordPage = () => {
         setError("We couldn't set your password. Please try again.");
         return;
       }
-      navigate(isParent ? "/guardian" : "/complete-profile", { replace: true });
+      // Account is fully created: email verified, session active, password
+      // saved, profile row created at signup. The pending-signup marker is
+      // cleared so future sessions go straight to the dashboard. Open the
+      // right dashboard.
+      clearPendingSignup();
+      navigate(roleHomePath(role), { replace: true });
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {

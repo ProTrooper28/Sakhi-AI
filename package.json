@@ -9,6 +9,9 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "diagnose:otp": "bun scripts/diagnose-otp.ts",
+    "diagnose:smtp": "bun scripts/diagnose-smtp.ts",
+    "seed:dev": "bun scripts/seed-dev-accounts.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

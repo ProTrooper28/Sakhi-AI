@@ -8,12 +8,23 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { useApp } from "@/context/AppContext";
+import { useApp, type SOSState } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { fetchMyLinks, addGuardianLink, removeLink, renameRelationship } from "@/lib/guardians";
 import { RELATIONSHIPS, type GuardianLink } from "@/lib/auth-types";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { startSOSAlarmLoop, stopSOSAlarmLoop, playSuccessChimeSound } from "@/lib/audio";
+import {
+  fetchLiveLocations,
+  fetchSafetyEvents,
+  resolveSosEvent,
+  subscribeLiveLocations,
+  subscribeSafetyEvents,
+  type LiveLocation,
+  type SafetyEvent,
+} from "@/lib/safety";
 
 // ── Icons & Map Helpers ────────────────────────────────────────────────────────
 
@@ -52,11 +63,18 @@ const initialsOf = (name: string) =>
 // with the SOS pipeline — these keep the dashboard honest and stable across
 // renders instead of flickering random values).
 const DEMO_AREAS = ["Bandra West, Mumbai", "Andheri East, Mumbai", "Powai, Mumbai", "Kurla, Mumbai", "Juhu, Mumbai", "Dadar, Mumbai"];
-const DEMO_UPDATED = ["Just now", "1 min ago", "2 min ago", "3 min ago", "4 min ago", "5 min ago"];
 
 // ── Family live map (parent dashboard) ────────────────────────────────────────
-
-const FamilyMap = ({ members }: { members: GuardianLink[] }) => {
+// Real positions come from live_locations via Supabase Realtime (locations
+// prop); members without a position yet fall back to stable demo offsets so
+// the map is never empty.
+const FamilyMap = ({
+  members,
+  locations,
+}: {
+  members: GuardianLink[];
+  locations: Record<string, LiveLocation>;
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,27 +87,42 @@ const FamilyMap = ({ members }: { members: GuardianLink[] }) => {
     });
     L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
 
-    // The guardian themself (blue), around whom the demo family positions orbit.
+    // The guardian themself (blue), around whom the family positions orbit.
     L.marker([19.0596, 72.8295], { icon: createGuardianMarker() }).addTo(map);
     members.forEach((m, i) => {
-      const lat = 19.0596 + (i % 3) * 0.012 - 0.012;
-      const lng = 72.8295 + Math.floor(i / 3) * 0.012 - 0.006;
+      const loc = locations[m.user_id];
+      const lat = loc?.latitude ?? 19.0596 + (i % 3) * 0.012 - 0.012;
+      const lng = loc?.longitude ?? 72.8295 + Math.floor(i / 3) * 0.012 - 0.006;
       L.marker([lat, lng], { icon: createUserMarker() }).addTo(map);
     });
 
     return () => {
       map.remove();
     };
-  }, [members]);
+  }, [members, locations]);
 
   return <div ref={containerRef} style={{ height: 220, width: "100%", borderRadius: 20 }} />;
 };
 
+/** "Xs ago" from an ISO timestamp. */
+const timeAgo = (iso: string): string => {
+  const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} hr ago`;
+  return `${Math.floor(s / 86400)} d ago`;
+};
+
 // ── Guardian dashboard (parent app home) ──────────────────────────────────────
 
-const GuardianDashboard = () => {
+const GuardianDashboard = ({
+  events,
+  locations,
+}: {
+  events: SafetyEvent[];
+  locations: Record<string, LiveLocation>;
+}) => {
   const { displayName } = useAuth();
-  const { sosState } = useApp();
 
   const [links, setLinks] = useState<GuardianLink[]>([]);
   const [loading, setLoading] = useState(true);
@@ -113,6 +146,14 @@ const GuardianDashboard = () => {
   const accepted = links.filter((l) => l.status === "accepted");
   const pending = links.filter((l) => l.status === "pending");
   const firstName = displayName.split(/\s+/)[0] || "Guardian";
+
+  // Real-time safety data (Supabase Realtime → RLS-scoped to linked users).
+  const activeSos = events.find((e) => e.type === "sos" && e.status === "active");
+  const activeSosCount = events.filter((e) => e.type === "sos" && e.status === "active").length;
+  const recentEvents = events.slice(0, 6);
+  const notificationCount = pending.length + recentEvents.length;
+  const userNameFor = (userId: string) =>
+    links.find((l) => l.user_id === userId)?.user_name ?? "Linked user";
 
   const hour = new Date().getHours();
   const greeting =
@@ -167,11 +208,10 @@ const GuardianDashboard = () => {
 
   // Recent Notifications = the guardian's live alerts right now: pending link
   // requests plus any active SOS. Details stay in the Sent Requests section.
-  const notificationCount = pending.length + (sosState.active ? 1 : 0);
   const stats = [
     { label: "Family Members Linked", value: String(accepted.length), icon: Users, color: "#3D9970", bg: "rgba(61,153,112,0.12)" },
-    { label: "Current Safety Status", value: sosState.active ? "Emergency" : "All Safe", icon: Shield, color: sosState.active ? "#D4455C" : "#3D9970", bg: sosState.active ? "rgba(212,69,92,0.12)" : "rgba(61,153,112,0.12)" },
-    { label: "Active SOS Alerts", value: String(sosState.active ? 1 : 0), icon: AlertTriangle, color: "#D4455C", bg: "rgba(212,69,92,0.12)" },
+    { label: "Current Safety Status", value: activeSos ? "Emergency" : "All Safe", icon: Shield, color: activeSos ? "#D4455C" : "#3D9970", bg: activeSos ? "rgba(212,69,92,0.12)" : "rgba(61,153,112,0.12)" },
+    { label: "Active SOS Alerts", value: String(activeSosCount), icon: AlertTriangle, color: "#D4455C", bg: "rgba(212,69,92,0.12)" },
     { label: "Recent Notifications", value: String(notificationCount), icon: Bell, color: "#B7770D", bg: "rgba(243,156,18,0.12)" },
   ];
 
@@ -255,15 +295,19 @@ const GuardianDashboard = () => {
           </span>
         </div>
         <div className="px-3 pb-3">
-          <FamilyMap members={accepted} />
+          <FamilyMap members={accepted} locations={locations} />
         </div>
-        {/* Per-member readouts: current location, movement status, last updated */}
+        {/* Per-member readouts: current location, online status, battery, last updated */}
         {accepted.length > 0 && (
           <div className="px-4 pb-2 space-y-2">
             {accepted.map((link, i) => {
-              const moving = i % 2 === 0;
-              const area = DEMO_AREAS[i % DEMO_AREAS.length];
-              const updated = DEMO_UPDATED[i % DEMO_UPDATED.length];
+              const loc = locations[link.user_id];
+              const updatedAgo = loc
+                ? Math.max(0, Math.floor((Date.now() - new Date(loc.updated_at).getTime()) / 1000))
+                : null;
+              const online = updatedAgo !== null && updatedAgo < 300;
+              const area = loc?.location_label ?? DEMO_AREAS[i % DEMO_AREAS.length];
+              const updated = updatedAgo === null ? "no signal yet" : timeAgo(loc!.updated_at);
               return (
                 <div
                   key={link.id}
@@ -290,19 +334,25 @@ const GuardianDashboard = () => {
                   <span
                     className="flex items-center gap-1.5 px-2 py-0.5 rounded-full flex-shrink-0"
                     style={{
-                      background: moving ? "rgba(61,153,112,0.1)" : "rgba(243,156,18,0.1)",
+                      background: online ? "rgba(61,153,112,0.1)" : "rgba(243,156,18,0.1)",
                       fontFamily: "Nunito,sans-serif",
                       fontWeight: 700,
                       fontSize: 9.5,
-                      color: moving ? "#2E7D56" : "#B7770D",
+                      color: online ? "#2E7D56" : "#B7770D",
                     }}
                   >
                     <span
                       className="w-1.5 h-1.5 rounded-full"
-                      style={{ background: moving ? "#3D9970" : "#F39C12" }}
+                      style={{ background: online ? "#3D9970" : "#F39C12" }}
                     />
-                    {moving ? "Moving" : "Stationary"}
+                    {online ? "Online" : "Offline"}
                   </span>
+                  {loc?.battery_level != null && (
+                    <span className="flex items-center gap-1 flex-shrink-0" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 9.5, color: "#9E7A6A" }}>
+                      <BatteryMedium style={{ width: 12, height: 12 }} />
+                      {Math.round(loc.battery_level)}%
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -310,10 +360,82 @@ const GuardianDashboard = () => {
         )}
         <p className="px-4 pb-4" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#9E7A6A" }}>
           {accepted.length > 0
-            ? "Showing linked family members' last known positions (demo coordinates — real-time GPS arrives with the SOS pipeline)."
+            ? "Live positions from connected devices via Supabase Realtime — updates automatically, no refresh needed."
             : "Linked members will appear here with their live location. Add a member below to get started."}
         </p>
       </div>
+
+      {/* ── Recent safety notifications (SOS + safe check-ins, real-time) ── */}
+      {recentEvents.length > 0 && (
+        <div className="rounded-[24px] p-5" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.06)" }}>
+          <div className="flex items-center justify-between mb-3">
+            <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315" }}>
+              Recent Notifications
+            </h3>
+            <span className="flex items-center gap-1.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10.5, color: "#3D9970" }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#3D9970]" /> Live
+            </span>
+          </div>
+          <div className="space-y-2">
+            {recentEvents.map((ev) => {
+              const isSos = ev.type === "sos";
+              const isActive = isSos && ev.status === "active";
+              const isCheckin = ev.type === "checkin";
+              return (
+                <div
+                  key={ev.id}
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+                  style={{
+                    background: isActive ? "rgba(212,69,92,0.08)" : "rgba(61,153,112,0.06)",
+                    border: `1px solid ${isActive ? "rgba(212,69,92,0.25)" : "rgba(61,153,112,0.15)"}`,
+                  }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                    style={{ background: isActive ? "#D4455C" : isCheckin ? "#3D9970" : "#9E7A6A" }}
+                  >
+                    {isActive ? (
+                      <AlertTriangle style={{ width: 14, height: 14 }} />
+                    ) : isCheckin ? (
+                      <CheckCircle2 style={{ width: 14, height: 14 }} />
+                    ) : (
+                      <Shield style={{ width: 14, height: 14 }} />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12, color: "#3D2315" }}>
+                      {isActive
+                        ? `🚨 SOS from ${userNameFor(ev.user_id)}`
+                        : isCheckin
+                          ? `✅ Safe Check-In from ${userNameFor(ev.user_id)}`
+                          : `${userNameFor(ev.user_id)} — SOS ${ev.status}`}
+                    </p>
+                    <p className="flex items-center gap-1 truncate" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 10.5, color: "#9E7A6A", marginTop: 1 }}>
+                      {ev.location_label ? (
+                        <>
+                          <MapPin style={{ width: 10, height: 10, flexShrink: 0 }} />
+                          <span className="truncate">{ev.location_label}</span>
+                          <span style={{ color: "rgba(158,122,106,0.5)" }}>·</span>
+                        </>
+                      ) : null}
+                      <span className="flex-shrink-0">{timeAgo(ev.triggered_at)}</span>
+                    </p>
+                  </div>
+                  {isActive && (
+                    <button
+                      onClick={() => void resolveSosEvent(ev.id)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-white cursor-pointer flex-shrink-0"
+                      style={{ background: "#3D9970", border: "none", fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10.5 }}
+                    >
+                      <CheckCircle2 style={{ width: 12, height: 12 }} /> Mark Safe
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Add member ── */}
       <div className="rounded-[24px] p-5" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.06)" }}>
@@ -571,13 +693,79 @@ const GuardianPage = () => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
 
-  // Mocks
-  const userLat = sosState.active ? sosState.coords.lat : (locationState.coords?.lat || 28.5355);
-  const userLng = sosState.active ? sosState.coords.lng : (locationState.coords?.lng || 77.3910);
+  // ── Real-time safety data (Supabase Realtime, RLS-scoped to linked users) ──
+  const [events, setEvents] = useState<SafetyEvent[]>([]);
+  const [locations, setLocations] = useState<Record<string, LiveLocation>>({});
+  const [links, setLinks] = useState<GuardianLink[]>([]);
+
+  // Linked users (accepted links) — used to resolve user_id → display name.
+  useEffect(() => {
+    if (!isParent) return;
+    let mounted = true;
+    void fetchMyLinks("parent").then((fetched) => {
+      if (mounted) setLinks(fetched);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [isParent]);
+
+  // Snapshot + subscribe: events (SOS / check-ins) and live locations update
+  // automatically — no manual refresh. RLS only delivers rows the guardian is
+  // allowed to see (accepted linked users).
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let mounted = true;
+    void fetchSafetyEvents().then((evts) => {
+      if (mounted) setEvents(evts);
+    });
+    void fetchLiveLocations().then((locs) => {
+      if (mounted) setLocations(Object.fromEntries(locs.map((l) => [l.user_id, l])));
+    });
+    const offEvents = subscribeSafetyEvents((evt) =>
+      setEvents((prev) => [evt, ...prev.filter((x) => x.id !== evt.id)]),
+    );
+    const offLocations = subscribeLiveLocations((loc) =>
+      setLocations((prev) => ({ ...prev, [loc.user_id]: loc })),
+    );
+    return () => {
+      mounted = false;
+      offEvents();
+      offLocations();
+    };
+  }, []);
+
+  // The active SOS event for a linked user (from Supabase, another device).
+  const activeRemoteSos = events.find((e) => e.type === "sos" && e.status === "active");
+  const userNameFor = (userId: string) =>
+    links.find((l) => l.user_id === userId)?.user_name ?? null;
+
+  // Local SOS (same device / demo) OR the remote event — both drive the same
+  // emergency dashboard, so two devices behave identically.
+  const effectiveSos: SOSState = activeRemoteSos
+    ? {
+        active: true,
+        triggeredAt: activeRemoteSos.triggered_at,
+        userName: userNameFor(activeRemoteSos.user_id) ?? "Linked user",
+        location: activeRemoteSos.location_label ?? "Live location sharing…",
+        coords: {
+          lat: locations[activeRemoteSos.user_id]?.latitude ?? activeRemoteSos.latitude ?? 19.0596,
+          lng: locations[activeRemoteSos.user_id]?.longitude ?? activeRemoteSos.longitude ?? 72.8295,
+        },
+        resolved: false,
+      }
+    : sosState;
+
+  const userLat = effectiveSos.active
+    ? (locations[activeRemoteSos?.user_id ?? ""]?.latitude ?? effectiveSos.coords.lat)
+    : (locationState.coords?.lat || 28.5355);
+  const userLng = effectiveSos.active
+    ? (locations[activeRemoteSos?.user_id ?? ""]?.longitude ?? effectiveSos.coords.lng)
+    : (locationState.coords?.lng || 77.3910);
   const guardianLat = userLat - 0.008;
   const guardianLng = userLng + 0.006;
   
-  const isSOS = sosState.active;
+  const isSOS = effectiveSos.active;
 
   // Actions
   const handleAction = (msg: string) => {
@@ -586,21 +774,40 @@ const GuardianPage = () => {
   };
 
   useEffect(() => {
-    if (sosState.active) setIsResolved(false);
-  }, [sosState.active]);
+    if (effectiveSos.active) setIsResolved(false);
+  }, [effectiveSos.active]);
 
   // Timer
   useEffect(() => {
-    if (!sosState.active) return;
+    if (!effectiveSos.active) return;
     const calc = () => {
-      if (!sosState.triggeredAt) return "00:00";
-      const d = Math.floor((Date.now() - new Date(sosState.triggeredAt).getTime()) / 1000);
+      if (!effectiveSos.triggeredAt) return "00:00";
+      const d = Math.floor((Date.now() - new Date(effectiveSos.triggeredAt).getTime()) / 1000);
       return `${String(Math.floor(d / 60)).padStart(2, "0")}:${String(d % 60).padStart(2, "0")}`;
     };
     setTimeElapsed(calc());
     const id = setInterval(() => setTimeElapsed(calc()), 1000);
     return () => clearInterval(id);
-  }, [sosState.active, sosState.triggeredAt]);
+  }, [effectiveSos.active, effectiveSos.triggeredAt]);
+
+  // ── Guardian alerting: alarm when a linked user's SOS goes live, chime on
+  //    new safe check-ins. (Local SOS keeps its existing AppContext sound.)
+  const remoteActiveRef = useRef(false);
+  useEffect(() => {
+    const active = activeRemoteSos != null;
+    if (active && !remoteActiveRef.current) startSOSAlarmLoop(true);
+    else if (!active && remoteActiveRef.current) stopSOSAlarmLoop();
+    remoteActiveRef.current = active;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRemoteSos?.id]);
+  useEffect(() => () => stopSOSAlarmLoop(), []);
+
+  const checkinCountRef = useRef(0);
+  useEffect(() => {
+    const count = events.filter((e) => e.type === "checkin").length;
+    if (count > checkinCountRef.current && checkinCountRef.current > 0) playSuccessChimeSound();
+    checkinCountRef.current = count;
+  }, [events]);
 
   // Map Initialization
   useEffect(() => {
@@ -717,7 +924,7 @@ const GuardianPage = () => {
           {!isSOS ? (
             isParent ? (
               /* ── Parent: full Guardian monitoring dashboard ── */
-              <GuardianDashboard />
+              <GuardianDashboard events={events} locations={locations} />
             ) : (
               /* Non-SOS state placeholder (simplified for requirements focusing on SOS) */
               <div className="rounded-[24px] p-6 text-center" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.05)" }}>
@@ -743,7 +950,7 @@ const GuardianPage = () => {
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 }}>User at Risk</p>
-                      <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 20, color: "white" }}>{sosState.userName || "Preeti Sharma"}</h2>
+                      <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 20, color: "white" }}>{effectiveSos.userName || "Preeti Sharma"}</h2>
                     </div>
                     <div className="flex gap-2">
                       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg" style={{ background: "rgba(255,255,255,0.1)" }}>
@@ -770,7 +977,7 @@ const GuardianPage = () => {
                       <div className="w-8 h-8 rounded-full flex items-center justify-center bg-emerald-500/20 text-emerald-400"><MapPin className="w-4 h-4" /></div>
                       <div className="flex-1 min-w-0">
                         <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 13, color: "white" }}>Live Location Sharing</p>
-                        <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "rgba(255,255,255,0.5)" }} className="truncate">{sosState.location || "Tracking precise location..."}</p>
+                        <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "rgba(255,255,255,0.5)" }} className="truncate">{effectiveSos.location || "Tracking precise location..."}</p>
                       </div>
                     </div>
                   </div>
@@ -796,12 +1003,21 @@ const GuardianPage = () => {
                 <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 14, color: "rgba(255,255,255,0.6)" }} className="mt-1">Immediate Response</h3>
                 <div className="grid grid-cols-2 gap-3">
                   {[
-                    { label: "Call User", icon: Phone, bg: "rgba(59,130,246,0.15)", color: "#60A5FA", border: "rgba(59,130,246,0.3)" },
-                    { label: "Navigate", icon: Navigation, bg: "rgba(167,139,250,0.15)", color: "#C084FC", border: "rgba(167,139,250,0.3)" },
-                    { label: "Call Police (112)", icon: CarFront, bg: "rgba(248,113,113,0.15)", color: "#F87171", border: "rgba(248,113,113,0.3)" },
-                    { label: "Ambulance (108)", icon: Stethoscope, bg: "rgba(251,146,60,0.15)", color: "#FBBF24", border: "rgba(251,146,60,0.3)" },
-                    { label: "Send Msg", icon: MessageSquare, bg: "rgba(255,255,255,0.1)", color: "white", border: "rgba(255,255,255,0.15)" },
-                    { label: "Mark Safe", icon: CheckCircle2, bg: "rgba(52,211,153,0.15)", color: "#34D399", border: "rgba(52,211,153,0.3)", action: () => { setIsResolved(true); resolveSOS(); handleAction("Emergency Resolved"); navigate("/home"); } },
+                    { label: "Call User", icon: Phone, bg: "rgba(59,130,246,0.15)", color: "#60A5FA", border: "rgba(59,130,246,0.3)", action: () => { window.location.href = "tel:112"; } },
+                    { label: "Navigate", icon: Navigation, bg: "rgba(167,139,250,0.15)", color: "#C084FC", border: "rgba(167,139,250,0.3)", action: () => { window.open(`https://www.google.com/maps?q=${userLat},${userLng}`, "_blank"); } },
+                    { label: "Call Police (112)", icon: CarFront, bg: "rgba(248,113,113,0.15)", color: "#F87171", border: "rgba(248,113,113,0.3)", action: () => { window.location.href = "tel:112"; } },
+                    { label: "Ambulance (108)", icon: Stethoscope, bg: "rgba(251,146,60,0.15)", color: "#FBBF24", border: "rgba(251,146,60,0.3)", action: () => { window.location.href = "tel:108"; } },
+                    { label: "Send Msg", icon: MessageSquare, bg: "rgba(255,255,255,0.1)", color: "white", border: "rgba(255,255,255,0.15)", action: () => { window.location.href = `sms:112?body=${encodeURIComponent(`Sakhi SOS: ${effectiveSos.userName} needs help at ${effectiveSos.location}`)}`; } },
+                    { label: "Mark Safe", icon: CheckCircle2, bg: "rgba(52,211,153,0.15)", color: "#34D399", border: "rgba(52,211,153,0.3)", action: () => {
+                        if (activeRemoteSos) {
+                          // Remote (other device): resolve in Supabase — the
+                          // dashboard flips back automatically via Realtime.
+                          void resolveSosEvent(activeRemoteSos.id);
+                          handleAction("Emergency Resolved — marked safe");
+                        } else {
+                          setIsResolved(true); resolveSOS(); handleAction("Emergency Resolved"); navigate("/home");
+                        }
+                      } },
                   ].map(btn => (
                     <motion.button 
                       key={btn.label}

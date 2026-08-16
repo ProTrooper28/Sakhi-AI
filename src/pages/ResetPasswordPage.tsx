@@ -11,6 +11,7 @@ import {
   MIN_PASSWORD_LENGTH,
 } from "@/lib/password";
 import { useAuth } from "@/context/AuthContext";
+import { roleHomePath } from "@/lib/auth-types";
 
 const C = {
   primaryDark: "#7A2B73",
@@ -109,7 +110,7 @@ const ResetPasswordPage = () => {
         return;
       }
       setDone(true);
-      setTimeout(() => navigate(role === "parent" ? "/guardian" : "/home", { replace: true }), 1200);
+      setTimeout(() => navigate(roleHomePath(role), { replace: true }), 1200);
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {

@@ -36,19 +36,19 @@ describe("auth flow screens", () => {
     expect(screen.getByRole("button", { name: /create account/i })).toBeInTheDocument();
   });
 
-  it("shows the Welcome Back choice for parents", async () => {
+  it("shows the Welcome Back choice for guardians", async () => {
     renderAt("/auth", { role: "parent" }, <AuthChoicePage />);
 
     expect(await screen.findByText("Welcome Back")).toBeInTheDocument();
-    expect(screen.getByText(/parent \/ guardian/i)).toBeInTheDocument();
+    expect(screen.getByText("Guardian")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /create account/i })).toBeInTheDocument();
   });
 
-  it("sign-in asks for email + password (no OTP)", async () => {
+  it("sign-in asks for email-or-mobile + password (no OTP)", async () => {
     renderAt("/signin", { role: "user" }, <SignInPage />);
 
     expect(await screen.findByText(/sign in to your safety app/i)).toBeInTheDocument();
-    expect(screen.getByLabelText("Email Address")).toBeInTheDocument();
+    expect(screen.getByLabelText("Email or Mobile Number")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /forgot password/i })).toBeInTheDocument();

@@ -1,6 +1,14 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import { startSOSAlarmLoop, stopSOSAlarmLoop, playSuccessChimeSound } from "@/lib/audio";
 import { useAuth } from "./AuthContext";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import {
+  cancelSosEvent,
+  createSosEvent,
+  resolveSosEvent,
+  sendSafeCheckIn,
+  upsertLiveLocation,
+} from "@/lib/safety";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,7 +116,11 @@ const AppContext = createContext<AppContextType | null>(null);
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   // Use the authenticated user's name for SOS broadcasts (falls back to the
   // demo persona "Preeti" for guests / before profile load).
-  const { displayName } = useAuth();
+  const { displayName, user, guest } = useAuth();
+
+  // Id of the Supabase safety_events row backing the CURRENT local SOS, so
+  // resolve/cancel can close it for the guardian. Null in guest/demo mode.
+  const activeSosEventIdRef = useRef<string | null>(null);
 
   const [reports, setReports] = useState<Report[]>(() => {
     try {
@@ -272,6 +284,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => { if (unsub) unsub(); }
   }, [requestLocation]);
 
+  // ── Continuous live location → Supabase (guardian gets updates in real
+  //    time without refreshing). Throttled so watchPosition's high-frequency
+  //    callbacks don't hammer the API. Never in guest mode.
+  const lastLocationUpsertRef = useRef(0);
+  useEffect(() => {
+    if (!isSupabaseConfigured || guest || !user) return;
+    const coords = locationState.coords;
+    if (!coords) return;
+    const now = Date.now();
+    if (now - lastLocationUpsertRef.current < 5000) return;
+    lastLocationUpsertRef.current = now;
+    const label = locationState.address ?? null;
+    void upsertLiveLocation({ lat: coords.lat, lng: coords.lng, label });
+  }, [locationState.coords, locationState.address, guest, user]);
+
   const triggerSOS = useCallback(() => {
     const activeCoords = locationState.coords || DEFAULT_SOS_STATE.coords;
     const activeAddress = locationState.address || DEFAULT_SOS_STATE.location;
@@ -301,23 +328,59 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       },
       ...prev
     ]);
-  }, [locationState.coords, locationState.address, displayName]);
+
+    // REAL backend: create the SOS event + start live location sharing so the
+    // guardian's dashboard updates instantly via Supabase Realtime. Guests
+    // never write to Supabase.
+    if (isSupabaseConfigured && !guest && user) {
+      void createSosEvent({
+        lat: activeCoords.lat,
+        lng: activeCoords.lng,
+        label: activeAddress,
+      }).then((evt) => {
+        if (evt) activeSosEventIdRef.current = evt.id;
+      });
+      void upsertLiveLocation({
+        lat: activeCoords.lat,
+        lng: activeCoords.lng,
+        label: activeAddress,
+      });
+    }
+  }, [locationState.coords, locationState.address, displayName, guest, user]);
 
   const cancelSOS = useCallback(() => {
+    // Close the backend event too (guardian sees the alert cancelled).
+    const eventId = activeSosEventIdRef.current;
+    if (isSupabaseConfigured && !guest && user && eventId) {
+      activeSosEventIdRef.current = null;
+      void cancelSosEvent(eventId);
+    }
     const next: SOSState = { ...DEFAULT_SOS_STATE, active: false, resolved: false };
     localStorage.setItem(STORAGE_KEY_SOS, JSON.stringify(next));
     window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY_SOS }));
     setSOSState(next);
-  }, []);
+  }, [guest, user]);
 
   const resolveSOS = useCallback(() => {
+    // "I'm Safe": close the backend SOS AND send a ✅ safe check-in (time +
+    // location) so the guardian immediately sees it.
+    const eventId = activeSosEventIdRef.current;
+    if (isSupabaseConfigured && !guest && user) {
+      if (eventId) {
+        activeSosEventIdRef.current = null;
+        void resolveSosEvent(eventId);
+      }
+      const coords = locationState.coords || DEFAULT_SOS_STATE.coords;
+      const label = locationState.address || DEFAULT_SOS_STATE.location;
+      void sendSafeCheckIn({ lat: coords.lat, lng: coords.lng, label });
+    }
     setSOSState(prev => {
       const next: SOSState = { ...prev, active: false, resolved: true };
       localStorage.setItem(STORAGE_KEY_SOS, JSON.stringify(next));
       window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY_SOS }));
       return next;
     });
-  }, []);
+  }, [guest, user, locationState.coords, locationState.address]);
 
   // ── Report Actions ──
   const addReport = (report: Omit<Report, "id" | "timestamp">): string => {

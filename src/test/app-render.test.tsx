@@ -18,7 +18,7 @@ describe("app smoke render", () => {
 
     expect(await screen.findByText("Welcome to Sakhi AI")).toBeInTheDocument();
     expect(screen.getByText("Continue as User")).toBeInTheDocument();
-    expect(screen.getByText("Continue as Parent / Guardian")).toBeInTheDocument();
+    expect(screen.getByText("Continue as Guardian")).toBeInTheDocument();
     expect(screen.getByText("Continue as Guest")).toBeInTheDocument();
   });
 });
