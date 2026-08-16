@@ -87,9 +87,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (error) {
       // RLS misconfiguration or schema drift — surface it, but don't brick
       // sign-in over a profile row: navigation uses the metadata fallback.
-      console.error("Failed to load profile:", error);
+      console.error("[sakhi-auth] STEP 3 — profiles query failed:", error);
       return;
     }
+    console.log(
+      "[sakhi-auth] STEP 3 — profile loaded:",
+      data ? { id: data.id, full_name: data.full_name, role: data.role } : null,
+    );
     if (data) setProfile(data as Profile);
   }, []);
 
@@ -103,9 +107,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     let mounted = true;
 
+    // A REAL Supabase session always wins over Guest/Demo mode. Guest mode is
+    // a persisted flag (localStorage) that is only cleared by an explicit
+    // sign-out — if a user visited demo mode earlier and then signs in for
+    // real, a stale `sakhi_guest_mode` flag would make every post-login
+    // navigation effect early-return (`if (!ready || guest || !user) return`)
+    // and the login screen would appear "stuck": session created, no error,
+    // no redirect. Exit guest mode whenever an authenticated session exists.
+    const exitGuestOnRealSession = (s: Session | null) => {
+      if (!s?.user) return;
+      try {
+        localStorage.removeItem(GUEST_STORAGE_KEY);
+      } catch {
+        // ignore storage errors
+      }
+      setGuest(false);
+    };
+
     const bootstrap = async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
+      exitGuestOnRealSession(data.session);
       setSession(data.session);
       if (data.session?.user) await loadProfile(data.session.user.id);
       setReady(true);
@@ -114,6 +136,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     void bootstrap();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      exitGuestOnRealSession(nextSession);
       setSession(nextSession);
       if (nextSession?.user) {
         void loadProfile(nextSession.user.id);

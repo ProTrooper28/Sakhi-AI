@@ -106,12 +106,14 @@ const SignInPage = () => {
     setSending(true);
     try {
       // Email OR Mobile → account email, then Supabase email + password auth.
+      console.log("[sakhi-auth] STEP 1 — signInWithPassword", { identifier: email });
       const cleanEmail = await resolveLoginEmail(email);
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password,
       });
       if (signInError) {
+        console.error("[sakhi-auth] STEP 1 — signInWithPassword error:", signInError);
         const m = signInError.message.toLowerCase();
         if (m.includes("invalid") || m.includes("credentials")) {
           setError("Incorrect email or password. Try again, or reset your password below.");
@@ -122,16 +124,36 @@ const SignInPage = () => {
         }
         return;
       }
+
+      // STEP 2 — authenticated session created.
+      const signedInUser = data?.session?.user ?? data?.user ?? null;
+      console.log(
+        "[sakhi-auth] STEP 2 — authenticated user:",
+        signedInUser
+          ? { id: signedInUser.id, email: signedInUser.email, role_metadata: signedInUser.user_metadata?.role }
+          : null,
+      );
+
       // Password login succeeded → this user does NOT owe the Create Password
       // step, so drop any stale signup marker (e.g. an abandoned Create
       // Account attempt for this email during earlier testing). Without this,
       // the effect below would wrongly send a returning user to
       // /create-password instead of straight to their dashboard.
       clearPendingSignup();
-      // Session + profile load through AuthContext; the effect above navigates.
+
+      // STEP 3/4 — navigate immediately with the role we already know (auth
+      // metadata, same fallback AuthContext uses). The profile fetch runs in
+      // AuthContext in parallel and the effect re-runs if it ever differs.
+      const navRole = ((signedInUser?.user_metadata?.role as Role | undefined) ??
+        (role || "user")) as Role;
+      const destination = roleHomePath(navRole);
+      console.log(`[sakhi-auth] STEP 4 — navigating to ${destination} (role=${navRole})`);
+      navigate(destination, { replace: true });
     } catch (err) {
+      console.error("[sakhi-auth] STEP 1 — unexpected error:", err);
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
+      // STEP 6 — isSigningIn/sending is always reset, even on early returns.
       setSending(false);
     }
   };
