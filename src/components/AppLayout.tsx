@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Settings, LogOut, Shield, ChevronRight, X, CheckCircle2, AlertOctagon, MapPin, Sparkles, Menu, Users } from "lucide-react";
+import { Bell, Settings, LogOut, Shield, ChevronRight, X, CheckCircle2, AlertOctagon, MapPin, Sparkles, Menu, Users, RotateCcw } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -62,10 +62,14 @@ const NotificationsContent = ({ onClose }: { onClose: () => void }) => (
 
 // ── Profile dropdown ─────────────────────────────────────────────────────────
 const ProfileContent = ({ navigate, onClose }: { navigate: (p: string) => void; onClose: () => void }) => {
-  const { displayName, initials, guest, role, signOut } = useAuth();
+  const { displayName, initials, guest, role, signOut, resetDemoSession } = useAuth();
   const isParent = role === "parent";
   const go = (path: string) => { onClose(); navigate(path); };
   const handleLogout = () => { onClose(); void signOut(); navigate("/"); };
+  const handleResetDemo = () => {
+    onClose();
+    void resetDemoSession().then(() => navigate("/"));
+  };
   return (
     <div>
       <div className="px-4 py-4 flex items-center gap-3" style={{ borderBottom: "1px solid rgba(242,149,106,0.14)" }}>
@@ -97,6 +101,20 @@ const ProfileContent = ({ navigate, onClose }: { navigate: (p: string) => void; 
           </button>
         ))}
         <div style={{ borderTop: "1px solid rgba(242,149,106,0.14)" }} className="mt-1">
+          {/* Development-only: wipe every local demo marker and return to the
+              Welcome/Login screen. Never shipped — tree-shaken out of the
+              production build (import.meta.env.DEV is false there). */}
+          {import.meta.env.DEV && (
+            <button
+              onClick={handleResetDemo}
+              className="w-full flex items-center gap-3 px-4 py-2.5 cursor-pointer text-left transition-colors"
+              onMouseEnter={e => (e.currentTarget.style.background = "rgba(122,43,115,0.06)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+            >
+              <RotateCcw className="w-4 h-4 text-[#7A2B73]" />
+              <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 13 }} className="text-[#7A2B73]">Reset Demo Session</span>
+            </button>
+          )}
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-2.5 cursor-pointer text-left transition-colors"

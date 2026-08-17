@@ -469,3 +469,61 @@
   .navigate-btn:active { transform: scale(0.92) !important; filter: brightness(0.9); }
   .navigate-btn.clicked { background-color: #10b981 !important; color: white !important; transform: scale(0.9) !important; pointer-events: none !important; }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Guardian monitoring dashboard — additive utilities (calm + emergency modes)
+   ────────────────────────────────────────────────────────────────────────────*/
+@layer utilities {
+
+  /* Leaflet marker ping (used inside raw divIcon HTML — Tailwind's `ping`
+     keyframes may not be emitted, so define our own). */
+  @keyframes sakhi-map-ping {
+    0%   { transform: scale(1);    opacity: 0.9; }
+    75%, 100% { transform: scale(2.3); opacity: 0; }
+  }
+  .sakhi-marker-ping {
+    animation: sakhi-map-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+  .sakhi-marker-ping-slow {
+    animation: sakhi-map-ping 2.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  /* Emergency card glow — subtle pulsing ring for the SOS cards. */
+  @keyframes sakhi-sos-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
+    60%      { box-shadow: 0 0 0 20px rgba(220, 38, 38, 0); }
+  }
+  .guardian-sos-card {
+    animation: sakhi-sos-glow 1.6s ease-out infinite;
+  }
+
+  /* Soft floating accent for the calm dashboard hero. */
+  @keyframes sakhi-float-soft {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-3px); }
+  }
+  .animate-sakhi-float { animation: sakhi-float-soft 4s ease-in-out infinite; }
+
+  /* Calm gradient surfaces (white → soft pink → light lavender). */
+  .guardian-gradient-calm {
+    background: linear-gradient(160deg, #FFFFFF 0%, #FFF1F5 45%, #F3EDFB 100%);
+  }
+  .guardian-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 0.6875rem;
+    letter-spacing: 0.02em;
+  }
+
+  /* Emergency ambient background. */
+  .guardian-emergency-bg {
+    background:
+      radial-gradient(120% 90% at 50% 0%, rgba(192, 57, 43, 0.32) 0%, rgba(22, 4, 4, 0.55) 55%, rgba(10, 1, 1, 0.95) 100%),
+      linear-gradient(180deg, #1A0505 0%, #0D0101 100%);
+  }
+}

@@ -46,6 +46,12 @@ type AuthContextType = {
   refreshProfile: () => Promise<void>;
   /** Sign out of Supabase AND leave guest mode. */
   signOut: () => Promise<void>;
+  /**
+   * Hard reset (development): sign out, clear EVERY local Sakhi marker
+   * (guest flag, demo SOS, pending signup, options, reports, evidence) and
+   * return to a clean Welcome/Login state. Deterministic for presentations.
+   */
+  resetDemoSession: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -55,6 +61,37 @@ const readGuestFlag = (): boolean => {
     return localStorage.getItem(GUEST_STORAGE_KEY) === "1";
   } catch {
     return false;
+  }
+};
+
+/**
+ * Remove every Sakhi-owned localStorage marker. `all` wipes the whole
+ * `sakhi_*` namespace (used by the dev "Reset Demo Session" action); the
+ * default list only clears the stale session/demo flags that must never
+ * survive a normal sign-out (a persisted demo SOS or security options would
+ * otherwise make the next visitor land in a stale state).
+ */
+const STALE_SESSION_KEYS = [
+  "sakhi_sos_state",
+  "sakhi_sos_options",
+  "sakhi_security_settings",
+  "sakhi_pending_signup",
+];
+
+const clearSakhiStorage = (all = false) => {
+  try {
+    if (all) {
+      const doomed: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("sakhi_")) doomed.push(key);
+      }
+      doomed.forEach((k) => localStorage.removeItem(k));
+      return;
+    }
+    STALE_SESSION_KEYS.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // storage unavailable — nothing else we can do
   }
 };
 
@@ -182,16 +219,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (supabase) await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
-    // Fresh demo start: drop every leftover local marker (an abandoned Create
-    // Account attempt, a persisted demo SOS) so the next visitor begins from
-    // the Welcome/Login screen with no stale state.
-    try {
-      localStorage.removeItem("sakhi_pending_signup");
-      localStorage.removeItem("sakhi_sos_state");
-    } catch {
-      // ignore storage errors
-    }
+    // Fresh demo start: drop every leftover local marker (guest flag, an
+    // abandoned Create Account attempt, a persisted demo SOS, stale demo
+    // options) so the next visitor begins from the Welcome/Login screen with
+    // no stale state.
+    clearSakhiStorage(false);
   }, [exitGuest]);
+
+  const resetDemoSession = useCallback(async () => {
+    // Full wipe: guest flag + every sakhi_* marker (demo SOS, reports,
+    // evidence, pending signup, options). Session restoration afterwards is
+    // deterministic — nothing is left to restore, so the next launch always
+    // lands on the Welcome/Login screen.
+    clearSakhiStorage(true);
+    setGuest(false);
+    if (supabase) await supabase.auth.signOut();
+    setSession(null);
+    setProfile(null);
+  }, []);
 
   // ── Derived values ───────────────────────────────────────────────────────
   const user = session?.user ?? null;
@@ -225,6 +270,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         enterGuest,
         exitGuest,
         signOut,
+        resetDemoSession,
       }}
     >
       {children}
