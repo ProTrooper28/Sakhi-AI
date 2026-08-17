@@ -52,10 +52,9 @@ const extractConfidence = (description: string): ConfidenceLevel => {
 };
 
 const CONFIDENCE_CFG: Record<ConfidenceLevel, {
-  emoji: string; label: string; color: string; bg: string; border: string; pct: number; desc: string;
+  label: string; color: string; bg: string; border: string; pct: number; desc: string;
 }> = {
   High: {
-    emoji: "🟢",
     label: "High Confidence",
     color: "#3D9970",
     bg: "#D6F5EA",
@@ -64,7 +63,6 @@ const CONFIDENCE_CFG: Record<ConfidenceLevel, {
     desc: "Personally witnessed with strong supporting evidence.",
   },
   Medium: {
-    emoji: "🟡",
     label: "Medium Confidence",
     color: "#B7770D",
     bg: "#FEF3CD",
@@ -73,7 +71,6 @@ const CONFIDENCE_CFG: Record<ConfidenceLevel, {
     desc: "Likely accurate with reasonable but limited evidence.",
   },
   Low: {
-    emoji: "🟠",
     label: "Low Confidence",
     color: "#C05621",
     bg: "#FDEBD0",
@@ -185,14 +182,14 @@ const ReportReviewPage = () => {
 
   const handleAnonymousSave = () => {
     updateReport(report.id, { status: "anonymous" });
-    toast({ title: "✅ Saved Anonymously", description: "Your report is stored securely." });
+    toast({ title: "Saved Anonymously", description: "Your report is stored securely." });
     navigate("/evidence-locker");
   };
 
   const handleHighRisk = () => {
     updateReport(report.id, { status: "high-risk", flaggedHighRisk: true });
     toast({
-      title: "⚠️ Marked High Risk",
+      title: "Marked High Risk",
       description: "This case has been flagged for priority monitoring.",
       variant: "destructive",
     });
@@ -373,7 +370,7 @@ const ReportReviewPage = () => {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-              <span style={{ fontSize: 20 }}>{confCfg.emoji}</span>
+              <span style={{ width: 14, height: 14, borderRadius: "50%", background: confCfg.color, flexShrink: 0 }} />
               <div style={{ flex: 1 }}>
                 <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 14, color: confCfg.color }}>
                   {confCfg.label}

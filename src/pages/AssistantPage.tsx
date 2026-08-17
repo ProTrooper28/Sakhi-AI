@@ -54,20 +54,20 @@ function analyzeIntent(text: string): Intent {
 // Elder sister Didi persona responses
 const SISTER_RESPONSES = {
   greeting: [
-    "Namaste didi! 🌸 I am right here. Tell me, are you walking back home or heading somewhere new? I'm watching your path.",
+    "Namaste didi! I am right here. Tell me, are you walking back home or heading somewhere new? I'm watching your path.",
     "Hey didi! Sakhi here. Tell me what's happening. I'm keeping an eye on your location."
   ],
   emotional: [
-    "Take a deep breath, didi. 💗 Focus on your breathing. I am right here with you. Do you want to check your safe path or just talk to me?",
+    "Take a deep breath, didi. Focus on your breathing. I am right here with you. Do you want to check your safe path or just talk to me?",
     "Don't worry didi, you are not alone. Walk confidently and keep your phone in your hand. I'm listening."
   ],
   danger: [
-    "Didi, stay calm. I am right here. 🚨 I've loaded your safety controls. Press 'Trigger SOS' immediately or let me call your Apnewale.",
+    "Didi, stay calm. I am right here. I've loaded your safety controls. Press 'Trigger SOS' immediately or let me call your Apnewale.",
     "Didi, go towards a crowded place. I'm activating emergency mode. Here are your quick actions."
   ],
   recovery: [
-    "Thank god you are safe! 🌸 That is a huge relief. I am still keeping our path tracker active just in case.",
-    "Aap safe ho, thank goodness! 🌿 Alarms are quiet now. Let me know if you need me to stay active."
+    "Thank god you are safe! That is a huge relief. I am still keeping our path tracker active just in case.",
+    "Aap safe ho, thank goodness! Alarms are quiet now. Let me know if you need me to stay active."
   ],
   report: [
     "I'll help you file a complaint safely and anonymously, didi. Let's go to the reporting desk.",
@@ -92,11 +92,11 @@ export default function AssistantPage() {
     { 
       id: "init", 
       role: "assistant", 
-      content: "Namaste didi! 🌸 I am monitoring your location via GPS. If you feel unsafe or see someone following you, tell me right away. I'm here to watch over you.",
+      content: "Namaste didi! I am monitoring your location via GPS. If you feel unsafe or see someone following you, tell me right away. I'm here to watch over you.",
       suggestions: [
-        { label: "📍 Share Live Path", action: "share_path" },
-        { label: "⏱️ Start Check-in", action: "start_checkin" },
-        { label: "📞 Call Apnewale", action: "call_apne" }
+        { label: "Share Live Path", action: "share_path" },
+        { label: "Start Check-in", action: "start_checkin" },
+        { label: "Call Apnewale", action: "call_apne" }
       ]
     }
   ]);
@@ -248,8 +248,8 @@ export default function AssistantPage() {
               content: reply, 
               isTyping: false,
               suggestions: intent === "danger" ? [
-                { label: "🚨 Trigger SOS Now", action: "trigger_sos" },
-                { label: "📞 Call Primary", action: "call_apne" }
+                { label: "Trigger SOS Now", action: "trigger_sos" },
+                { label: "Call Primary", action: "call_apne" }
               ] : undefined
             } 
           : msg
@@ -286,7 +286,7 @@ export default function AssistantPage() {
                 Your AI Sister
               </div>
               <h1 className="text-2xl font-extrabold font-heading tracking-tight" style={{ color: mode === "emergency" ? "#FFFFFF" : "#3D2315" }}>
-                Sakhi Companion 🌸
+                Sakhi Companion
               </h1>
             </div>
 
@@ -332,7 +332,7 @@ export default function AssistantPage() {
                 onClick={stopCheckin}
                 className="px-4 py-2 bg-white text-xs font-bold text-[#8B3A2F] rounded-xl hover:bg-[#FDF6EE] shadow-sm transition-all cursor-pointer"
               >
-                I am Safe ✅
+                I am Safe
               </button>
             </motion.div>
           )}

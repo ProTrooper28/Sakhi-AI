@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { 
   Phone, MapPin, Mic, Video, Users, CheckCircle2, 
   Shield, ArrowLeft, AlertTriangle, Camera, ShieldAlert,
-  Settings
+  Settings, Clock
 } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
@@ -395,7 +395,7 @@ const SOSPage = () => {
           </motion.div>
 
           <h1 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 26, color: "white", textAlign: "center" }} className="mb-1">
-            🚨 Alert Sent! Help is coming.
+            Alert Sent! Help is coming.
           </h1>
           <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 14, color: "rgba(255,255,255,0.7)", textAlign: "center" }} className="mb-6">
             Your Apnewale have been notified.<br />Stay calm. Sakhi is with you.
@@ -404,13 +404,13 @@ const SOSPage = () => {
           {/* Status cards */}
           <div className="w-full grid grid-cols-2 gap-3 mb-6">
             {[
-              { label: "Time Elapsed", value: timeElapsed, emoji: "⏱️" },
-              { label: "Location",     value: locationState.address || sosState.location || "Fetching…", emoji: "📍" },
-              { label: "Apnewale",     value: "3 Notified",    emoji: "👥" },
-              { label: "Evidence",     value: isRecording ? "Recording..." : "Standby", emoji: "📹" },
+              { label: "Time Elapsed", value: timeElapsed, icon: Clock },
+              { label: "Location",     value: locationState.address || sosState.location || "Fetching…", icon: MapPin },
+              { label: "Apnewale",     value: "3 Notified",    icon: Users },
+              { label: "Evidence",     value: isRecording ? "Recording..." : "Standby", icon: Camera },
             ].map(card => (
               <div key={card.label} className="rounded-[20px] p-4" style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                <div className="text-xl mb-1">{card.emoji}</div>
+                <card.icon style={{ width: 18, height: 18, color: "rgba(255,255,255,0.75)", marginBottom: 6 }} />
                 <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 10, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 1 }}>{card.label}</p>
                 <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "white" }} className="truncate">{card.value}</p>
               </div>
@@ -448,7 +448,7 @@ const SOSPage = () => {
             style={{ background: "linear-gradient(135deg,#27AE60,#1E8449)", boxShadow: "0 8px 32px rgba(39,174,96,0.35)", fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 17, color: "white" }}
           >
             <CheckCircle2 className="w-6 h-6" />
-            {isMarkingSafe ? "Marking safe…" : "✅ Main Theek Hoon — I'm Safe"}
+            {isMarkingSafe ? "Marking safe…" : "Main Theek Hoon — I'm Safe"}
           </motion.button>
 
           {/* Cancel */}
@@ -505,7 +505,7 @@ const SOSPage = () => {
               <Shield className="w-5 h-5" style={{ color: "#3D9970" }} />
             </div>
             <div>
-              <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 14, color: "#2E7D56" }}>You are safe right now 🌿</p>
+              <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 14, color: "#2E7D56" }}>You are safe right now</p>
               <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 12, color: "#3D9970" }}>3 Apnewale are watching over you</p>
             </div>
           </div>

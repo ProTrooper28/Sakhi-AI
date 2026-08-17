@@ -24,9 +24,9 @@ const extractConfidence = (description: string): "High" | "Medium" | "Low" => {
 };
 
 const getConfidenceColor = (conf: string) => {
-  if (conf === "High") return { color: "#3D9970", bg: "#D6F5EA", border: "rgba(61,153,112,0.3)", emoji: "🟢" };
-  if (conf === "Low") return { color: "#C05621", bg: "#FDEBD0", border: "rgba(192,86,33,0.3)", emoji: "🟠" };
-  return { color: "#B7770D", bg: "#FEF3CD", border: "rgba(183,119,13,0.3)", emoji: "🟡" };
+  if (conf === "High") return { color: "#3D9970", bg: "#D6F5EA", border: "rgba(61,153,112,0.3)" };
+  if (conf === "Low") return { color: "#C05621", bg: "#FDEBD0", border: "rgba(192,86,33,0.3)" };
+  return { color: "#B7770D", bg: "#FEF3CD", border: "rgba(183,119,13,0.3)" };
 };
 
 const getFileIcon = (type?: string) => {
@@ -195,7 +195,7 @@ const ReportCard = ({ report }: { report: Report }) => {
               <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "#3D9970" }}>Anonymous</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4, background: confStyle.bg, padding: "4px 10px", borderRadius: 99, border: `1px solid ${confStyle.border}` }}>
-              <span style={{ fontSize: 12 }}>{confStyle.emoji}</span>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: confStyle.color }} />
               <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: confStyle.color }}>{confidence} Conf.</span>
             </div>
             {report.evidence.length > 0 && (

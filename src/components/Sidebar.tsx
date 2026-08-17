@@ -69,7 +69,7 @@ const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isSidebarOpen, setSidebarOpen } = useApp();
-  const { displayName, initials, guest, role, signOut } = useAuth();
+  const { displayName, initials, role, signOut } = useAuth();
   const isParent = role === "parent";
   const sections = isParent ? GUARDIAN_SECTIONS : USER_SECTIONS;
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -227,7 +227,7 @@ const Sidebar = () => {
           <div className="flex-1 min-w-0">
             <p className="text-white text-xs font-semibold truncate">{displayName}</p>
             <p className="text-white/40 text-[10px] truncate">
-              {guest ? "Demo Mode" : isParent ? "Guardian" : "Protected"}
+              {isParent ? "Guardian" : "Protected"}
             </p>
           </div>
           <button

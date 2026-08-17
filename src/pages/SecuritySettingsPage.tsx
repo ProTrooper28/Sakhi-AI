@@ -109,7 +109,7 @@ export default function SecuritySettingsPage() {
               Manage your companion settings
             </div>
             <h1 className="text-3xl font-extrabold text-[#3D2315] font-heading tracking-tight">
-              Safety Preferences ⚙️
+              Safety Preferences
             </h1>
             <p className="text-[#9E7A6A] text-sm mt-1">Configure your personal security triggers, PINs, and options.</p>
           </div>
@@ -271,7 +271,7 @@ export default function SecuritySettingsPage() {
                             exit={{ opacity: 0, height: 0 }}
                             className="text-[#D4455C] text-[10px] font-bold mt-1 text-center"
                           >
-                            ⚠️ Resets safety configurations instantly.
+                            Resets safety configurations instantly.
                           </motion.p>
                         )}
                       </AnimatePresence>

@@ -26,7 +26,7 @@ type UploadedFile = { file: File; previewUrl?: string; id: string };
 const CATEGORIES: {
   id: CategoryId;
   label: string;
-  emoji: string;
+  icon: typeof Shield;
   desc: string;
   color: string;
   bg: string;
@@ -35,7 +35,7 @@ const CATEGORIES: {
   {
     id: "physical",
     label: "Physical Threat",
-    emoji: "🚨",
+    icon: Shield,
     desc: "Assault, attack, physical harm or real-world danger.",
     color: "#D4455C",
     bg: "#FBDDE3",
@@ -44,7 +44,7 @@ const CATEGORIES: {
   {
     id: "cyber",
     label: "Cyber Crime",
-    emoji: "💻",
+    icon: Laptop,
     desc: "Online scams, fake profiles, cyberbullying, blackmail.",
     color: "#2563EB",
     bg: "#DEEEFF",
@@ -53,7 +53,7 @@ const CATEGORIES: {
   {
     id: "harassment",
     label: "Harassment",
-    emoji: "😤",
+    icon: MessageSquare,
     desc: "Verbal, emotional, or sexual harassment in any setting.",
     color: "#E67E22",
     bg: "#FEF3CD",
@@ -62,7 +62,7 @@ const CATEGORIES: {
   {
     id: "stalking",
     label: "Stalking",
-    emoji: "👁️",
+    icon: Eye,
     desc: "Being followed, tracked, or monitored without consent.",
     color: "#8B5CF6",
     bg: "#EDE9FE",
@@ -71,7 +71,7 @@ const CATEGORIES: {
   {
     id: "suspicious",
     label: "Suspicious Activity",
-    emoji: "🔍",
+    icon: AlertTriangle,
     desc: "Unusual behaviour, unverified threat, or odd situation.",
     color: "#0F766E",
     bg: "#D6F5EA",
@@ -80,7 +80,7 @@ const CATEGORIES: {
   {
     id: "unsafe-location",
     label: "Unsafe Location",
-    emoji: "📍",
+    icon: MapPin,
     desc: "Area, venue, or route that feels or is known to be unsafe.",
     color: "#9E7A6A",
     bg: "#F5E4D6",
@@ -98,7 +98,6 @@ const HARASSMENT_SUBTYPES = ["Verbal", "Sexual", "Emotional / Mental", "Workplac
 
 const CONFIDENCE: {
   id: ConfidenceLevel;
-  emoji: string;
   label: string;
   desc: string;
   color: string;
@@ -107,7 +106,6 @@ const CONFIDENCE: {
 }[] = [
   {
     id: "high",
-    emoji: "🟢",
     label: "High Confidence",
     desc: "Personally witnessed with strong supporting evidence.",
     color: "#3D9970",
@@ -116,7 +114,6 @@ const CONFIDENCE: {
   },
   {
     id: "medium",
-    emoji: "🟡",
     label: "Medium Confidence",
     desc: "Likely accurate with reasonable but limited evidence.",
     color: "#B7770D",
@@ -125,7 +122,6 @@ const CONFIDENCE: {
   },
   {
     id: "low",
-    emoji: "🟠",
     label: "Low Confidence",
     desc: "Suspicious but not fully verified — needs further review.",
     color: "#C05621",
@@ -517,7 +513,7 @@ const ReportPage = () => {
                     marginBottom: 16,
                   }}
                 >
-                  What happened? 🔍
+                  What happened?
                 </h2>
 
                 <div className="grid grid-cols-2 gap-3 mb-6">
@@ -566,7 +562,7 @@ const ReportPage = () => {
                             <Check style={{ width: 11, height: 11, color: "white" }} />
                           </motion.div>
                         )}
-                        <div style={{ fontSize: 26, marginBottom: 8 }}>{cat.emoji}</div>
+                        <cat.icon style={{ width: 26, height: 26, color: cat.color, marginBottom: 8 }} />
                         <p
                           style={{
                             fontFamily: "Nunito,sans-serif",
@@ -639,7 +635,7 @@ const ReportPage = () => {
                       display: "inline-flex",
                     }}
                   >
-                    <span style={{ fontSize: 16 }}>{catCfg.emoji}</span>
+                    <catCfg.icon style={{ width: 16, height: 16, color: catCfg.color }} />
                     <span
                       style={{
                         fontFamily: "Nunito,sans-serif",
@@ -662,7 +658,7 @@ const ReportPage = () => {
                     marginBottom: 18,
                   }}
                 >
-                  Tell us what happened 📝
+                  Tell us what happened
                 </h2>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -950,7 +946,7 @@ const ReportPage = () => {
                     marginBottom: 18,
                   }}
                 >
-                  Add Evidence 🗂️
+                  Add Evidence
                 </h2>
 
                 {/* Evidence upload zone */}
@@ -1223,7 +1219,7 @@ const ReportPage = () => {
                             transition: "all 0.15s",
                           }}
                         >
-                          <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{c.emoji}</span>
+                          <span style={{ width: 14, height: 14, borderRadius: "50%", background: c.color, flexShrink: 0, marginTop: 3 }} />
                           <div style={{ flex: 1 }}>
                             <p
                               style={{
@@ -1333,7 +1329,7 @@ const ReportPage = () => {
                     marginBottom: 18,
                   }}
                 >
-                  Review & Submit ✅
+                  Review & Submit
                 </h2>
 
                 {/* Summary card */}
@@ -1359,7 +1355,7 @@ const ReportPage = () => {
                       borderBottom: "1px solid rgba(242,149,106,0.1)",
                     }}
                   >
-                    <span style={{ fontSize: 22 }}>{catCfg?.emoji}</span>
+                    {catCfg && <catCfg.icon style={{ width: 22, height: 22, color: catCfg.color }} />}
                     <div>
                       <p
                         style={{
@@ -1525,7 +1521,7 @@ const ReportPage = () => {
                           padding: "9px 14px",
                         }}
                       >
-                        <span style={{ fontSize: 16 }}>{confCfg.emoji}</span>
+                        <span style={{ width: 14, height: 14, borderRadius: "50%", background: confCfg.color, flexShrink: 0 }} />
                         <div>
                           <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 13, color: confCfg.color }}>
                             {confCfg.label}

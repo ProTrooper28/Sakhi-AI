@@ -159,7 +159,7 @@ export default function LocationTrackingPage() {
     const fastestRoute = [currentPos, [currentPos[0] + 0.005, currentPos[1] + 0.008], destinationPos];
     const safestRoute = [currentPos, [currentPos[0] + 0.002, currentPos[1] + 0.004], [currentPos[0] + 0.007, currentPos[1] + 0.011], destinationPos];
 
-    L.marker(destinationPos, { icon: makeAvatarIcon("🏠", "bg-emerald-600") }).addTo(routeGroupRef.current);
+    L.marker(destinationPos, { icon: makeAvatarIcon('<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>', "bg-emerald-600") }).addTo(routeGroupRef.current);
 
     if (routeType === "fastest") {
       L.polyline(fastestRoute as [number, number][], { color: "#F2956A", weight: 5, dashArray: "8, 8" }).addTo(routeGroupRef.current);

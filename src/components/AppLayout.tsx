@@ -12,9 +12,9 @@ interface AppLayoutProps {
 }
 
 const notifications = [
-  { icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50", title: "Ghar pahunch gayi safely 🏠", time: "Abhi abhi" },
+  { icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50", title: "Ghar pahunch gayi safely", time: "Abhi abhi" },
   { icon: Shield,       color: "text-orange-500",  bg: "bg-orange-50",  title: "Priya didi is watching over you", time: "5 min pehle" },
-  { icon: AlertOctagon, color: "text-rose-500",    bg: "bg-rose-50",    title: "SOS Test Complete ✓", time: "1 ghante pehle" },
+  { icon: AlertOctagon, color: "text-rose-500",    bg: "bg-rose-50",    title: "SOS Test Complete", time: "1 ghante pehle" },
   { icon: MapPin,       color: "text-amber-500",   bg: "bg-amber-50",   title: "Location shared with Priya", time: "Kal" },
 ];
 
@@ -79,7 +79,9 @@ const ProfileContent = ({ navigate, onClose }: { navigate: (p: string) => void; 
         >{initials}</div>
         <div>
           <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "#3D2315" }}>{displayName}</p>
-          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10, color: "#3D9970" }}>{guest ? "👀 Demo Mode" : "✓ Sakhi Protected"}</p>
+          {!guest && (
+            <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10, color: "#3D9970" }}>✓ Sakhi Protected</p>
+          )}
         </div>
       </div>
       <div className="py-1">
@@ -134,7 +136,7 @@ const ProfileContent = ({ navigate, onClose }: { navigate: (p: string) => void; 
 const MobileHeader = () => {
   const navigate = useNavigate();
   const { setSidebarOpen } = useApp();
-  const { guest, role } = useAuth();
+  const { role } = useAuth();
   const isParent = role === "parent";
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -167,9 +169,6 @@ const MobileHeader = () => {
           <Sparkles className="w-4 h-4 text-white" />
         </div>
         <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 17, color: "#8B3A2F" }}>Sakhi</span>
-        {guest && (
-          <span className="badge-muted" style={{ fontSize: 9, fontWeight: 800, padding: "2px 8px", letterSpacing: "0.04em" }}>👀 Demo</span>
-        )}
       </div>
 
       {/* Right Controls: Guardian Mode Button + Notif */}
@@ -218,7 +217,7 @@ const MobileHeader = () => {
 const DesktopTopBar = () => {
   const navigate = useNavigate();
   const { isSidebarOpen, setSidebarOpen } = useApp();
-  const { initials, guest, role } = useAuth();
+  const { initials, role } = useAuth();
   const isParent = role === "parent";
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -254,11 +253,6 @@ const DesktopTopBar = () => {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Demo Mode indicator (guest only) */}
-        {guest && (
-          <span className="badge-muted" style={{ fontSize: 9, fontWeight: 800, padding: "3px 10px", letterSpacing: "0.04em" }}>👀 Demo Mode</span>
-        )}
-
         {/* Guardian Quick Button — role-aware destination */}
         <button
           onClick={() => navigate(isParent ? "/guardian" : "/guardians")}

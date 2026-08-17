@@ -21,21 +21,18 @@ const C = {
 const ROLE_CARDS = [
   {
     key: "user",
-    emoji: "👤",
     icon: UserRound,
     title: "Continue as User",
     description: "Create your verified profile with mobile OTP and unlock the full safety companion.",
   },
   {
     key: "parent",
-    emoji: "🛡",
     icon: ShieldCheck,
     title: "Continue as Guardian",
     description: "Register to monitor your loved ones and receive real-time SOS updates.",
   },
   {
     key: "guest",
-    emoji: "👀",
     icon: Eye,
     title: "Continue as Guest",
     description: "Explore the app instantly with demo data. No account, no OTP required.",
@@ -369,7 +366,7 @@ const WelcomePage = () => {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <h2 className="welcome-card-title">
-                  <span>{card.emoji}</span> {card.title}
+                  {card.title}
                   {"demo" in card && card.demo && <span className="demo-badge">Demo Mode</span>}
                 </h2>
                 <p className="welcome-card-desc">{card.description}</p>

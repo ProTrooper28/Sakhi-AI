@@ -170,7 +170,7 @@ const GuardiansPage = () => {
                 lineHeight: 1.15,
               }}
             >
-              Your trusted circle 💛
+              Your trusted circle
             </h1>
             <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 12.5, color: "#9E7A6A", marginTop: 6, lineHeight: 1.55 }}>
               Share your invite code with a parent or guardian. They can only see your location

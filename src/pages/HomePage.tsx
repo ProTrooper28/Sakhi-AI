@@ -1,4 +1,4 @@
-import { ChevronRight, Phone, Sparkles, Shield, AlertTriangle, MapPin, Zap } from "lucide-react";
+import { ChevronRight, Phone, Sparkles, Shield, ShieldCheck, AlertOctagon, AlertTriangle, MapPin, Settings, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -8,11 +8,11 @@ import { useAuth } from "@/context/AuthContext";
 
 // ── Helpline data ─────────────────────────────────────────────────────────────
 const HELPLINES = [
-  { label: "Police", num: "112", emoji: "🚔" },
-  { label: "Women Helpline", num: "1091", emoji: "🌸" },
-  { label: "Ambulance", num: "108", emoji: "🚑" },
-  { label: "Cyber Crime", num: "1930", emoji: "💻" },
-  { label: "Child Helpline", num: "1098", emoji: "🌼" },
+  { label: "Police", num: "112" },
+  { label: "Women Helpline", num: "1091" },
+  { label: "Ambulance", num: "108" },
+  { label: "Cyber Crime", num: "1930" },
+  { label: "Child Helpline", num: "1098" },
 ];
 
 // ── Apnewale data ─────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ type RiskLevel = "low" | "moderate" | "high";
 const RISK_CONFIG = {
   low: {
     label: "Low Risk",
-    emoji: "🛡️",
+    icon: ShieldCheck,
     color: "#3D9970",
     bg: "#D6F5EA",
     border: "rgba(61,153,112,0.25)",
@@ -38,7 +38,7 @@ const RISK_CONFIG = {
   },
   moderate: {
     label: "Moderate Risk",
-    emoji: "⚠️",
+    icon: AlertTriangle,
     color: "#E67E22",
     bg: "#FEF3CD",
     border: "rgba(230,126,34,0.25)",
@@ -48,7 +48,7 @@ const RISK_CONFIG = {
   },
   high: {
     label: "High Risk",
-    emoji: "🔴",
+    icon: AlertOctagon,
     color: "#D4455C",
     bg: "#FBDDE3",
     border: "rgba(212,69,92,0.3)",
@@ -59,15 +59,15 @@ const RISK_CONFIG = {
 };
 
 // ── Dynamic greeting (personalized with the authenticated user's name) ────────
-const getDynamicGreeting = (firstName: string): { hindi: string; english: string; emoji: string } => {
+const getDynamicGreeting = (firstName: string): { hindi: string; english: string } => {
   const hour = new Date().getHours();
   if (hour >= 5 && hour < 12)
-    return { hindi: "सुप्रभात 🌅", english: `Good Morning, ${firstName} 👋`, emoji: "☀️" };
+    return { hindi: "सुप्रभात", english: `Good Morning, ${firstName}` };
   if (hour >= 12 && hour < 17)
-    return { hindi: "नमस्ते 🌸", english: `Good Afternoon, ${firstName} 👋`, emoji: "🌺" };
+    return { hindi: "नमस्ते", english: `Good Afternoon, ${firstName}` };
   if (hour >= 17 && hour < 20)
-    return { hindi: "शुभ संध्या 🌇", english: `Good Evening, ${firstName} 👋`, emoji: "🌸" };
-  return { hindi: "रात सुरक्षित हो 🌙", english: `Stay Safe Tonight, ${firstName} 👋`, emoji: "🌙" };
+    return { hindi: "शुभ संध्या", english: `Good Evening, ${firstName}` };
+  return { hindi: "रात सुरक्षित हो", english: `Stay Safe Tonight, ${firstName}` };
 };
 
 // ── Guardian status pill ──────────────────────────────────────────────────────
@@ -134,7 +134,6 @@ const HelplineTicker = () => {
             style={{ textDecoration: "none" }}
             title={`Call ${h.label}: ${h.num}`}
           >
-            <span style={{ fontSize: 13 }}>{h.emoji}</span>
             <span
               style={{
                 fontFamily: "Nunito,sans-serif",
@@ -223,7 +222,7 @@ const AreaStatusCard = ({ level, location }: { level: RiskLevel; location: strin
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1.5">
-          <span style={{ fontSize: 18 }}>{cfg.emoji}</span>
+          <cfg.icon style={{ width: 18, height: 18, color: cfg.color }} />
           <span
             style={{
               fontFamily: "Nunito,sans-serif",
@@ -275,7 +274,7 @@ const AreaStatusCard = ({ level, location }: { level: RiskLevel; location: strin
 const HomePage = () => {
   const navigate = useNavigate();
   const { triggerSOS, sosState, locationState } = useApp();
-  const { displayName, initials, guest } = useAuth();
+  const { displayName, initials } = useAuth();
   const firstName = displayName.split(/\s+/)[0] || "Preeti";
   const greeting = getDynamicGreeting(firstName);
 
@@ -334,11 +333,11 @@ const HomePage = () => {
                   marginTop: 4,
                 }}
               >
-                Sakhi is always here for you 💜
+                Sakhi is always here for you
               </p>
             </div>
-            {/* Avatar + Demo Mode badge (guest mode only) */}
-            <div className="relative mt-1 flex-shrink-0 flex flex-col items-center gap-1.5">
+            {/* Avatar */}
+            <div className="relative mt-1 flex-shrink-0">
               <div
                 className="w-13 h-13 rounded-full flex items-center justify-center text-white font-black text-sm shadow-lg"
                 style={{ width: 52, height: 52, background: "linear-gradient(135deg,#F2956A,#D4455C)" }}
@@ -349,15 +348,6 @@ const HomePage = () => {
                 className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 rounded-full border-2"
                 style={{ background: "#3D9970", borderColor: "var(--sakhi-cream)" }}
               />
-              {guest && (
-                <span
-                  className="badge-muted"
-                  style={{ fontSize: 9, fontWeight: 800, padding: "3px 10px", letterSpacing: "0.04em" }}
-                  title="You are exploring with demo data. Real emergency notifications are disabled."
-                >
-                  👀 Demo Mode
-                </span>
-              )}
             </div>
           </motion.div>
 
@@ -406,30 +396,6 @@ const HomePage = () => {
                 border: "none",
               }}
             >
-              {/* Decorative orb */}
-              <div
-                className="absolute"
-                style={{
-                  top: -20,
-                  right: -20,
-                  width: 120,
-                  height: 120,
-                  borderRadius: "50%",
-                  background: "rgba(255,255,255,0.12)",
-                }}
-              />
-              <div
-                className="absolute"
-                style={{
-                  bottom: -10,
-                  right: 50,
-                  width: 80,
-                  height: 80,
-                  borderRadius: "50%",
-                  background: "rgba(255,255,255,0.08)",
-                }}
-              />
-
               <div className="relative z-10 flex items-center gap-4 text-left">
                 {/* Icon */}
                 <div
@@ -465,24 +431,8 @@ const HomePage = () => {
                       marginTop: 4,
                     }}
                   >
-                    Your AI companion is listening, always 💜
+                    Your AI companion is listening, always
                   </p>
-                  <div
-                    className="inline-flex items-center gap-1.5 mt-3 px-3 py-1.5 rounded-full"
-                    style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(6px)" }}
-                  >
-                    <span style={{ fontSize: 10 }}>●</span>
-                    <span
-                      style={{
-                        fontFamily: "Nunito,sans-serif",
-                        fontWeight: 800,
-                        fontSize: 11,
-                        color: "white",
-                      }}
-                    >
-                      Online & ready to help
-                    </span>
-                  </div>
                 </div>
 
                 <ChevronRight className="w-6 h-6 text-white opacity-70 flex-shrink-0" />
@@ -501,7 +451,7 @@ const HomePage = () => {
                   color: "#3D2315",
                 }}
               >
-                Aapke Apnewale 💛
+                Aapke Apnewale
               </h2>
               <button
                 onClick={() => navigate("/guardians")}
@@ -611,9 +561,9 @@ const HomePage = () => {
           {/* ── Safety feature strip ── */}
           <motion.div {...fadeUp(0.22)} className="grid grid-cols-3 gap-2.5 mb-5">
             {[
-              { emoji: "📍", label: "Live Path", path: "/location" },
-              { emoji: "🛡️", label: "Evidence", path: "/evidence-locker" },
-              { emoji: "⚙️", label: "Settings", path: "/settings" },
+              { icon: MapPin, label: "Live Path", path: "/location" },
+              { icon: Shield, label: "Evidence", path: "/evidence-locker" },
+              { icon: Settings, label: "Settings", path: "/settings" },
             ].map((item) => (
               <motion.button
                 key={item.label}
@@ -627,7 +577,7 @@ const HomePage = () => {
                   border: "none",
                 }}
               >
-                <span style={{ fontSize: 22 }}>{item.emoji}</span>
+                <item.icon style={{ width: 22, height: 22, color: "#8B3A2F" }} />
                 <span
                   style={{
                     fontFamily: "Nunito,sans-serif",
