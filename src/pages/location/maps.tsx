@@ -124,14 +124,21 @@ export const LiveTrackingMap = ({
   const tileRef = useRef<L.TileLayer | null>(null);
   const lastLatLngRef = useRef<[number, number] | null>(null);
 
-  // Create once (tile layer added by the tileUrl effect below).
+  // Create once (tile layer added by the tileUrl effect below). The map is
+  // ALWAYS created with an initial view — a Leaflet map without a view has
+  // no bounds, and adding a Circle/Polyline to it crashes inside Leaflet
+  // (`getBounds().intersects(...)` on undefined), which blanked the page in
+  // production. Start at the first known trail point, else a sane default;
+  // the live fix pans to the real position as soon as it arrives.
   useEffect(() => {
     const el = containerRef.current;
     if (!el || mapRef.current) return;
+    const first = trail[0];
     const map = L.map(el, {
       zoomControl: false,
       attributionControl: false,
       zoom: 15,
+      center: first ? [first.lat, first.lng] : [19.0596, 72.8295],
     });
     mapRef.current = map;
     onReady?.(map);
@@ -175,6 +182,8 @@ export const LiveTrackingMap = ({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    // Defense-in-depth: never paint vector layers on a map without a view.
+    if (!map.getBounds()) return;
     if (!zonesRef.current) zonesRef.current = L.layerGroup().addTo(map);
     zonesRef.current.clearLayers();
     const fc = safetyGeoJson;
@@ -204,6 +213,7 @@ export const LiveTrackingMap = ({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    if (!map.getBounds()) return;
     if (!routesRef.current) routesRef.current = L.layerGroup().addTo(map);
     routesRef.current.clearLayers();
     (routes ?? []).forEach((r) => {
@@ -219,7 +229,7 @@ export const LiveTrackingMap = ({
   // Destination pin.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !map.getBounds()) return;
     if (destination) {
       if (!destRef.current) {
         destRef.current = L.marker([destination.lat, destination.lng], {
@@ -340,9 +350,9 @@ export const MiniMap = ({
       keyboard: false,
       touchZoom: false,
       zoom: 15,
+      center: [lat, lng],
     });
     L.tileLayer(LIGHT_TILES, { maxZoom: 19 }).addTo(map);
-    map.setView([lat, lng], 15);
     L.marker([lat, lng], { icon: createDotIcon(sos), interactive: false }).addTo(map);
     const raf = requestAnimationFrame(() => map.invalidateSize());
     return () => {
