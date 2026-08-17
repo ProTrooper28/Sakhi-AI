@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import AppLayout from "@/components/AppLayout";
 import { fetchMyLinks } from "@/lib/guardians";
@@ -30,11 +29,21 @@ import { EmergencyMode } from "./guardian/EmergencyMode";
  *   • status active  → dark EmergencyMode (deep red / black, pulsing, timer)
  *   • status resolved → success celebration, then automatic return to calm
  *
- * When no backend is configured (pure offline demo), the local AppContext SOS
- * flag is the fallback so the demo still works.
+ * Emergency Mode is driven ONLY by realtime Supabase safety_events: an SOS
+ * must exist, be status "active", and be younger than 10 minutes (dev
+ * auto-expiry). Stale or missing events always render the calm dashboard —
+ * the emergency state is never faked or hardcoded.
  */
+
+/** Dev auto-expiry: an SOS older than 10 minutes is resolved automatically. */
+const SOS_EXPIRY_MS = 10 * 60 * 1000;
+
+const isStaleSos = (e: SafetyEvent): boolean =>
+  e.type === "sos" &&
+  e.status === "active" &&
+  Date.now() - new Date(e.triggered_at).getTime() > SOS_EXPIRY_MS;
+
 const GuardianPage = () => {
-  const { sosState, resolveSOS } = useApp();
   const { role, displayName } = useAuth();
   const isParent = role === "parent";
 
@@ -88,40 +97,49 @@ const GuardianPage = () => {
     };
   }, []);
 
+  // ── Dev auto-expiry: an SOS older than 10 minutes is resolved automatically
+  //    (in Supabase + optimistically here) so a forgotten emergency can never
+  //    stay active forever. Runs on mount and whenever new event data arrives;
+  //    the stale row is hidden the moment it's detected, so the calm dashboard
+  //    returns immediately — no refresh needed.
+  useEffect(() => {
+    const stale = events.find(isStaleSos);
+    if (!stale) return;
+    resolveReasonRef.current = "expired";
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.id === stale.id
+          ? { ...e, status: "resolved" as const, resolved_at: new Date().toISOString() }
+          : e,
+      ),
+    );
+    void resolveSosEvent(stale.id);
+  }, [events]);
+
   const userNameFor = useCallback(
     (userId: string) => links.find((l) => l.user_id === userId)?.user_name ?? "Linked user",
     [links],
   );
 
-  // The active SOS event for a linked user (from Supabase, another device) —
-  // the ONE source of truth for Emergency Mode. When no backend is wired up
-  // (pure offline demo) the local AppContext SOS flag is the fallback.
-  const activeRemoteSos = events.find((e) => e.type === "sos" && e.status === "active") ?? null;
+  // The active, unexpired SOS event for a linked user (from Supabase, another
+  // device) — the ONE source of truth for Emergency Mode. Stale events (10+
+  // minutes old) are filtered out and auto-resolved, so the dashboard NEVER
+  // opens in Emergency Mode for an old emergency.
+  const activeRemoteSos =
+    events.find((e) => e.type === "sos" && e.status === "active" && !isStaleSos(e)) ?? null;
 
   const activeSos = useMemo(() => {
-    if (activeRemoteSos) {
-      const loc = locations[activeRemoteSos.user_id];
-      return {
-        user_id: activeRemoteSos.user_id,
-        userName: userNameFor(activeRemoteSos.user_id),
-        triggeredAt: activeRemoteSos.triggered_at,
-        locationLabel: loc?.location_label ?? activeRemoteSos.location_label,
-        lat: loc?.latitude ?? activeRemoteSos.latitude,
-        lng: loc?.longitude ?? activeRemoteSos.longitude,
-      };
-    }
-    if (!isSupabaseConfigured && sosState.active) {
-      return {
-        user_id: null as string | null,
-        userName: sosState.userName,
-        triggeredAt: sosState.triggeredAt,
-        locationLabel: sosState.location || null,
-        lat: sosState.coords.lat,
-        lng: sosState.coords.lng,
-      };
-    }
-    return null;
-  }, [activeRemoteSos, locations, sosState, userNameFor]);
+    if (!activeRemoteSos) return null;
+    const loc = locations[activeRemoteSos.user_id];
+    return {
+      user_id: activeRemoteSos.user_id,
+      userName: userNameFor(activeRemoteSos.user_id),
+      triggeredAt: activeRemoteSos.triggered_at,
+      locationLabel: loc?.location_label ?? activeRemoteSos.location_label,
+      lat: loc?.latitude ?? activeRemoteSos.latitude,
+      lng: loc?.longitude ?? activeRemoteSos.longitude,
+    };
+  }, [activeRemoteSos, locations, userNameFor]);
 
   const isSOS = activeSos != null;
 
@@ -144,18 +162,25 @@ const GuardianPage = () => {
   // ── Success celebration: the moment an active SOS resolves, play the chime
   //    and show a brief "✅ X is Safe" overlay before returning to the calm
   //    dashboard. Triggered ONLY by a real active → resolved transition.
+  //    Auto-expired emergencies return to normal silently (toast, no overlay).
   const prevSosActiveRef = useRef(isSOS);
   const sosNameRef = useRef<string>("Aanya");
+  const resolveReasonRef = useRef<"manual" | "expired">("manual");
   useEffect(() => {
     const wasActive = prevSosActiveRef.current;
     prevSosActiveRef.current = isSOS;
     if (isSOS && activeSos) sosNameRef.current = activeSos.userName;
+    if (!wasActive && isSOS) resolveReasonRef.current = "manual";
     if (wasActive && !isSOS) {
       stopSOSAlarmLoop();
       playSuccessChimeSound();
-      setCelebrating({ userName: sosNameRef.current });
-      const t = setTimeout(() => setCelebrating(null), 3000);
-      return () => clearTimeout(t);
+      if (resolveReasonRef.current === "expired") {
+        setActionFeedback("SOS auto-resolved after 10 minutes");
+      } else {
+        setCelebrating({ userName: sosNameRef.current });
+        const t = setTimeout(() => setCelebrating(null), 3000);
+        return () => clearTimeout(t);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSOS]);
@@ -195,16 +220,12 @@ const GuardianPage = () => {
   };
 
   const handleMarkSafe = () => {
-    if (activeRemoteSos) {
-      // Remote (other device): resolve in Supabase — the dashboard flips back
-      // to the calm view automatically via Realtime, with the success overlay.
-      void resolveSosEvent(activeRemoteSos.id);
-      handleAction("Emergency resolved — marked safe");
-    } else {
-      // Offline demo: resolve the local AppContext SOS.
-      resolveSOS();
-      handleAction("Emergency resolved — marked safe");
-    }
+    if (!activeRemoteSos) return;
+    // Resolve in Supabase — the dashboard flips back to the calm view
+    // automatically via Realtime, with the "✅ is Safe" celebration.
+    resolveReasonRef.current = "manual";
+    void resolveSosEvent(activeRemoteSos.id);
+    handleAction("Emergency resolved — marked safe");
   };
 
   return (
@@ -346,7 +367,7 @@ const GuardianPage = () => {
                   <CheckCircle2 style={{ width: 44, height: 44, color: "white" }} />
                 </motion.div>
                 <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 26, color: "#064E3B" }}>
-                  ✅ {celebrating.userName} is Safe
+                  {celebrating.userName} is Safe
                 </h2>
                 <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 14, color: "#3D2315", marginTop: 6, opacity: 0.75 }}>
                   SOS resolved — returning to normal monitoring…

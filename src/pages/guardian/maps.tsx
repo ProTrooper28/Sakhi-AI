@@ -39,14 +39,6 @@ const createGuardianMarker = () =>
     iconAnchor: [18, 18],
   });
 
-const createPoiMarker = (emoji: string, color: string) =>
-  L.divIcon({
-    className: "custom-poi-marker",
-    html: `<div class="w-8 h-8 rounded-full border-2 border-white shadow-md flex items-center justify-center text-sm" style="background:${color}">${emoji}</div>`,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-  });
-
 // ── Calm family map (small preview, light tiles, markers update in place) ────
 
 export const CalmFamilyMap = ({
@@ -88,16 +80,15 @@ export const CalmFamilyMap = ({
     const map = mapRef.current;
     if (!map) return;
     const seen = new Set<string>();
-    members.forEach((m, i) => {
+    members.forEach((m) => {
       const loc = locations[m.user_id];
-      const lat = loc?.latitude ?? 19.0596 + (i % 3) * 0.012 - 0.012;
-      const lng = loc?.longitude ?? 72.8295 + Math.floor(i / 3) * 0.012 - 0.006;
+      if (!loc) return; // only real live positions — never fake markers
       let marker = markersRef.current[m.user_id];
       if (!marker) {
-        marker = L.marker([lat, lng], { icon: createUserMarker() }).addTo(map);
+        marker = L.marker([loc.latitude, loc.longitude], { icon: createUserMarker() }).addTo(map);
         markersRef.current[m.user_id] = marker;
       } else {
-        marker.setLatLng([lat, lng]);
+        marker.setLatLng([loc.latitude, loc.longitude]);
       }
       seen.add(m.user_id);
     });
@@ -118,9 +109,6 @@ export const EmergencyMap = ({ userLoc }: { userLoc: { lat: number; lng: number 
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
-  const guardianMarkerRef = useRef<L.Marker | null>(null);
-  const routeRef = useRef<L.Polyline | null>(null);
-  const poiRefs = useRef<L.Marker[]>([]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -134,9 +122,6 @@ export const EmergencyMap = ({ userLoc }: { userLoc: { lat: number; lng: number 
       map.remove();
       mapRef.current = null;
       userMarkerRef.current = null;
-      guardianMarkerRef.current = null;
-      routeRef.current = null;
-      poiRefs.current = [];
     };
   }, []);
 
@@ -149,34 +134,9 @@ export const EmergencyMap = ({ userLoc }: { userLoc: { lat: number; lng: number 
     } else {
       userMarkerRef.current.setLatLng([lat, lng]);
     }
-    const gLat = lat - 0.008;
-    const gLng = lng + 0.006;
-    if (!guardianMarkerRef.current) {
-      guardianMarkerRef.current = L.marker([gLat, gLng], { icon: createGuardianMarker() }).addTo(map);
-    } else {
-      guardianMarkerRef.current.setLatLng([gLat, gLng]);
-    }
-    if (poiRefs.current.length === 0) {
-      poiRefs.current = [
-        L.marker([lat + 0.004, lng - 0.002], { icon: createPoiMarker("🚔", "#2563EB") }).addTo(map),
-        L.marker([lat - 0.002, lng - 0.005], { icon: createPoiMarker("🏥", "#E74C3C") }).addTo(map),
-      ];
-    } else {
-      poiRefs.current[0]?.setLatLng([lat + 0.004, lng - 0.002]);
-      poiRefs.current[1]?.setLatLng([lat - 0.002, lng - 0.005]);
-    }
-    if (!routeRef.current) {
-      routeRef.current = L.polyline([], { color: "#60A5FA", weight: 4, dashArray: "10, 10", opacity: 0.85 }).addTo(map);
-    }
-    routeRef.current.setLatLngs([
-      [gLat, gLng],
-      [gLat + 0.003, gLng - 0.002],
-      [lat - 0.002, lng + 0.001],
-      [lat, lng],
-    ]);
-    map.fitBounds(routeRef.current.getBounds(), { padding: [36, 36], animate: true });
+    map.panTo([lat, lng], { animate: true });
     // React ONLY to real coordinate changes (the parent re-renders every
-    // second for the timer — re-fitting on every render would fight the user).
+    // second for the timer — panning on every render would fight the user).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userLoc?.lat, userLoc?.lng]);
 

@@ -7,11 +7,9 @@ import {
   Wifi,
   Clock,
   MessageCircle,
-  LocateFixed,
   ExternalLink,
   Siren,
   HeartPulse,
-  Radio,
   Satellite,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -52,18 +50,9 @@ export const EmergencyMode = ({
     { label: "Internet Status", value: internetOk ? "Connected" : "Offline", icon: Wifi, ok: internetOk },
     { label: "GPS Status", value: gpsOk ? "GPS Active" : "Acquiring…", icon: Satellite, ok: gpsOk },
     { label: "Time Since SOS", value: humanElapsed(elapsedSecs), icon: Clock, ok: true },
-    { label: "Live Tracking", value: "Streaming", icon: Radio, ok: true },
   ];
 
   const actions = [
-    {
-      label: "Live Tracking",
-      icon: LocateFixed,
-      color: "#60A5FA",
-      bg: "rgba(59,130,246,0.14)",
-      border: "rgba(59,130,246,0.35)",
-      action: () => document.getElementById("sos-live-map")?.scrollIntoView({ behavior: "smooth", block: "start" }),
-    },
     {
       label: "Google Maps",
       icon: ExternalLink,
@@ -132,7 +121,7 @@ export const EmergencyMode = ({
           </motion.div>
           <div className="flex-1 min-w-0">
             <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 19, color: "white", letterSpacing: "0.01em" }}>
-              🚨 ACTIVE SOS
+              ACTIVE SOS
             </p>
             <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>
               User: <span style={{ color: "white", fontWeight: 800 }}>{userName}</span>
@@ -147,13 +136,10 @@ export const EmergencyMode = ({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 px-3 py-1 rounded-full" style={{ background: "rgba(52,211,153,0.16)", border: "1px solid rgba(52,211,153,0.35)" }}>
             <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#34D399" }} />
             <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10, color: "#6EE7B7", textTransform: "uppercase" }}>Live Tracking</span>
-          </span>
-          <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
-            Guardians have been notified automatically
           </span>
         </div>
       </motion.div>
@@ -194,7 +180,7 @@ export const EmergencyMode = ({
         <EmergencyMap userLoc={userLoc ? { lat: userLoc.lat, lng: userLoc.lng } : null} />
         <div className="absolute top-3 right-3 z-[400] flex flex-col gap-2">
           <div className="rounded-xl px-3 py-2 flex items-center gap-2" style={{ background: "rgba(10,1,1,0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.12)" }}>
-            <Radio style={{ width: 14, height: 14, color: "#6EE7B7" }} />
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#34D399", animation: "dot-pulse 1s ease-in-out infinite" }} />
             <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10.5, color: "white" }}>LIVE</span>
           </div>
         </div>
