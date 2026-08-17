@@ -1,4 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
+import { SakhiMark } from "@/components/SakhiLogo";
 import {
   Shield,
   LayoutDashboard,
@@ -148,9 +149,9 @@ const Sidebar = () => {
       <div className="flex items-center justify-between px-6 py-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center bg-teal-400/20"
+            className="w-9 h-9 rounded-lg flex items-center justify-center bg-white/10 ring-1 ring-white/15"
           >
-            <Shield className="w-5 h-5 text-teal-400" />
+            <SakhiMark className="w-6 h-6" />
           </div>
           <div>
             <p

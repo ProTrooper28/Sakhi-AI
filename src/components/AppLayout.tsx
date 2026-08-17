@@ -2,7 +2,8 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Settings, LogOut, Shield, ChevronRight, X, CheckCircle2, AlertOctagon, MapPin, Sparkles, Menu, Users, RotateCcw } from "lucide-react";
+import { SakhiMark } from "@/components/SakhiLogo";
+import { Bell, Settings, LogOut, Shield, ChevronRight, X, CheckCircle2, AlertOctagon, MapPin, Menu, Users, RotateCcw } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -162,12 +163,7 @@ const MobileHeader = () => {
 
       {/* Brand */}
       <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/home")}>
-        <div
-          className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm"
-          style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)" }}
-        >
-          <Sparkles className="w-4 h-4 text-white" />
-        </div>
+        <SakhiMark className="w-8 h-8 drop-shadow-sm" />
         <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 17, color: "#8B3A2F" }}>Sakhi</span>
       </div>
 

@@ -5,6 +5,10 @@
       <stop offset="0.55" stop-color="#FF7B6B" />
       <stop offset="1" stop-color="#F0458F" />
     </linearGradient>
+    <linearGradient id="sakhi-ai" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#EC4899" />
+      <stop offset="1" stop-color="#A855F7" />
+    </linearGradient>
   </defs>
 
   <!-- Shield -->
@@ -57,4 +61,18 @@
   </g>
   <circle cx="334" cy="128" r="10.5" stroke="#A855F7" stroke-width="3.5" fill="none" opacity="0.9" />
   <circle cx="334" cy="128" r="5" fill="#EC4899" />
+
+  <!-- Wordmark -->
+  <text
+    x="256"
+    y="462"
+    text-anchor="middle"
+    font-family="'Poppins','Manrope','Segoe UI',Arial,sans-serif"
+    font-size="54"
+    font-weight="700"
+    letter-spacing="-0.5"
+  >
+    <tspan fill="#1E293B">Sakhi </tspan>
+    <tspan fill="url(#sakhi-ai)">AI</tspan>
+  </text>
 </svg>

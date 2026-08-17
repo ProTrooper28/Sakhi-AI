@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 import {
   MapPin, Navigation2, ShieldCheck, Sparkles, Phone, Search, CheckCircle2,
   AlertTriangle, ChevronLeft, ChevronDown, Clock, Footprints, Car, Bike, Bus, UserCheck,
-  Share2, Zap, Shield, Users2, Check, HelpCircle,
+  Share2, Zap, Shield, Users2, Check, HelpCircle, Loader2,
 } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
@@ -56,6 +56,19 @@ L.Icon.Default.mergeOptions({
 });
 
 const FALLBACK_POINT: [number, number] = [19.0596, 72.8295];
+
+/**
+ * Curated quick-pick destinations — shown when live geocoding returns
+ * nothing (offline / geocoder blocked), so the journey can always start.
+ */
+const FALLBACK_PLACES: Destination[] = [
+  { lat: 28.6226, lng: 77.0838, label: "Janakpuri, New Delhi, Delhi, India" },
+  { lat: 19.076, lng: 72.8777, label: "Mumbai, Maharashtra, India" },
+  { lat: 19.0596, lng: 72.8295, label: "Bandra West, Mumbai, Maharashtra, India" },
+  { lat: 28.6139, lng: 77.209, label: "Connaught Place, New Delhi, Delhi, India" },
+  { lat: 12.9716, lng: 77.5946, label: "Bengaluru, Karnataka, India" },
+  { lat: 22.5726, lng: 88.3639, label: "Kolkata, West Bengal, India" },
+];
 
 const makeUserIcon = () =>
   L.divIcon({
@@ -154,12 +167,16 @@ const SafetyJourneyPage = () => {
   const [needHelpOpen, setNeedHelpOpen] = useState(false);
   const [insights, setInsights] = useState<string[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
   const routeLayerRef = useRef<L.LayerGroup | null>(null);
   const deviationAckedRef = useRef(false);
+  const suppressSearchRef = useRef(false);
+  const handleSearchRef = useRef<(q?: string) => Promise<void>>(async () => {});
 
   // Live refs so the monitoring ticker never reads stale closures.
   const journeyRef = useRef(journey);
@@ -232,17 +249,39 @@ const SafetyJourneyPage = () => {
 
   // ── Destination search ──
   const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+    const q = searchQuery.trim();
+    if (!q) return;
     setSearching(true);
-    const results = await geocodeSearch(searchQuery);
+    setDestinations([]);
+    const results = await geocodeSearch(q);
     setDestinations(results);
     setSearching(false);
+    setSearched(true);
   };
+  handleSearchRef.current = handleSearch;
+
+  // Debounced auto-search as the user types (2+ chars) — suggestions appear
+  // without pressing Enter. Skipped right after a destination is picked.
+  useEffect(() => {
+    if (suppressSearchRef.current) {
+      suppressSearchRef.current = false;
+      return;
+    }
+    const q = searchQuery.trim();
+    if (q.length < 2) return;
+    const t = setTimeout(() => {
+      void handleSearchRef.current();
+    }, 450);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   const pickDestination = (d: Destination) => {
+    suppressSearchRef.current = true;
     setSelectedDest(d);
     setDestinations([]);
     setSearchQuery(d.label.split(",").slice(0, 2).join(","));
+    setSearched(false);
   };
 
   // ── Start the journey ──
@@ -251,43 +290,49 @@ const SafetyJourneyPage = () => {
       toast({ title: "Choose a destination", description: "Search for a place to start your Safety Journey." });
       return;
     }
-    if (monitoring.shareLiveLocation) setSharingEnabled(true);
-    const zones = safetyZonesFromGeoJson(buildSafetyGeoJson({ lat: currentPos[0], lng: currentPos[1] }));
-    const options = await fetchRouteOptions(
-      { lat: currentPos[0], lng: currentPos[1] },
-      { lat: selectedDest.lat, lng: selectedDest.lng },
-      zones,
-    );
-    const route = options[0] ?? {
-      id: "fastest" as const,
-      label: "Fastest Route",
-      points: [[currentPos[0], currentPos[1]], [selectedDest.lat, selectedDest.lng]] as [number, number][],
-      durationSec: haversineMeters(currentPos[0], currentPos[1], selectedDest.lat, selectedDest.lng) / 8,
-      distanceM: haversineMeters(currentPos[0], currentPos[1], selectedDest.lat, selectedDest.lng),
-      safety: "moderate" as const,
-      safetyScore: 50,
-    };
+    if (starting) return;
+    setStarting(true);
+    try {
+      if (monitoring.shareLiveLocation) setSharingEnabled(true);
+      const zones = safetyZonesFromGeoJson(buildSafetyGeoJson({ lat: currentPos[0], lng: currentPos[1] }));
+      const options = await fetchRouteOptions(
+        { lat: currentPos[0], lng: currentPos[1] },
+        { lat: selectedDest.lat, lng: selectedDest.lng },
+        zones,
+      );
+      const route = options[0] ?? {
+        id: "fastest" as const,
+        label: "Fastest Route",
+        points: [[currentPos[0], currentPos[1]], [selectedDest.lat, selectedDest.lng]] as [number, number][],
+        durationSec: haversineMeters(currentPos[0], currentPos[1], selectedDest.lat, selectedDest.lng) / 8,
+        distanceM: haversineMeters(currentPos[0], currentPos[1], selectedDest.lat, selectedDest.lng),
+        safety: "moderate" as const,
+        safetyScore: 50,
+      };
 
-    const j = createJourney({
-      destination: selectedDest,
-      mode,
-      routePoints: route.points,
-      distanceM: route.distanceM,
-      durationSec: route.durationSec,
-      expectedArrivalMs: etaOverrideMs ?? Date.now() + route.durationSec * 1000,
-      rideDetails: ride,
-      monitoring,
-      trustedContactId,
-      etaOverride: etaOverrideMs,
-    });
-    setJourney(j);
-    deviationAckedRef.current = false;
+      const j = createJourney({
+        destination: selectedDest,
+        mode,
+        routePoints: route.points,
+        distanceM: route.distanceM,
+        durationSec: route.durationSec,
+        expectedArrivalMs: etaOverrideMs ?? Date.now() + route.durationSec * 1000,
+        rideDetails: ride,
+        monitoring,
+        trustedContactId,
+        etaOverride: etaOverrideMs,
+      });
+      setJourney(j);
+      deviationAckedRef.current = false;
 
-    if (guardianConnected && monitoring.shareLiveLocation) {
-      void upsertLiveLocation({ lat: currentPos[0], lng: currentPos[1], label: locationState.address });
+      if (guardianConnected && monitoring.shareLiveLocation) {
+        void upsertLiveLocation({ lat: currentPos[0], lng: currentPos[1], label: locationState.address });
+      }
+      toast({ title: "Journey Started", description: `${MODE_LABEL[mode]} · AI monitoring is active.` });
+    } finally {
+      setStarting(false);
     }
-    toast({ title: "Journey Started", description: `${MODE_LABEL[mode]} · AI monitoring is active.` });
-  }, [selectedDest, mode, currentPos, guardianConnected, locationState.address, ride, monitoring, trustedContactId, etaOverrideMs]);
+  }, [selectedDest, mode, currentPos, guardianConnected, locationState.address, ride, monitoring, trustedContactId, etaOverrideMs, starting]);
 
   // ── Live monitoring ticker (every GPS fix + 10s safety tick) ──
   const handleAlerts = useCallback((alerts: JourneyAlert[]) => {
@@ -465,9 +510,19 @@ const SafetyJourneyPage = () => {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
                     placeholder="Where are you heading?"
-                    className="w-full bg-[#FDF6EE] border border-[#F5E4D6] rounded-2xl pl-11 pr-4 py-3 text-sm font-bold text-[#3D2315] outline-none focus:border-[#F2956A]/50 transition-all"
+                    className="w-full bg-[#FDF6EE] border border-[#F5E4D6] rounded-2xl pl-11 pr-12 py-3 text-sm font-bold text-[#3D2315] outline-none focus:border-[#F2956A]/50 transition-all"
                   />
-                  {searching && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-[#D4455C] border-t-transparent rounded-full animate-spin" />}
+                  {searching ? (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-[#D4455C] border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <button
+                      onClick={() => void handleSearch()}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1.5 rounded-xl bg-[#D4455C] text-white cursor-pointer hover:bg-[#B8324A] transition-colors"
+                      aria-label="Search destination"
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 {destinations.length > 0 && (
@@ -482,6 +537,26 @@ const SafetyJourneyPage = () => {
                         <span className="text-xs font-bold text-[#3D2315] truncate">{d.label}</span>
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {!searching && searched && !selectedDest && destinations.length === 0 && searchQuery.trim() && (
+                  <div className="mb-3 rounded-2xl border border-[#F5E4D6] bg-white p-3">
+                    <p className="text-[11px] font-bold text-[#9E7A6A]">
+                      Couldn't find “{searchQuery.trim()}” — try a nearby landmark:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {FALLBACK_PLACES.map((p) => (
+                        <button
+                          key={p.label}
+                          onClick={() => pickDestination(p)}
+                          className="px-3 py-1.5 rounded-full bg-[#FDF6EE] border border-[#F5E4D6] text-[10px] font-black text-[#8B3A2F] cursor-pointer hover:border-[#F2956A]/50 transition-colors"
+                          style={{ fontFamily: "Nunito,sans-serif" }}
+                        >
+                          {p.label.split(",")[0]}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -681,13 +756,22 @@ const SafetyJourneyPage = () => {
 
                 <motion.button
                   whileTap={{ scale: 0.97 }}
-                  onClick={handleStart}
-                  disabled={!selectedDest}
+                  onClick={() => void handleStart()}
+                  disabled={!selectedDest || starting}
                   className="w-full py-3.5 rounded-2xl text-white font-black text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 transition-all"
                   style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)", boxShadow: "0 8px 24px rgba(212,69,92,0.25)", fontFamily: "Nunito,sans-serif" }}
                 >
-                  <Navigation2 className="w-4 h-4" />
-                  Start Safety Journey
+                  {starting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Starting Journey…
+                    </>
+                  ) : (
+                    <>
+                      <Navigation2 className="w-4 h-4" />
+                      Start Safety Journey
+                    </>
+                  )}
                 </motion.button>
               </div>
             </motion.div>

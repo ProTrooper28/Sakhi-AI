@@ -105,10 +105,22 @@ export type GeocodeResult = { label: string; address: string };
  * label ("Bandra West, Mumbai") plus a fuller address line. Never throws —
  * callers fall back to a default label on failure.
  */
+/** fetch with a timeout so a dead geocoder/routing API never hangs the UI. */
+const fetchWithTimeout = async (url: string, ms = 6000, init?: RequestInit): Promise<Response> => {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 export const reverseGeocode = async (lat: number, lng: number): Promise<GeocodeResult> => {
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
+      5000,
       { headers: { Accept: "application/json" } },
     );
     if (!res.ok) throw new Error("geocode failed");
@@ -334,27 +346,57 @@ export type RouteOption = {
 export const etaLabel = (sec: number): string =>
   sec < 60 ? "<1 min" : `${Math.round(sec / 60)} min`;
 
+type GeoHit = { lat: number; lng: number; label: string };
+
+/** Parse Photon (komoot) — { features: [{ geometry: [lng,lat], properties }] }. */
+const parsePhoton = (data: unknown): GeoHit[] => {
+  const features = (data as { features?: { geometry?: { coordinates?: [number, number] }; properties?: Record<string, string> }[] }).features;
+  if (!features?.length) return [];
+  return features
+    .filter((f) => f.geometry?.coordinates)
+    .map((f) => {
+      const [lng, lat] = f.geometry!.coordinates!;
+      const p = f.properties ?? {};
+      const parts = [p.name, p.street, p.suburb, p.district, p.city, p.state, p.country].filter(Boolean);
+      return { lat, lng, label: parts.join(", ") || p.name || "Location" };
+    });
+};
+
+/** Parse Nominatim — array of { lat, lon, display_name }. */
+const parseNominatim = (data: unknown): GeoHit[] =>
+  (Array.isArray(data) ? data : [])
+    .filter((d) => d && d.lat && d.lon)
+    .map((d) => ({
+      lat: parseFloat(d.lat as string),
+      lng: parseFloat(d.lon as string),
+      label: (d as { display_name?: string }).display_name ?? "Location",
+    }));
+
 /**
- * Nominatim search — destination picker suggestions.
- * TODO(api-key): in production, switch to a geocoding service with an API
- * key (Mapbox, Google, or a server-side geocoder) for reliability.
+ * Destination search — tries Photon (komoot, keyless + CORS-friendly) and
+ * Nominatim (OpenStreetMap) in parallel with timeouts, so one flaky/rate-
+ * limited geocoder never blocks the picker. First non-empty result wins.
+ * TODO(api-key): for production, switch to a keyed geocoder (Mapbox,
+ * Google) behind an env var for guaranteed reliability.
  */
 export const geocodeSearch = async (q: string): Promise<Destination[]> => {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&limit=4&q=${encodeURIComponent(q)}`,
-      { headers: { Accept: "application/json" } },
-    );
-    if (!res.ok) throw new Error("search failed");
-    const data = (await res.json()) as { lat: string; lon: string; display_name: string }[];
-    return data.map((d) => ({
-      lat: parseFloat(d.lat),
-      lng: parseFloat(d.lon),
-      label: d.display_name,
-    }));
-  } catch {
-    return [];
-  }
+  const qs = encodeURIComponent(q);
+  const tryGeocode = async (url: string, parse: (d: unknown) => GeoHit[]): Promise<GeoHit[]> => {
+    try {
+      const res = await fetchWithTimeout(url, 5000, { headers: { Accept: "application/json" } });
+      if (!res.ok) return [];
+      return parse(await res.json());
+    } catch {
+      return [];
+    }
+  };
+
+  const [photon, nominatim] = await Promise.all([
+    tryGeocode(`https://photon.komoot.io/api/?q=${qs}&limit=5`, parsePhoton),
+    tryGeocode(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${qs}`, parseNominatim),
+  ]);
+  const hits = photon.length > 0 ? photon : nominatim;
+  return hits.slice(0, 5);
 };
 
 type OsrmRoute = {
@@ -374,8 +416,9 @@ const osrmFetch = async (
   to: { lat: number; lng: number },
   alternatives: boolean,
 ): Promise<OsrmRoute[]> => {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://router.project-osrm.org/route/v1/${profile}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&alternatives=${alternatives}&steps=false`,
+    5000,
   );
   if (!res.ok) throw new Error("osrm failed");
   const data = (await res.json()) as { code: string; routes?: OsrmRoute[] };

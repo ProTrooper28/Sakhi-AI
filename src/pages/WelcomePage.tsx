@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { SakhiMark } from "@/components/SakhiLogo";
 import { UserRound, ShieldCheck, Eye, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -263,19 +264,7 @@ const WelcomePage = () => {
       {/* ── Top Navigation Bar ── */}
       <div className="welcome-nav-bar">
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <svg
-            width="16"
-            height="18"
-            viewBox="0 0 16 18"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            style={{ flexShrink: 0 }}
-          >
-            <path
-              d="M8 0L1 2.5V8.5C1 12.8 3.9 16.5 8 18C12.1 16.5 15 12.8 15 8.5V2.5L8 0Z"
-              fill="#8C3A86"
-            />
-          </svg>
+          <SakhiMark style={{ width: 18, height: 20, flexShrink: 0 }} />
           <span
             style={{
               fontSize: "0.9375rem",

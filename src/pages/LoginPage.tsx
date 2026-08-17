@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { SakhiMark } from "@/components/SakhiLogo";
 import { Shield, ArrowRight, Lock, User, Phone, Mail, Loader2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { signUpWithEmail, savePendingSignup, normalizePhone, isValidIndianMobile, isValidEmail } from "@/lib/otp";
@@ -450,19 +451,7 @@ const LoginPage = () => {
         <div className="sakhi-nav-bar">
           {/* Logo brand signature */}
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <svg
-              width="16"
-              height="18"
-              viewBox="0 0 16 18"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              style={{ flexShrink: 0 }}
-            >
-              <path
-                d="M8 0L1 2.5V8.5C1 12.8 3.9 16.5 8 18C12.1 16.5 15 12.8 15 8.5V2.5L8 0Z"
-                fill="#8C3A86"
-              />
-            </svg>
+            <SakhiMark style={{ width: 18, height: 20, flexShrink: 0 }} />
             <span style={{ fontSize: "0.9375rem", color: C.primaryDark, fontWeight: 600, letterSpacing: "0.06em", fontFamily: "'Poppins', sans-serif" }}>
               SAKHI AI
             </span>

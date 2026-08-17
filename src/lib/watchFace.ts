@@ -138,8 +138,22 @@ function drawBattery(ctx: CanvasRenderingContext2D, x: number, y: number, s: num
 function drawLogo(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
   ctx.save();
   ctx.translate(x, y);
-  // Heart mark
-  drawHeart(ctx, 0, 0, s, C.roseDeep);
+  // Official Sakhi AI shield mark
+  const grad = ctx.createLinearGradient(0, -1.3 * s, 0, 1.4 * s);
+  grad.addColorStop(0, "#FFA95E");
+  grad.addColorStop(0.55, "#FF7B6B");
+  grad.addColorStop(1, "#F0458F");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(0, -1.3 * s);
+  ctx.bezierCurveTo(0.82 * s, -1.3 * s, 1.075 * s, -0.6 * s, 1.075 * s, 0.12 * s);
+  ctx.lineTo(1.075 * s, 0.55 * s);
+  ctx.bezierCurveTo(1.075 * s, 1.05 * s, 0.55 * s, 1.32 * s, 0, 1.4 * s);
+  ctx.bezierCurveTo(-0.55 * s, 1.32 * s, -1.075 * s, 1.05 * s, -1.075 * s, 0.55 * s);
+  ctx.lineTo(-1.075 * s, 0.12 * s);
+  ctx.bezierCurveTo(-1.075 * s, -0.6 * s, -0.82 * s, -1.3 * s, 0, -1.3 * s);
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
 }
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { SakhiMark } from "@/components/SakhiLogo";
 import { Download, X } from "lucide-react";
 
 /**
@@ -67,8 +68,8 @@ export default function PWAInstallPrompt() {
         >
           <div className="flex items-center gap-3 rounded-2xl border border-pink-500/20 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-xl">
             {/* App icon */}
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-pink-700 text-sm font-bold text-white shadow-lg">
-              AI
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15 shadow-lg">
+              <SakhiMark className="h-8 w-8" />
             </div>
 
             {/* Text */}
