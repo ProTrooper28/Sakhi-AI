@@ -206,11 +206,39 @@ export const shareLocation = async (
   return ok ? "copied" : "failed";
 };
 
-// ── Safety overlay ────────────────────────────────────────────────────────────
+// ── Safety layer (GeoJSON placeholder architecture) ───────────────────────────
+//
+// The UI consumes a GeoJSON FeatureCollection and renders it — it never
+// cares where the data comes from. Today a deterministic placeholder is
+// generated around the user's position; later a real crime/safety data
+// source (police open data, a server action, a third-party safety API) can
+// be swapped in by replacing `buildSafetyGeoJson` with a data fetch, with
+// zero UI changes.
 
 export type SafetyLevel = "safe" | "moderate" | "risk";
 
+/** Simple internal zones (derived from GeoJSON) used for route scoring. */
 export type SafetyZone = { lat: number; lng: number; radius: number; level: SafetyLevel };
+
+/** GeoJSON feature — supports Point (with radius property) or Polygon. */
+export type SafetyFeature = {
+  type: "Feature";
+  properties: {
+    level: SafetyLevel;
+    name?: string;
+    /** Radius in meters for Point features. */
+    radius?: number;
+    source?: string;
+  };
+  geometry:
+    | { type: "Point"; coordinates: [number, number] }
+    | { type: "Polygon"; coordinates: [number, number][][] };
+};
+
+export type SafetyFeatureCollection = {
+  type: "FeatureCollection";
+  features: SafetyFeature[];
+};
 
 export const SAFETY_ZONE_COLORS: Record<SafetyLevel, string> = {
   safe: "#3D9970",
@@ -234,21 +262,54 @@ const seededRandom = (seed: number): (() => number) => {
 };
 
 /**
- * Demo safety zones anchored around the current position: green (safe),
- * yellow (moderate) and red (risk) semi-transparent areas. Deterministic per
- * anchor so the overlay is stable while the user moves slowly.
+ * Placeholder safety data — generates a GeoJSON FeatureCollection of
+ * green / yellow / red areas anchored around the current position.
+ *
+ * TODO(real-data): replace this function with a real safety data source,
+ * e.g. `fetch("/api/safety-zones")` or a crime open-data endpoint that
+ * returns the same FeatureCollection shape. The UI needs no changes.
  */
-export const buildSafetyZones = (anchor: { lat: number; lng: number }, radiusM = 2000): SafetyZone[] => {
+export const buildSafetyGeoJson = (
+  anchor: { lat: number; lng: number },
+  radiusM = 2200,
+): SafetyFeatureCollection => {
   const rand = seededRandom(Math.round(anchor.lat * 100) * 73856093 ^ Math.round(anchor.lng * 100));
-  const levels: SafetyLevel[] = ["safe", "safe", "moderate", "moderate", "risk", "safe", "moderate"];
-  const zones: SafetyZone[] = [];
+  const levels: SafetyLevel[] = ["safe", "safe", "moderate", "moderate", "risk", "safe", "moderate", "risk"];
+  const features: SafetyFeature[] = [];
   const lngScale = Math.cos((anchor.lat * Math.PI) / 180) || 1;
   for (let i = 0; i < levels.length; i++) {
     const ang = (i / levels.length) * Math.PI * 2 + rand() * 0.7;
     const dist = radiusM * (0.3 + rand() * 0.7);
     const lat = anchor.lat + (Math.cos(ang) * dist) / 111320;
     const lng = anchor.lng + (Math.sin(ang) * dist) / (111320 * lngScale);
-    zones.push({ lat, lng, radius: 280 + rand() * 440, level: levels[i]! });
+    features.push({
+      type: "Feature",
+      properties: {
+        level: levels[i]!,
+        radius: 300 + rand() * 500,
+        source: "placeholder-demo",
+      },
+      geometry: { type: "Point", coordinates: [lng, lat] },
+    });
+  }
+  return { type: "FeatureCollection", features };
+};
+
+/** Flatten a FeatureCollection into scoring zones (Point features + polygons' centroids). */
+export const safetyZonesFromGeoJson = (fc: SafetyFeatureCollection | null): SafetyZone[] => {
+  if (!fc) return [];
+  const zones: SafetyZone[] = [];
+  for (const f of fc.features) {
+    if (f.geometry.type === "Point") {
+      const [lng, lat] = f.geometry.coordinates;
+      zones.push({ lat, lng, radius: f.properties.radius ?? 400, level: f.properties.level });
+    } else {
+      const ring = f.geometry.coordinates[0];
+      if (!ring || ring.length === 0) continue;
+      const lat = ring.reduce((s, [lng, la]) => s + la, 0) / ring.length;
+      const lng = ring.reduce((s, [lo]) => s + lo, 0) / ring.length;
+      zones.push({ lat, lng, radius: 500, level: f.properties.level });
+    }
   }
   return zones;
 };
@@ -266,12 +327,18 @@ export type RouteOption = {
   durationSec: number;
   distanceM: number;
   safety: "safe" | "moderate" | "caution";
+  /** 0–100 safety score against the overlay zones (higher = safer). */
+  safetyScore: number;
 };
 
 export const etaLabel = (sec: number): string =>
   sec < 60 ? "<1 min" : `${Math.round(sec / 60)} min`;
 
-/** Nominatim search — destination picker suggestions. */
+/**
+ * Nominatim search — destination picker suggestions.
+ * TODO(api-key): in production, switch to a geocoding service with an API
+ * key (Mapbox, Google, or a server-side geocoder) for reliability.
+ */
 export const geocodeSearch = async (q: string): Promise<Destination[]> => {
   try {
     const res = await fetch(
@@ -296,6 +363,11 @@ type OsrmRoute = {
   geometry: { coordinates: [number, number][] };
 };
 
+/**
+ * OSRM public demo server (no key).
+ * TODO(api-key): for production, replace with a commercial routing API
+ * (Mapbox Directions, Google Directions) behind an env var key.
+ */
 const osrmFetch = async (
   profile: "driving" | "walking",
   from: { lat: number; lng: number },
@@ -336,6 +408,19 @@ const scoreRoute = (points: [number, number][], zones: SafetyZone[]): number => 
 const safetyLabel = (score: number): RouteOption["safety"] =>
   score > 0.2 ? "safe" : score < -0.1 ? "caution" : "moderate";
 
+/** Map the −1…1 raw score to a 0–100 safety score. */
+const toScore100 = (raw: number): number =>
+  Math.max(0, Math.min(100, Math.round((raw + 1) * 50)));
+
+const labelOf = (kind: RouteKind): string =>
+  kind === "safest"
+    ? "Safest Route"
+    : kind === "fastest"
+      ? "Fastest Route"
+      : kind === "walking"
+        ? "Walking"
+        : "Driving";
+
 /** Straight-line fallback (offline / OSRM unavailable) with honest estimates. */
 const fallbackRoute = (
   kind: RouteKind,
@@ -345,13 +430,15 @@ const fallbackRoute = (
 ): RouteOption => {
   const dist = haversineMeters(from.lat, from.lng, to.lat, to.lng);
   const speed = kind === "walking" ? 1.3 : kind === "safest" ? 8.5 : 10.5; // m/s
+  const raw = scoreRoute([[from.lat, from.lng], [to.lat, to.lng]], zones);
   return {
     id: kind,
-    label: kind === "safest" ? "Safest Route" : kind === "fastest" ? "Fastest Route" : kind === "walking" ? "Walking Route" : "Driving Route",
+    label: labelOf(kind),
     points: [[from.lat, from.lng], [to.lat, to.lng]],
     durationSec: dist / speed,
     distanceM: dist,
-    safety: safetyLabel(scoreRoute([[from.lat, from.lng], [to.lat, to.lng]], zones)),
+    safety: safetyLabel(raw),
+    safetyScore: toScore100(raw),
   };
 };
 
@@ -361,14 +448,18 @@ const toOption = (
   durationSec: number,
   distanceM: number,
   zones: SafetyZone[],
-): RouteOption => ({
-  id: kind,
-  label: kind === "safest" ? "Safest Route" : kind === "fastest" ? "Fastest Route" : kind === "walking" ? "Walking Route" : "Driving Route",
-  points,
-  durationSec,
-  distanceM,
-  safety: safetyLabel(scoreRoute(points, zones)),
-});
+): RouteOption => {
+  const raw = scoreRoute(points, zones);
+  return {
+    id: kind,
+    label: labelOf(kind),
+    points,
+    durationSec,
+    distanceM,
+    safety: safetyLabel(raw),
+    safetyScore: toScore100(raw),
+  };
+};
 
 /**
  * Build the four route options (Safest / Fastest / Walking / Driving).
@@ -387,10 +478,14 @@ export const fetchRouteOptions = async (
     fallbackRoute("driving", from, to, zones),
   ];
   try {
+    // Fetch the two profiles independently so one failure never discards the
+    // other (e.g. walking unsupported → driving routes still render).
     const [drivingRoutes, walkingRoutes] = await Promise.all([
-      osrmFetch("driving", from, to, true),
-      osrmFetch("walking", from, to, false),
+      osrmFetch("driving", from, to, true).catch(() => [] as OsrmRoute[]),
+      osrmFetch("walking", from, to, false).catch(() => [] as OsrmRoute[]),
     ]);
+    if (drivingRoutes.length === 0) return straight;
+
     const map = (r: OsrmRoute): [number, number][] =>
       r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
 

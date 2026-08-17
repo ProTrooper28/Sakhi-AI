@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { TrailPoint } from "./helpers";
-import { SAFETY_ZONE_COLORS, type SafetyZone } from "./helpers";
+import { SAFETY_ZONE_COLORS, type SafetyFeatureCollection } from "./helpers";
 
 // ── Marker icons ─────────────────────────────────────────────────────────────
 
@@ -88,7 +88,7 @@ export const LiveTrackingMap = ({
   sos = false,
   follow = true,
   tileUrl,
-  safetyZones,
+  safetyGeoJson,
   routes,
   destination,
   onMapClick,
@@ -102,8 +102,8 @@ export const LiveTrackingMap = ({
   follow?: boolean;
   /** Swaps the base tile layer (e.g. light ↔ satellite). */
   tileUrl?: string;
-  /** Semi-transparent safety overlay circles. */
-  safetyZones?: SafetyZone[];
+  /** Semi-transparent safety overlay (GeoJSON FeatureCollection). */
+  safetyGeoJson?: SafetyFeatureCollection | null;
   /** Route polylines: selected route full-color, alternatives dashed gray. */
   routes?: { points: [number, number][]; color: string; dashed?: boolean }[];
   /** Destination pin. */
@@ -171,23 +171,34 @@ export const LiveTrackingMap = ({
     };
   }, [onMapClick]);
 
-  // Safety overlay zones.
+  // Safety overlay — renders whatever GeoJSON FeatureCollection is provided.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (!zonesRef.current) zonesRef.current = L.layerGroup().addTo(map);
     zonesRef.current.clearLayers();
-    (safetyZones ?? []).forEach((z) => {
-      L.circle([z.lat, z.lng], {
-        radius: z.radius,
-        color: SAFETY_ZONE_COLORS[z.level],
+    const fc = safetyGeoJson;
+    if (!fc) return;
+    for (const f of fc.features) {
+      const color = SAFETY_ZONE_COLORS[f.properties.level];
+      const style: L.PathOptions = {
+        color,
         weight: 1.2,
-        opacity: 0.4,
-        fillColor: SAFETY_ZONE_COLORS[z.level],
-        fillOpacity: 0.1,
-      }).addTo(zonesRef.current!);
-    });
-  }, [safetyZones]);
+        opacity: 0.45,
+        fillColor: color,
+        fillOpacity: 0.12,
+      };
+      if (f.geometry.type === "Point") {
+        const [lng, lat] = f.geometry.coordinates;
+        L.circle([lat, lng], { ...style, radius: f.properties.radius ?? 400 }).addTo(zonesRef.current!);
+      } else {
+        const rings = f.geometry.coordinates.map((ring) =>
+          ring.map(([lng, lat]) => [lat, lng] as [number, number]),
+        );
+        L.polygon(rings, style).addTo(zonesRef.current!);
+      }
+    }
+  }, [safetyGeoJson]);
 
   // Route polylines.
   useEffect(() => {

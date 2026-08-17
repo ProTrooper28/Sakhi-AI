@@ -32,6 +32,8 @@ import {
   Shield,
   ShieldCheck,
   Zap,
+  Crosshair,
+  Route,
 } from "lucide-react";
 import { toast } from "sonner";
 import AppLayout from "@/components/AppLayout";
@@ -54,7 +56,8 @@ import {
   setSharingEnabled,
   haversineMeters,
   distanceLabel,
-  buildSafetyZones,
+  buildSafetyGeoJson,
+  safetyZonesFromGeoJson,
   SAFETY_LEGEND,
   SAFETY_ZONE_COLORS,
   fetchRouteOptions,
@@ -71,10 +74,10 @@ const TRAIL_KEY = "sakhi_location_trail";
 const SATELLITE_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 
 const ROUTE_COLORS: Record<RouteKind, string> = {
-  safest: "#3D9970",
-  fastest: "#2563EB",
-  walking: "#0D9488",
-  driving: "#7A2B73",
+  safest: "#3D9970", // green
+  fastest: "#2563EB", // blue
+  walking: "#7A2B73", // purple
+  driving: "#D4455C", // rose
 };
 
 const SAFETY_COLORS: Record<RouteOption["safety"], string> = {
@@ -205,14 +208,18 @@ export default function UserLiveLocationPage() {
   // ── Safety overlay + map layers ──────────────────────────────────────────
   const [safetyOn, setSafetyOn] = useState(true);
   const [satellite, setSatellite] = useState(false);
-  // Zones are anchored ~100m-rounded coords so they stay stable between
-  // GPS ticks (no flicker) while still following the user as they move.
+  // Safety layer: a GeoJSON FeatureCollection (placeholder data today, a real
+  // crime/safety source tomorrow — the UI only consumes GeoJSON). Anchored on
+  // ~100m-rounded coords so it stays stable between GPS ticks (no flicker)
+  // while still following the user as they move.
   const zoneAnchorKey = coords ? `${coords.lat.toFixed(3)},${coords.lng.toFixed(3)}` : null;
-  const safetyZones = useMemo(() => {
-    if (!safetyOn || !zoneAnchorKey) return [];
+  const safetyGeoJson = useMemo(() => {
+    if (!safetyOn || !zoneAnchorKey) return null;
     const [la, ln] = zoneAnchorKey.split(",");
-    return buildSafetyZones({ lat: parseFloat(la!), lng: parseFloat(ln!) });
+    return buildSafetyGeoJson({ lat: parseFloat(la!), lng: parseFloat(ln!) });
   }, [safetyOn, zoneAnchorKey]);
+  // Same data, flattened into zones for route safety scoring.
+  const safetyZones = useMemo(() => safetyZonesFromGeoJson(safetyGeoJson), [safetyGeoJson]);
 
   // ── Destination & route options ──────────────────────────────────────────
   const [destQuery, setDestQuery] = useState("");
@@ -295,6 +302,24 @@ export default function UserLiveLocationPage() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoute?.id]);
+
+  const destInputRef = useRef<HTMLInputElement>(null);
+  // "Directions" — focus the destination search; if a route exists, refit it.
+  const openDirections = useCallback(() => {
+    if (selectedRoute && mapRef.current && selectedRoute.points.length >= 2) {
+      const lats = selectedRoute.points.map((p) => p[0]);
+      const lngs = selectedRoute.points.map((p) => p[1]);
+      mapRef.current.fitBounds(
+        [
+          [Math.min(...lats), Math.min(...lngs)],
+          [Math.max(...lats), Math.max(...lngs)],
+        ],
+        { padding: [56, 56] },
+      );
+    }
+    destInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    destInputRef.current?.focus({ preventScroll: true });
+  }, [selectedRoute]);
 
   // ── More details (full address + device telemetry) ───────────────────────
   const [moreOpen, setMoreOpen] = useState(false);
@@ -418,7 +443,7 @@ export default function UserLiveLocationPage() {
           sos={sosState.active}
           follow
           tileUrl={satellite ? SATELLITE_TILES : undefined}
-          safetyZones={safetyZones}
+          safetyGeoJson={safetyGeoJson}
           routes={routeLayers}
           destination={destination}
           onMapClick={handleMapClick}
@@ -458,7 +483,16 @@ export default function UserLiveLocationPage() {
               else onRefresh();
             }}
           />
-          <MapControl icon={Shield} label="Safety Overlay" active={safetyOn} onClick={() => setSafetyOn((v) => !v)} />
+          <MapControl
+            icon={Crosshair}
+            label="Recenter"
+            onClick={() => {
+              if (coords) mapRef.current?.panTo([coords.lat, coords.lng], { animate: true });
+              else onRefresh();
+            }}
+          />
+          <MapControl icon={Shield} label="Safety Layer" active={safetyOn} onClick={() => setSafetyOn((v) => !v)} />
+          <MapControl icon={Route} label="Directions" active={!!destination} onClick={openDirections} />
           <MapControl icon={Layers} label="Map Layers" active={satellite} onClick={() => setSatellite((v) => !v)} />
         </div>
 
@@ -607,6 +641,7 @@ export default function UserLiveLocationPage() {
               <div className="relative">
                 <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 15, height: 15, color: "#9E7A6A" }} />
                 <input
+                  ref={destInputRef}
                   value={destQuery}
                   onChange={(e) => {
                     setDestQuery(e.target.value);
@@ -695,9 +730,9 @@ export default function UserLiveLocationPage() {
                             <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10.5, color: active ? "rgba(255,255,255,0.85)" : "#6B7280", marginTop: 2 }}>
                               {etaLabel(r.durationSec)} · {distanceLabel(r.distanceM)}
                             </p>
-                            <p className="flex items-center gap-1 mt-1.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 9.5, color: SAFETY_COLORS[r.safety] }}>
-                              <span className="w-1.5 h-1.5 rounded-full" style={{ background: SAFETY_COLORS[r.safety] }} />
-                              {r.safety === "safe" ? "Safe" : r.safety === "moderate" ? "Moderate" : "Caution"}
+                            <p className="flex items-center gap-1 mt-1.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 9.5, color: active ? "rgba(255,255,255,0.9)" : SAFETY_COLORS[r.safety] }}>
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? "rgba(255,255,255,0.9)" : SAFETY_COLORS[r.safety] }} />
+                              Safety {r.safetyScore}/100
                             </p>
                           </button>
                         );
