@@ -13,6 +13,8 @@ import {
   LogOut,
   Watch,
   X,
+  Navigation2,
+  HeartHandshake,
 } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
@@ -39,10 +41,12 @@ const USER_SECTIONS: NavSection[] = [
   {
     label: "Safety Tools",
     items: [
+      { icon: Navigation2,     label: "Safety Journey",      path: "/journey" },
       { icon: Map,             label: "Location Tracking",   path: "/location" },
       { icon: Archive,         label: "Evidence Locker",     path: "/evidence-locker" },
       { icon: FileWarning,     label: "Anonymous Reports",   path: "/report" },
       { icon: FileText,        label: "My Reports",          path: "/my-reports" },
+      { icon: HeartHandshake,  label: "Post-Incident Support", path: "/post-incident" },
     ],
   },
   {

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#ec4899"/>
+      <stop offset="100%" stop-color="#be185d"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="rgba(236,72,153,0.3)"/>
+      <stop offset="100%" stop-color="rgba(236,72,153,0)"/>
+    </radialGradient>
+  </defs>
+  <circle cx="256" cy="256" r="256" fill="url(#bg)"/>
+  <circle cx="256" cy="210" r="190" fill="url(#glow)"/>
+  <path d="M256 42 C322 42, 398 76, 420 162 C430 206, 426 250, 410 292 C388 348, 344 424, 256 478 C168 424, 124 348, 102 292 C86 250, 82 206, 92 162 C114 76, 190 42, 256 42Z" fill="url(#shield)"/>
+  <text x="256" y="245" text-anchor="middle" dominant-baseline="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="112" fill="white">AI</text>
+  <circle cx="256" cy="112" r="16" fill="#34d399"/>
+  <circle cx="256" cy="112" r="32" fill="none" stroke="rgba(52,211,153,0.4)" stroke-width="4"/>
+</svg>

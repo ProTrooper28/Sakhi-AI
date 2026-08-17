@@ -1,10 +1,12 @@
-import { ChevronRight, Phone, Sparkles, Shield, ShieldCheck, AlertOctagon, AlertTriangle, MapPin, Settings, Zap } from "lucide-react";
+import { ChevronRight, Phone, Sparkles, Shield, ShieldCheck, AlertOctagon, AlertTriangle, MapPin, Settings, Zap, Navigation2, Users2, Info, HeartHandshake } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
+import { mergeCommunityReports, COMMUNITY_CATEGORY_META, SOURCE_META } from "@/lib/safety";
+import { generateInsights } from "@/lib/safety";
 
 // ── Helpline data ─────────────────────────────────────────────────────────────
 const HELPLINES = [
@@ -270,6 +272,154 @@ const AreaStatusCard = ({ level, location }: { level: RiskLevel; location: strin
   );
 };
 
+// ── Community Safety Map card (replaces the static Area Status card) ─────────
+// Community-driven safety foundation: clearly labels community reports vs
+// verified info, shows the nearest reports, and links into the full map.
+const CommunitySafetyCard = ({ location }: { location: string | null }) => {
+  const navigate = useNavigate();
+  const anchor = useMemo(() => ({ lat: 19.0596, lng: 72.8295 }), []);
+  const reports = useMemo(() => mergeCommunityReports(anchor).slice(0, 3), [anchor]);
+
+  return (
+    <div
+      className="rounded-[22px] p-4"
+      style={{
+        background: "white",
+        border: "1.5px solid rgba(242,149,106,0.14)",
+        boxShadow: "0 4px 20px rgba(139,58,47,0.06)",
+      }}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(122,43,115,0.1)" }}>
+          <Users2 className="w-4 h-4 text-[#7A2B73]" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315" }}>
+            Community Safety Map
+          </p>
+          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 10, color: "#9E7A6A" }} className="truncate">
+            {location || "Around your area"}
+          </p>
+        </div>
+        <button
+          onClick={() => navigate("/risk-map")}
+          className="flex items-center gap-1 cursor-pointer"
+          style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11, color: "#D4455C", background: "none", border: "none" }}
+        >
+          Open Map <ChevronRight className="w-3 h-3" />
+        </button>
+      </div>
+
+      {/* Nearest reports — community vs verified clearly distinguished */}
+      <div className="space-y-2">
+        {reports.map((r) => {
+          const cat = COMMUNITY_CATEGORY_META[r.category];
+          const src = SOURCE_META[r.source];
+          return (
+            <div key={r.id} className="flex items-center gap-2.5 px-3 py-2 rounded-xl" style={{ background: "#FDF6EE" }}>
+              <span className="text-base">{cat.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "#3D2315" }}>
+                  {cat.label}
+                </p>
+                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 9, color: "#9E7A6A" }} className="truncate">
+                  {r.note}
+                </p>
+              </div>
+              <span
+                className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider"
+                style={{
+                  background: r.source === "official" ? "rgba(37,99,235,0.1)" : r.source === "mine" ? "rgba(61,153,112,0.1)" : "rgba(122,43,115,0.1)",
+                  color: r.source === "official" ? "#2563EB" : r.source === "mine" ? "#3D9970" : "#7A2B73",
+                  fontFamily: "Nunito,sans-serif",
+                }}
+              >
+                {src.badge}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-1.5 mt-3" style={{ opacity: 0.75 }}>
+        <Info className="w-3 h-3 text-[#9E7A6A]" />
+        <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 9, color: "#9E7A6A" }}>
+          Community reports are unverified. Verified data is marked clearly.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ── Safety Journey CTA card ───────────────────────────────────────────────────
+const SafetyJourneyCard = () => {
+  const navigate = useNavigate();
+  return (
+    <motion.button
+      whileHover={{ scale: 1.02, boxShadow: "0 12px 40px rgba(61,153,112,0.2)" }}
+      whileTap={{ scale: 0.97 }}
+      onClick={() => navigate("/journey")}
+      className="w-full rounded-[26px] overflow-hidden cursor-pointer relative text-left"
+      style={{
+        background: "linear-gradient(135deg,#3D9970 0%,#2E7D56 100%)",
+        padding: "20px 22px",
+        boxShadow: "0 8px 32px rgba(61,153,112,0.2)",
+        border: "none",
+      }}
+    >
+      <div className="relative z-10 flex items-center gap-4">
+        <div
+          className="w-13 h-13 rounded-2xl flex items-center justify-center flex-shrink-0"
+          style={{ width: 52, height: 52, background: "rgba(255,255,255,0.2)", backdropFilter: "blur(8px)" }}
+        >
+          <Navigation2 className="w-6 h-6 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 18, color: "white", lineHeight: 1.2 }}>
+            Start a Safety Journey
+          </p>
+          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 11, color: "rgba(255,255,255,0.85)", marginTop: 3 }}>
+            I'll watch your route, ETA and deviations — your guardian can follow live
+          </p>
+        </div>
+        <ChevronRight className="w-6 h-6 text-white opacity-70 flex-shrink-0" />
+      </div>
+    </motion.button>
+  );
+};
+
+// ── AI Safety Insights strip (Feature 7) ──────────────────────────────────────
+const InsightsStrip = () => {
+  const { locationState } = useApp();
+  const insights = useMemo(
+    () =>
+      generateInsights({
+        gpsOk: !!locationState.coords,
+        guardianTracking: true,
+        battery: null,
+      }),
+    [locationState.coords],
+  );
+  if (!insights.length) return null;
+  return (
+    <div className="space-y-1.5 mb-5">
+      {insights.slice(0, 2).map((ins, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.28 + i * 0.08 }}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl"
+          style={{ background: "rgba(61,153,112,0.08)", border: "1px solid rgba(61,153,112,0.12)" }}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-[#3D9970] flex-shrink-0" />
+          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11, color: "#2E7D56" }}>{ins}</p>
+        </motion.div>
+      ))}
+    </div>
+  );
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
 const HomePage = () => {
   const navigate = useNavigate();
@@ -351,35 +501,19 @@ const HomePage = () => {
             </div>
           </motion.div>
 
-          {/* ── Area Status Card ── */}
-          <motion.div {...fadeUp(0.1)} className="mb-5">
-            <div className="flex items-center justify-between mb-2.5">
-              <h2
-                style={{
-                  fontFamily: "Nunito,sans-serif",
-                  fontWeight: 900,
-                  fontSize: 16,
-                  color: "#3D2315",
-                }}
-              >
-                Area Status
-              </h2>
-              <button
-                onClick={() => navigate("/risk-map")}
-                className="flex items-center gap-1 cursor-pointer"
-                style={{
-                  fontFamily: "Nunito,sans-serif",
-                  fontWeight: 700,
-                  fontSize: 11,
-                  color: "#D4455C",
-                  background: "none",
-                  border: "none",
-                }}
-              >
-                View Map <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
-            <AreaStatusCard level={riskLevel} location={locationState.address} />
+          {/* ── AI Safety Insights ── */}
+          <motion.div {...fadeUp(0.1)} className="mb-4">
+            <InsightsStrip />
+          </motion.div>
+
+          {/* ── Safety Journey — proactive monitoring CTA ── */}
+          <motion.div {...fadeUp(0.12)} className="mb-5">
+            <SafetyJourneyCard />
+          </motion.div>
+
+          {/* ── Community Safety Map (replaces static Area Status) ── */}
+          <motion.div {...fadeUp(0.16)} className="mb-5">
+            <CommunitySafetyCard location={locationState.address} />
           </motion.div>
 
           {/* ── Talk to Sakhi — prominent CTA ── */}
@@ -559,10 +693,11 @@ const HomePage = () => {
           </motion.div>
 
           {/* ── Safety feature strip ── */}
-          <motion.div {...fadeUp(0.22)} className="grid grid-cols-3 gap-2.5 mb-5">
+          <motion.div {...fadeUp(0.22)} className="grid grid-cols-4 gap-2.5 mb-5">
             {[
               { icon: MapPin, label: "Live Path", path: "/location" },
-              { icon: Shield, label: "Evidence", path: "/evidence-locker" },
+              { icon: Navigation2, label: "Journey", path: "/journey" },
+              { icon: HeartHandshake, label: "Aftercare", path: "/post-incident" },
               { icon: Settings, label: "Settings", path: "/settings" },
             ].map((item) => (
               <motion.button
@@ -577,12 +712,12 @@ const HomePage = () => {
                   border: "none",
                 }}
               >
-                <item.icon style={{ width: 22, height: 22, color: "#8B3A2F" }} />
+                <item.icon style={{ width: 20, height: 20, color: "#8B3A2F" }} />
                 <span
                   style={{
                     fontFamily: "Nunito,sans-serif",
                     fontWeight: 700,
-                    fontSize: 11,
+                    fontSize: 10,
                     color: "#8B3A2F",
                   }}
                 >

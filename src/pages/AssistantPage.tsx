@@ -4,6 +4,8 @@ import { useApp } from "@/context/AppContext";
 import AppLayout from "@/components/AppLayout";
 import { Mic, Send, MapPin, Shield, AlertTriangle, Lock, Sparkles, Check, Phone, Clock, Volume2, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { recommendForText, type SafetyAction } from "@/lib/safety";
+import { shareLocation } from "@/pages/location/helpers";
 
 type Message = {
   id: string;
@@ -14,74 +16,6 @@ type Message = {
 };
 
 type ChatMode = "normal" | "emergency";
-type Intent = "greeting" | "emotional" | "danger" | "recovery" | "report" | "map" | "unknown";
-
-// Hindi/English Keyword Lists for elder sister persona trigger
-function analyzeIntent(text: string): Intent {
-  const lower = text.toLowerCase().trim();
-  const dangerWords = [
-    "help", "unsafe", "scared", "following", "danger", "stalker", "threat", 
-    "emergency", "back off", "go away", "pecha", "bachao", "dar", "koi", 
-    "stranger", "chasing", "fear", "पीछा", "बचाओ", "डर", "असुरक्षित"
-  ];
-  const recoveryWords = [
-    "safe now", "okay now", "i am fine", "false alarm", "stop", "i'm good", 
-    "theek hoon", "theek", "safe", "secured"
-  ];
-  const greetingWords = [
-    "hi", "hello", "hey", "start", "good morning", "good evening", "namaste", 
-    "kisi ho", "didi", "sister", "sakhi"
-  ];
-  const emotionalWords = [
-    "anxious", "upset", "crying", "sad", "lonely", "stress", "panic", "worried"
-  ];
-  const reportWords = [
-    "report", "harassment", "file", "incident", "police", "complaint", "fir"
-  ];
-  const mapWords = [
-    "location", "map", "route", "zone", "where", "path", "rasta"
-  ];
-
-  if (dangerWords.some(w => lower.includes(w))) return "danger";
-  if (recoveryWords.some(w => lower.includes(w))) return "recovery";
-  if (greetingWords.some(w => lower.includes(w))) return "greeting";
-  if (emotionalWords.some(w => lower.includes(w))) return "emotional";
-  if (reportWords.some(w => lower.includes(w))) return "report";
-  if (mapWords.some(w => lower.includes(w))) return "map";
-  return "unknown";
-}
-
-// Elder sister Didi persona responses
-const SISTER_RESPONSES = {
-  greeting: [
-    "Namaste didi! I am right here. Tell me, are you walking back home or heading somewhere new? I'm watching your path.",
-    "Hey didi! Sakhi here. Tell me what's happening. I'm keeping an eye on your location."
-  ],
-  emotional: [
-    "Take a deep breath, didi. Focus on your breathing. I am right here with you. Do you want to check your safe path or just talk to me?",
-    "Don't worry didi, you are not alone. Walk confidently and keep your phone in your hand. I'm listening."
-  ],
-  danger: [
-    "Didi, stay calm. I am right here. I've loaded your safety controls. Press 'Trigger SOS' immediately or let me call your Apnewale.",
-    "Didi, go towards a crowded place. I'm activating emergency mode. Here are your quick actions."
-  ],
-  recovery: [
-    "Thank god you are safe! That is a huge relief. I am still keeping our path tracker active just in case.",
-    "Aap safe ho, thank goodness! Alarms are quiet now. Let me know if you need me to stay active."
-  ],
-  report: [
-    "I'll help you file a complaint safely and anonymously, didi. Let's go to the reporting desk.",
-    "Let's write down everything safely so we have evidence. I'll open the report page."
-  ],
-  map: [
-    "Let's see where you are. I've opened the live tracking map so we can choose the safest path together.",
-    "I'm opening your location map. Stick to the highlighted green safe streets."
-  ],
-  unknown: [
-    "I'm listening closely, didi. Tell me, does your environment feel safe right now?",
-    "I'm here, didi. Tell me what's on your mind or how I can help make your path safer."
-  ]
-};
 
 export default function AssistantPage() {
   const navigate = useNavigate();
@@ -195,13 +129,45 @@ export default function AssistantPage() {
     }
   }, [messages, isProcessing, checkinActive, checkinSeconds]);
 
+  // Route every AI-recommended action (and legacy actions) to the right place.
   const dispatchAction = (action: string) => {
-    if (action === "share_path") {
-      navigate("/location");
-    } else if (action === "start_checkin") {
-      startCheckin(3); // Default 3 minutes check-in
-    } else if (action === "call_apne") {
-      window.location.href = "tel:+919810000001";
+    const coords = locationState.coords;
+    switch (action) {
+      case "start-journey":
+      case "share_path":
+        navigate("/journey");
+        break;
+      case "share-location":
+        if (coords) void shareLocation(coords.lat, coords.lng, locationState.address);
+        else navigate("/location");
+        break;
+      case "call-guardian":
+      case "call_apne":
+        window.location.href = "tel:+919810000001";
+        break;
+      case "prepare-sos":
+      case "trigger_sos":
+        triggerSOS();
+        navigate("/sos");
+        break;
+      case "nearby-safe":
+        navigate("/risk-map");
+        break;
+      case "file-report":
+      case "nav_report":
+        navigate("/report");
+        break;
+      case "review-evidence":
+        navigate("/evidence-locker");
+        break;
+      case "helplines":
+        navigate("/post-incident");
+        break;
+      case "start_checkin":
+        startCheckin(3); // Default 3 minutes check-in
+        break;
+      default:
+        break;
     }
   };
 
@@ -216,58 +182,33 @@ export default function AssistantPage() {
     setInput("");
     setIsProcessing(true);
 
-    const intent = analyzeIntent(text);
+    // Feature 3 — the AI safety engine turns the message into a concrete
+    // recommendation (intent → reply + actionable buttons, no hallucination).
+    const rec = recommendForText(text);
 
     setTimeout(() => {
-      let reply = "";
-      let newMode = mode;
-      let action: string | undefined = undefined;
-
-      // Handle intents with the sister voice
-      if (intent === "danger") {
-        newMode = "emergency";
-        reply = SISTER_RESPONSES.danger[Math.floor(Math.random() * SISTER_RESPONSES.danger.length)];
-        action = "trigger_sos";
-      } else if (intent === "recovery") {
-        newMode = "normal";
-        reply = SISTER_RESPONSES.recovery[Math.floor(Math.random() * SISTER_RESPONSES.recovery.length)];
-        action = "cancel_sos";
-      } else {
-        const pool = SISTER_RESPONSES[intent] || SISTER_RESPONSES.unknown;
-        reply = pool[Math.floor(Math.random() * pool.length)];
-
-        if (intent === "report") action = "nav_report";
-        if (intent === "map") action = "nav_map";
-      }
-
+      const newMode = rec.escalate ? "emergency" : "normal";
       setMode(newMode);
-      setMessages(prev => prev.map(msg => 
-        msg.id === typingId 
-          ? { 
-              ...msg, 
-              content: reply, 
+      setMessages(prev => prev.map(msg =>
+        msg.id === typingId
+          ? {
+              ...msg,
+              content: rec.reply,
               isTyping: false,
-              suggestions: intent === "danger" ? [
-                { label: "Trigger SOS Now", action: "trigger_sos" },
-                { label: "Call Primary", action: "call_apne" }
-              ] : undefined
-            } 
+              suggestions: rec.actions.map((a) => ({ label: a.label, action: a.id })),
+            }
           : msg
       ));
 
       setTimeout(() => {
         setIsProcessing(false);
-        if (action === "trigger_sos") {
+        // High-risk auto-actions (same behaviour as before, driven by the engine)
+        if (rec.intent === "panic") {
           triggerSOS();
-        } else if (action === "cancel_sos") {
+        } else if (rec.intent === "recovery") {
           cancelSOS();
-        } else if (action === "nav_report") {
-          setTimeout(() => navigate("/report"), 1500);
-        } else if (action === "nav_map") {
-          setTimeout(() => navigate("/location"), 1500);
         }
       }, 500);
-
     }, Math.random() * 600 + 700);
   };
 

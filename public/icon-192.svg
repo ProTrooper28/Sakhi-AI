@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#ec4899"/>
+      <stop offset="100%" stop-color="#be185d"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="rgba(236,72,153,0.3)"/>
+      <stop offset="100%" stop-color="rgba(236,72,153,0)"/>
+    </radialGradient>
+  </defs>
+  <circle cx="96" cy="96" r="96" fill="url(#bg)"/>
+  <circle cx="96" cy="80" r="70" fill="url(#glow)"/>
+  <path d="M96 16 C120 16, 148 28, 156 60 C160 76, 158 92, 152 108 C144 128, 128 156, 96 176 C64 156, 48 128, 40 108 C34 92, 32 76, 36 60 C44 28, 72 16, 96 16Z" fill="url(#shield)"/>
+  <text x="96" y="92" text-anchor="middle" dominant-baseline="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="42" fill="white">AI</text>
+  <circle cx="96" cy="42" r="6" fill="#34d399"/>
+  <circle cx="96" cy="42" r="12" fill="none" stroke="rgba(52,211,153,0.4)" stroke-width="2"/>
+</svg>

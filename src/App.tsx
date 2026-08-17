@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { AppProvider } from "@/context/AppContext";
@@ -31,6 +32,8 @@ import Watch3DPage from "./pages/Watch3DPage";
 import UserLiveLocationPage from "./pages/location/UserLiveLocationPage";
 import GuardianTrackingPage from "./pages/location/GuardianTrackingPage";
 import SecuritySettingsPage from "./pages/SecuritySettingsPage";
+import SafetyJourneyPage from "./pages/SafetyJourneyPage";
+import PostIncidentPage from "./pages/PostIncidentPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -113,6 +116,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <PWAInstallPrompt />
           <BrowserRouter>
             <Routes>
               {/* ── Auth flow ── */}
@@ -277,6 +281,26 @@ const App = () => (
                     <RoleGuard expected="parent">
                       <GuardianTrackingPage />
                     </RoleGuard>
+                  </Protected>
+                }
+              />
+              {/* Safety Journey — proactive route monitoring with deviation
+                  detection, ETA, guardian tracking and AI insights. */}
+              <Route
+                path="/journey"
+                element={
+                  <Protected>
+                    <SafetyJourneyPage />
+                  </Protected>
+                }
+              />
+              {/* Post-Incident Support — guided recovery checklist after an
+                  incident (evidence, guardian, helplines, report). */}
+              <Route
+                path="/post-incident"
+                element={
+                  <Protected>
+                    <PostIncidentPage />
                   </Protected>
                 }
               />

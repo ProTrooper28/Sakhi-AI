@@ -223,3 +223,9 @@ export const subscribeLiveLocations = (cb: (location: LiveLocation) => void): ((
     void supabase.removeChannel(channel);
   };
 };
+
+// ── Proactive safety services (Safety Journey, deviation detection, AI
+//    recommendations, silent triggers, post-incident, community map) ─────────
+// The directory `src/lib/safety/` holds the modular services; this file
+// re-exports them so callers keep importing from "@/lib/safety".
+export * from "./safety/index";

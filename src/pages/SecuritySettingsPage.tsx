@@ -1,9 +1,26 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Lock, Bell, Fingerprint, Eye, EyeOff, Phone, ChevronRight, AlertTriangle, Check, X, Sparkles, AlertCircle } from "lucide-react";
+import { Shield, Lock, Bell, Fingerprint, Eye, EyeOff, Phone, ChevronRight, AlertTriangle, Check, X, Sparkles, AlertCircle, Radio, Volume2, Watch, Hand } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useNavigate } from "react-router-dom";
+import { useApp } from "@/context/AppContext";
 import { playSOSTriggerSound } from "@/lib/audio";
+import {
+  TRIGGER_METHODS,
+  readTriggerConfig,
+  writeTriggerConfig,
+  enabledTriggerCount,
+  SILENT_TRIGGER_STEPS,
+  type TriggerConfig,
+  type TriggerMethodId,
+} from "@/lib/safety";
+
+const TRIGGER_ICONS: Record<TriggerMethodId, typeof Radio> = {
+  "voice-phrase": Volume2,
+  "hardware-sequence": Phone,
+  "watch-button": Watch,
+  gesture: Hand,
+};
 
 const sections = [
   {
@@ -37,6 +54,15 @@ const sections = [
 
 export default function SecuritySettingsPage() {
   const navigate = useNavigate();
+  const { triggerSOS } = useApp();
+  const [triggers, setTriggers] = useState<TriggerConfig>(() => readTriggerConfig());
+  const toggleTrigger = (id: TriggerMethodId) => {
+    setTriggers((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      writeTriggerConfig(next);
+      return next;
+    });
+  };
   const [toggles, setToggles] = useState<Record<string, boolean>>(() => {
     try {
       const stored = localStorage.getItem("sakhi_security_settings");
@@ -165,6 +191,80 @@ export default function SecuritySettingsPage() {
                   )}
                 </div>
               ))}
+
+              {/* ── Silent Safety Triggers (Feature 4) ── */}
+              <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="p-2.5 rounded-2xl bg-[#7A2B73]/10 text-[#7A2B73]">
+                    <Radio className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="font-extrabold text-base text-[#3D2315] font-heading">Silent Safety Trigger</h2>
+                    <p className="text-[10px] font-bold text-[#7A2B73] uppercase">
+                      {enabledTriggerCount(triggers)} method{enabledTriggerCount(triggers) === 1 ? "" : "s"} armed
+                    </p>
+                  </div>
+                </div>
+                <p className="text-[#9E7A6A] text-xs mt-2 leading-relaxed">
+                  When a trigger fires, Sakhi quietly starts live location sharing, notifies your guardian,
+                  prepares evidence capture and arms SOS — with no siren.
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  {TRIGGER_METHODS.map((m) => {
+                    const Icon = TRIGGER_ICONS[m.id];
+                    const on = triggers[m.id] && m.available;
+                    return (
+                      <div key={m.id} className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0 flex gap-3">
+                          <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: on ? "rgba(122,43,115,0.1)" : "#FBF0E9" }}>
+                            <Icon className="w-4 h-4" style={{ color: on ? "#7A2B73" : "#9E7A6A" }} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[#3D2315] text-sm font-bold flex items-center gap-2">
+                              {m.label}
+                              {!m.available && (
+                                <span className="text-[8px] font-black uppercase tracking-wider text-[#B7770D] bg-[#FFF3C7] px-1.5 py-0.5 rounded-full">
+                                  Coming soon
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-[#9E7A6A] text-xs mt-0.5 leading-relaxed">{m.description}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => m.available && toggleTrigger(m.id)}
+                          disabled={!m.available}
+                          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-0.5 cursor-pointer ${m.available ? (on ? "bg-[#7A2B73]" : "bg-[#F5E4D6]") : "bg-[#F5E4D6] opacity-50"}`}
+                        >
+                          <span
+                            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+                              on ? "translate-x-5.5" : "translate-x-0.5"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-[#F5E4D6]">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#9E7A6A] mb-2">
+                    What happens when it fires
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {SILENT_TRIGGER_STEPS.map((step) => (
+                      <span key={step} className="px-2.5 py-1 rounded-full text-[10px] font-bold text-[#7A2B73] bg-[#7A2B73]/8" style={{ background: "rgba(122,43,115,0.08)" }}>
+                        {step}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[10px] font-semibold text-[#9E7A6A] mt-3 leading-relaxed">
+                    Voice and gesture triggers never listen in the background — they arm only when you
+                    turn them on, and no microphone/sensor data is collected otherwise.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Right Section: Access PIN & Contacts */}
