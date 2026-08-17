@@ -8,6 +8,7 @@ import {
   recommendForText,
   analyzeSafetyIntent,
   generateInsights,
+  GPS_LOSS_ALERT_SEC,
   type TravelMode,
 } from "@/lib/safety";
 
@@ -95,6 +96,61 @@ describe("AI safety recommendations", () => {
   it("keeps replies short and action-oriented", () => {
     const rec = recommendForText("I'm walking home alone");
     expect(rec.reply.length).toBeLessThan(220);
+  });
+});
+
+describe("monitoring options", () => {
+  it("persists ride details, monitoring toggles and trusted contact", () => {
+    const j = startJourney({
+      destination: DEST,
+      mode: "cab",
+      routePoints: [[19.0596, 72.8295], [19.07, 72.83]],
+      distanceM: 1200,
+      durationSec: 600,
+      rideDetails: { cabNumber: "42", vehiclePlate: "MH 01 AB 1234", driverName: "Raj" },
+      monitoring: { detectDeviation: false, alertLongJourney: false },
+      trustedContactId: "mother",
+    });
+    expect(j.rideDetails?.driverName).toBe("Raj");
+    expect(j.monitoring.detectDeviation).toBe(false);
+    expect(j.monitoring.notifyOnArrival).toBe(true); // defaults stay on
+    expect(j.trustedContactId).toBe("mother");
+    expect(readJourney().rideDetails?.vehiclePlate).toBe("MH 01 AB 1234");
+  });
+
+  it("skips deviation alerts when the monitor toggle is off", () => {
+    const j = startJourney({
+      destination: DEST,
+      mode: "walking",
+      routePoints: [[19.0596, 72.8295], [19.07, 72.83]],
+      distanceM: 1200,
+      durationSec: 600,
+      monitoring: { detectDeviation: false },
+    });
+    const { alerts } = evaluatePosition(j, { lat: 19.0596, lng: 72.84 });
+    expect(alerts.some((a) => a.kind === "deviation")).toBe(false);
+  });
+
+  it("alerts on GPS loss after a fix goes stale", () => {
+    const j = startTestJourney();
+    const first = evaluatePosition(j, { lat: 19.0596, lng: 72.8295 });
+    // Simulate a fix that went stale (lastPosition older than the threshold).
+    const stale = {
+      ...first.journey,
+      lastPosition: { lat: 19.0596, lng: 72.8295, at: Date.now() - GPS_LOSS_ALERT_SEC * 1000 - 5000 },
+    };
+    const { alerts } = evaluatePosition(stale, null);
+    expect(alerts.some((a) => a.message.includes("GPS signal lost"))).toBe(true);
+  });
+
+  it("alerts when the journey runs unusually long", () => {
+    const j = startTestJourney("walking"); // durationSec: 900
+    const backdated = {
+      ...j,
+      startedAt: new Date(Date.now() - 2000 * 1000).toISOString(),
+    };
+    const { alerts } = evaluatePosition(backdated, { lat: 19.064, lng: 72.8298 });
+    expect(alerts.some((a) => a.message.includes("longer than expected"))).toBe(true);
   });
 });
 

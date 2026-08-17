@@ -33,6 +33,68 @@ export const TRAVEL_MODES: { id: TravelMode; label: string; emoji: string; speed
 
 export type JourneyDestination = { lat: number; lng: number; label: string };
 
+// ── Optional ride/travel details ──────────────────────────────────────────────
+
+export type RideService = "uber" | "ola" | "rapido" | "auto" | "personal" | "other";
+
+export const RIDE_SERVICES: { id: RideService; label: string }[] = [
+  { id: "uber", label: "Uber" },
+  { id: "ola", label: "Ola" },
+  { id: "rapido", label: "Rapido" },
+  { id: "auto", label: "Auto" },
+  { id: "personal", label: "Personal Vehicle" },
+  { id: "other", label: "Other" },
+];
+
+/**
+ * Optional travel details. FUTURE-READY: ride-hailing integrations (official
+ * Uber/Ola/Rapido SDKs or APIs) can auto-populate these fields — nothing here
+ * is hardcoded to a provider; `integrationSource` records where the data came
+ * from when a provider fills it in. The form fills them manually today.
+ */
+export type RideDetails = {
+  cabNumber?: string;
+  vehiclePlate?: string;
+  driverName?: string;
+  rideService?: RideService | null;
+  driverPhone?: string;
+  seatNumber?: string;
+  busTrainNumber?: string;
+  notes?: string;
+  /** Future-ready: e.g. "uber-sdk", "ola-api" when a provider auto-fills. */
+  integrationSource?: string | null;
+};
+
+/** Which AI safety monitors are armed for this journey. */
+export type MonitoringOptions = {
+  notifyOnArrival: boolean;
+  detectDeviation: boolean;
+  alertLongJourney: boolean;
+  shareLiveLocation: boolean;
+  emergencyRecording: boolean;
+};
+
+export const MONITORING_DEFAULTS: MonitoringOptions = {
+  notifyOnArrival: true,
+  detectDeviation: true,
+  alertLongJourney: true,
+  shareLiveLocation: true,
+  emergencyRecording: true,
+};
+
+export type TrustedContact = { id: string; name: string };
+
+/**
+ * Demo trusted-contact options. When the real guardian list is wired in,
+ * replace this array with the user's accepted guardians (same shape).
+ */
+export const TRUSTED_CONTACTS: TrustedContact[] = [
+  { id: "mother", name: "Mother" },
+  { id: "father", name: "Father" },
+  { id: "friend", name: "Friend" },
+  { id: "all", name: "All Guardians" },
+];
+
 export type JourneyStatus = "planning" | "active" | "completed" | "cancelled";
 
 export type JourneyAlert =
@@ -64,6 +126,18 @@ export type Journey = {
   deviationActive: boolean;
   /** True while an inactivity alert is outstanding (reset when moving again). */
   inactivityNotified: boolean;
+  /** True while a GPS-loss alert is outstanding (reset when a fix returns). */
+  gpsLostNotified: boolean;
+  /** True while a long-journey alert is outstanding (reset on journey end). */
+  longJourneyNotified: boolean;
+  /** Optional ride/travel details (cab, driver, plate, notes…). */
+  rideDetails: RideDetails | null;
+  /** Which AI monitors are armed (deviation, long journey, sharing…). */
+  monitoring: MonitoringOptions;
+  /** Selected trusted contact id (from TRUSTED_CONTACTS). */
+  trustedContactId: string;
+  /** User-overridden expected arrival (epoch ms), when set. */
+  etaOverride: number | null;
   /** Nonce bumped on every significant state change (re-render trigger). */
   revision: number;
 };
@@ -83,6 +157,10 @@ const STORAGE_KEY = "sakhi_journey";
 
 /** Persisted inactivity threshold (seconds) before we ask "are you okay?". */
 export const INACTIVITY_ALERT_SEC = 90;
+/** Seconds without a GPS fix before we warn the user we've lost their location. */
+export const GPS_LOSS_ALERT_SEC = 45;
+/** Journey is "unusually long" when elapsed > expected duration × this. */
+export const LONG_JOURNEY_FACTOR = 1.5;
 /** Arrival is declared when within this distance of the destination. */
 export const ARRIVAL_RADIUS_M = 120;
 /** Minimum position movement (m) to count as "moving". */
@@ -104,6 +182,12 @@ export const emptyJourney = (): Journey => ({
   latestInsight: null,
   deviationActive: false,
   inactivityNotified: false,
+  gpsLostNotified: false,
+  longJourneyNotified: false,
+  rideDetails: null,
+  monitoring: MONITORING_DEFAULTS,
+  trustedContactId: "all",
+  etaOverride: null,
   revision: 0,
 });
 
@@ -150,6 +234,10 @@ export const startJourney = (p: {
   distanceM: number;
   durationSec: number;
   expectedArrivalMs?: number | null;
+  rideDetails?: RideDetails | null;
+  monitoring?: Partial<MonitoringOptions>;
+  trustedContactId?: string;
+  etaOverride?: number | null;
 }): Journey => {
   const j: Journey = {
     id: `jny_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -167,6 +255,12 @@ export const startJourney = (p: {
     latestInsight: "AI monitoring active. Route locked in.",
     deviationActive: false,
     inactivityNotified: false,
+    gpsLostNotified: false,
+    longJourneyNotified: false,
+    rideDetails: p.rideDetails ?? null,
+    monitoring: { ...MONITORING_DEFAULTS, ...p.monitoring },
+    trustedContactId: p.trustedContactId ?? "all",
+    etaOverride: p.etaOverride ?? null,
     revision: 0,
   };
   return saveJourney(j);
@@ -224,57 +318,97 @@ export const evaluateJourney = (
  */
 export const evaluatePosition = (
   j: Journey,
-  pos: { lat: number; lng: number },
-  opts: { inactivityAlertSec?: number } = {},
+  pos: { lat: number; lng: number } | null,
+  opts: { inactivityAlertSec?: number; gpsLossAlertSec?: number; longJourneyFactor?: number } = {},
 ): { journey: Journey; snapshot: JourneySnapshot; alerts: JourneyAlert[] } => {
   const alerts: JourneyAlert[] = [];
   let journey = j;
+  const now = Date.now();
+  const threshold = opts.inactivityAlertSec ?? INACTIVITY_ALERT_SEC;
+  const gpsLossSec = opts.gpsLossAlertSec ?? GPS_LOSS_ALERT_SEC;
+  const longFactor = opts.longJourneyFactor ?? LONG_JOURNEY_FACTOR;
 
-  // ── Progress / movement accounting ──
-  const last = journey.lastPosition;
+  // ── Progress / movement accounting (only with a fresh fix) ──
   let progressM = journey.progressM;
-  if (last) {
-    const moved = haversineMeters(last.lat, last.lng, pos.lat, pos.lng);
+  if (pos && journey.lastPosition) {
+    const moved = haversineMeters(journey.lastPosition.lat, journey.lastPosition.lng, pos.lat, pos.lng);
     if (moved > MOVEMENT_THRESHOLD_M) {
       progressM = Math.min(journey.distanceM, progressM + moved);
     }
   }
 
-  // ── Route deviation (flagship check) — alert fires once per deviation ──
-  const deviation = analyzeDeviation(pos, journey.routePoints, journey.distanceM);
+  // ── GPS loss — warn once, reset when a fix returns ──
+  let gpsLostNotified = journey.gpsLostNotified;
+  if (!pos) {
+    const sinceFix = journey.lastPosition ? Math.floor((now - journey.lastPosition.at) / 1000) : gpsLossSec + 1;
+    if (sinceFix >= gpsLossSec && !gpsLostNotified) {
+      gpsLostNotified = true;
+      alerts.push({
+        kind: "insight",
+        message: "GPS signal lost — we can't see your location. Everything okay?",
+      });
+    }
+  } else if (gpsLostNotified) {
+    gpsLostNotified = false;
+  }
+
+  // ── Route deviation (flagship check, respect monitor toggle) ──
   let deviationActive = journey.deviationActive;
-  if (deviation.deviated && !deviationActive) {
-    deviationActive = true;
-    alerts.push({
-      kind: "deviation",
-      message: deviation.message ?? "We noticed you're no longer following your planned route. Are you okay?",
-      askedAt: Date.now(),
-    });
-  } else if (!deviation.deviated && deviationActive) {
-    deviationActive = false; // back on route — arm the next alert
+  let deviation: ReturnType<typeof analyzeDeviation> = {
+    deviated: false,
+    distanceFromRouteM: null,
+    movingAway: false,
+    message: null,
+  };
+  if (pos && journey.monitoring.detectDeviation) {
+    deviation = analyzeDeviation(pos, journey.routePoints, journey.distanceM);
+    if (deviation.deviated && !deviationActive) {
+      deviationActive = true;
+      alerts.push({
+        kind: "deviation",
+        message: deviation.message ?? "We noticed you're no longer following your planned route. Everything okay?",
+        askedAt: now,
+      });
+    } else if (!deviation.deviated && deviationActive) {
+      deviationActive = false; // back on route — arm the next alert
+    }
   }
 
   // ── Inactivity — alert fires once, resets when movement resumes ──
-  const threshold = opts.inactivityAlertSec ?? INACTIVITY_ALERT_SEC;
-  const inactiveSec = last ? Math.floor((Date.now() - last.at) / 1000) : 0;
+  const inactiveSec = journey.lastPosition ? Math.floor((now - journey.lastPosition.at) / 1000) : 0;
   let inactivityNotified = journey.inactivityNotified;
-  if (last && inactiveSec >= threshold && !inactivityNotified) {
+  if (pos && inactiveSec >= threshold && !inactivityNotified) {
     inactivityNotified = true;
     alerts.push({
       kind: "inactivity",
-      message: "You've stopped unexpectedly. Is everything okay?",
-      since: Date.now(),
+      message: "You've stopped unexpectedly. Everything okay?",
+      since: now,
     });
-  } else if (inactiveSec < threshold && inactivityNotified) {
+  } else if (pos && inactiveSec < threshold && inactivityNotified) {
     inactivityNotified = false;
+  }
+
+  // ── Unusually long journey (respect monitor toggle) ──
+  let longJourneyNotified = journey.longJourneyNotified;
+  if (journey.monitoring.alertLongJourney && journey.startedAt && journey.durationSec > 0) {
+    const elapsedSec = (now - new Date(journey.startedAt).getTime()) / 1000;
+    if (elapsedSec > journey.durationSec * longFactor && !longJourneyNotified) {
+      longJourneyNotified = true;
+      alerts.push({
+        kind: "insight",
+        message: "Your journey is taking longer than expected. Everything okay?",
+      });
+    }
   }
 
   journey = saveJourney({
     ...journey,
-    lastPosition: { lat: pos.lat, lng: pos.lng, at: Date.now() },
+    lastPosition: pos ? { lat: pos.lat, lng: pos.lng, at: now } : journey.lastPosition,
     progressM,
     deviationActive,
     inactivityNotified,
+    gpsLostNotified,
+    longJourneyNotified,
   });
 
   const snapshot: JourneySnapshot = {
