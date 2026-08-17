@@ -206,6 +206,222 @@ export const shareLocation = async (
   return ok ? "copied" : "failed";
 };
 
+// ── Safety overlay ────────────────────────────────────────────────────────────
+
+export type SafetyLevel = "safe" | "moderate" | "risk";
+
+export type SafetyZone = { lat: number; lng: number; radius: number; level: SafetyLevel };
+
+export const SAFETY_ZONE_COLORS: Record<SafetyLevel, string> = {
+  safe: "#3D9970",
+  moderate: "#F39C12",
+  risk: "#D4455C",
+};
+
+export const SAFETY_LEGEND: { level: SafetyLevel; label: string }[] = [
+  { level: "safe", label: "Safe" },
+  { level: "moderate", label: "Moderate" },
+  { level: "risk", label: "Caution" },
+];
+
+/** Deterministic LCG so the zones are stable for a given anchor. */
+const seededRandom = (seed: number): (() => number) => {
+  let s = seed >>> 0 || 1;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+};
+
+/**
+ * Demo safety zones anchored around the current position: green (safe),
+ * yellow (moderate) and red (risk) semi-transparent areas. Deterministic per
+ * anchor so the overlay is stable while the user moves slowly.
+ */
+export const buildSafetyZones = (anchor: { lat: number; lng: number }, radiusM = 2000): SafetyZone[] => {
+  const rand = seededRandom(Math.round(anchor.lat * 100) * 73856093 ^ Math.round(anchor.lng * 100));
+  const levels: SafetyLevel[] = ["safe", "safe", "moderate", "moderate", "risk", "safe", "moderate"];
+  const zones: SafetyZone[] = [];
+  const lngScale = Math.cos((anchor.lat * Math.PI) / 180) || 1;
+  for (let i = 0; i < levels.length; i++) {
+    const ang = (i / levels.length) * Math.PI * 2 + rand() * 0.7;
+    const dist = radiusM * (0.3 + rand() * 0.7);
+    const lat = anchor.lat + (Math.cos(ang) * dist) / 111320;
+    const lng = anchor.lng + (Math.sin(ang) * dist) / (111320 * lngScale);
+    zones.push({ lat, lng, radius: 280 + rand() * 440, level: levels[i]! });
+  }
+  return zones;
+};
+
+// ── Routing (OSRM, public API, no key) ───────────────────────────────────────
+
+export type Destination = { lat: number; lng: number; label: string };
+
+export type RouteKind = "safest" | "fastest" | "walking" | "driving";
+
+export type RouteOption = {
+  id: RouteKind;
+  label: string;
+  points: [number, number][];
+  durationSec: number;
+  distanceM: number;
+  safety: "safe" | "moderate" | "caution";
+};
+
+export const etaLabel = (sec: number): string =>
+  sec < 60 ? "<1 min" : `${Math.round(sec / 60)} min`;
+
+/** Nominatim search — destination picker suggestions. */
+export const geocodeSearch = async (q: string): Promise<Destination[]> => {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=4&q=${encodeURIComponent(q)}`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!res.ok) throw new Error("search failed");
+    const data = (await res.json()) as { lat: string; lon: string; display_name: string }[];
+    return data.map((d) => ({
+      lat: parseFloat(d.lat),
+      lng: parseFloat(d.lon),
+      label: d.display_name,
+    }));
+  } catch {
+    return [];
+  }
+};
+
+type OsrmRoute = {
+  distance: number;
+  duration: number;
+  geometry: { coordinates: [number, number][] };
+};
+
+const osrmFetch = async (
+  profile: "driving" | "walking",
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  alternatives: boolean,
+): Promise<OsrmRoute[]> => {
+  const res = await fetch(
+    `https://router.project-osrm.org/route/v1/${profile}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson&alternatives=${alternatives}&steps=false`,
+  );
+  if (!res.ok) throw new Error("osrm failed");
+  const data = (await res.json()) as { code: string; routes?: OsrmRoute[] };
+  if (data.code !== "Ok" || !data.routes?.length) throw new Error("osrm no route");
+  return data.routes;
+};
+
+/** Safety score for a polyline sampled against the overlay zones. */
+const scoreRoute = (points: [number, number][], zones: SafetyZone[]): number => {
+  if (zones.length === 0 || points.length === 0) return 0;
+  const step = Math.max(1, Math.floor(points.length / 24));
+  let total = 0;
+  let count = 0;
+  for (let i = 0; i < points.length; i += step) {
+    const [lat, lng] = points[i]!;
+    let best: { d: number; level: SafetyLevel } | null = null;
+    for (const z of zones) {
+      const d = haversineMeters(lat, lng, z.lat, z.lng);
+      if (!best || d < best.d) best = { d, level: z.level };
+    }
+    if (best && best.d < 500) {
+      total += best.level === "safe" ? 1 : best.level === "moderate" ? 0 : -1;
+      count++;
+    }
+  }
+  if (count === 0) return 0;
+  return total / count;
+};
+
+const safetyLabel = (score: number): RouteOption["safety"] =>
+  score > 0.2 ? "safe" : score < -0.1 ? "caution" : "moderate";
+
+/** Straight-line fallback (offline / OSRM unavailable) with honest estimates. */
+const fallbackRoute = (
+  kind: RouteKind,
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  zones: SafetyZone[],
+): RouteOption => {
+  const dist = haversineMeters(from.lat, from.lng, to.lat, to.lng);
+  const speed = kind === "walking" ? 1.3 : kind === "safest" ? 8.5 : 10.5; // m/s
+  return {
+    id: kind,
+    label: kind === "safest" ? "Safest Route" : kind === "fastest" ? "Fastest Route" : kind === "walking" ? "Walking Route" : "Driving Route",
+    points: [[from.lat, from.lng], [to.lat, to.lng]],
+    durationSec: dist / speed,
+    distanceM: dist,
+    safety: safetyLabel(scoreRoute([[from.lat, from.lng], [to.lat, to.lng]], zones)),
+  };
+};
+
+const toOption = (
+  kind: RouteKind,
+  points: [number, number][],
+  durationSec: number,
+  distanceM: number,
+  zones: SafetyZone[],
+): RouteOption => ({
+  id: kind,
+  label: kind === "safest" ? "Safest Route" : kind === "fastest" ? "Fastest Route" : kind === "walking" ? "Walking Route" : "Driving Route",
+  points,
+  durationSec,
+  distanceM,
+  safety: safetyLabel(scoreRoute(points, zones)),
+});
+
+/**
+ * Build the four route options (Safest / Fastest / Walking / Driving).
+ * Uses OSRM's public demo API (no key); falls back to straight-line
+ * estimates when the network or OSRM is unavailable.
+ */
+export const fetchRouteOptions = async (
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  zones: SafetyZone[],
+): Promise<RouteOption[]> => {
+  const straight = [
+    fallbackRoute("fastest", from, to, zones),
+    fallbackRoute("safest", from, to, zones),
+    fallbackRoute("walking", from, to, zones),
+    fallbackRoute("driving", from, to, zones),
+  ];
+  try {
+    const [drivingRoutes, walkingRoutes] = await Promise.all([
+      osrmFetch("driving", from, to, true),
+      osrmFetch("walking", from, to, false),
+    ]);
+    const map = (r: OsrmRoute): [number, number][] =>
+      r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+
+    const fastest = drivingRoutes.reduce((a, b) => (a.duration <= b.duration ? a : b));
+    const fastestPts = map(fastest);
+    // Safest = the driving option (primary or alternative) with the best
+    // safety score against the overlay zones; ties go to the fastest.
+    const scored = drivingRoutes.map((r) => ({ r, score: scoreRoute(map(r), zones) }));
+    const best = scored.sort((a, b) => b.score - a.score || a.r.duration - b.r.duration)[0]!;
+    const other = drivingRoutes.find((r) => r !== best.r && r !== fastest) ?? fastest;
+
+    const walking = walkingRoutes[0];
+    const options: RouteOption[] = [
+      toOption("safest", map(best.r), best.r.duration, best.r.distance, zones),
+      toOption("fastest", fastestPts, fastest.duration, fastest.distance, zones),
+      ...(walking ? [toOption("walking", map(walking), walking.duration, walking.distance, zones)] : []),
+      toOption("driving", map(other), other.duration, other.distance, zones),
+    ];
+    // Deduplicate identical geometries (primary === alternative on short trips).
+    const seen = new Set<string>();
+    return options.filter((o) => {
+      const key = o.points.map((p) => `${p[0].toFixed(4)},${p[1].toFixed(4)}`).join("|");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  } catch {
+    return straight;
+  }
+};
+
 /** Live-location sharing toggle (localStorage, default ON). */
 const SHARING_KEY = "sakhi_location_sharing";
 

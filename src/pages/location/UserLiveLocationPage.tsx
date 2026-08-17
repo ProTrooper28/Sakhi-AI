@@ -26,7 +26,12 @@ import {
   AlertTriangle,
   LocateFixed,
   History,
-  Info,
+  Search,
+  X,
+  Layers,
+  Shield,
+  ShieldCheck,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import AppLayout from "@/components/AppLayout";
@@ -48,10 +53,35 @@ import {
   isSharingEnabled,
   setSharingEnabled,
   haversineMeters,
+  distanceLabel,
+  buildSafetyZones,
+  SAFETY_LEGEND,
+  SAFETY_ZONE_COLORS,
+  fetchRouteOptions,
+  geocodeSearch,
+  etaLabel,
   type TrailPoint,
+  type Destination,
+  type RouteOption,
+  type RouteKind,
 } from "./helpers";
 
 const TRAIL_KEY = "sakhi_location_trail";
+
+const SATELLITE_TILES = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+
+const ROUTE_COLORS: Record<RouteKind, string> = {
+  safest: "#3D9970",
+  fastest: "#2563EB",
+  walking: "#0D9488",
+  driving: "#7A2B73",
+};
+
+const SAFETY_COLORS: Record<RouteOption["safety"], string> = {
+  safe: "#2E7D56",
+  moderate: "#B7770D",
+  caution: "#B8324A",
+};
 
 /**
  * Live Location — the user's premium full-screen tracking screen.
@@ -172,6 +202,100 @@ export default function UserLiveLocationPage() {
     );
   };
 
+  // ── Safety overlay + map layers ──────────────────────────────────────────
+  const [safetyOn, setSafetyOn] = useState(true);
+  const [satellite, setSatellite] = useState(false);
+  // Zones are anchored ~100m-rounded coords so they stay stable between
+  // GPS ticks (no flicker) while still following the user as they move.
+  const zoneAnchorKey = coords ? `${coords.lat.toFixed(3)},${coords.lng.toFixed(3)}` : null;
+  const safetyZones = useMemo(() => {
+    if (!safetyOn || !zoneAnchorKey) return [];
+    const [la, ln] = zoneAnchorKey.split(",");
+    return buildSafetyZones({ lat: parseFloat(la!), lng: parseFloat(ln!) });
+  }, [safetyOn, zoneAnchorKey]);
+
+  // ── Destination & route options ──────────────────────────────────────────
+  const [destQuery, setDestQuery] = useState("");
+  const [destSuggestions, setDestSuggestions] = useState<Destination[]>([]);
+  const [destination, setDestination] = useState<Destination | null>(null);
+  const [routes, setRoutes] = useState<RouteOption[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState<RouteKind | null>(null);
+  const [loadingRoutes, setLoadingRoutes] = useState(false);
+
+  const searchDest = useCallback(async (q: string) => {
+    if (q.trim().length < 3) {
+      setDestSuggestions([]);
+      return;
+    }
+    const found = await geocodeSearch(q);
+    setDestSuggestions(found);
+  }, []);
+
+  const selectDestination = useCallback(
+    async (d: Destination) => {
+      setDestination(d);
+      setDestQuery(d.label);
+      setDestSuggestions([]);
+      setLoadingRoutes(true);
+      const origin = coords;
+      if (origin) {
+        const opts = await fetchRouteOptions(origin, d, safetyZones);
+        setRoutes(opts);
+        setSelectedRouteId(opts[0]?.id ?? null);
+      } else {
+        setRoutes([]);
+        setSelectedRouteId(null);
+      }
+      setLoadingRoutes(false);
+    },
+    [coords, safetyZones],
+  );
+
+  const handleMapClick = useCallback(
+    (lat: number, lng: number) => {
+      setDestQuery("");
+      setDestSuggestions([]);
+      void reverseGeocode(lat, lng).then((g) => selectDestination({ lat, lng, label: g.label }));
+    },
+    [selectDestination],
+  );
+
+  const clearDestination = useCallback(() => {
+    setDestination(null);
+    setDestQuery("");
+    setDestSuggestions([]);
+    setRoutes([]);
+    setSelectedRouteId(null);
+  }, []);
+
+  // Route layers: selected route in its route color, alternatives gray dashed.
+  const routeLayers = useMemo(() => {
+    if (!destination || routes.length === 0) return [];
+    const selected = routes.find((r) => r.id === selectedRouteId) ?? routes[0];
+    const layers = routes
+      .filter((r) => r !== selected)
+      .map((r) => ({ points: r.points, color: "#6B7280", dashed: true }));
+    layers.push({ points: selected.points, color: ROUTE_COLORS[selected.id], dashed: false });
+    return layers;
+  }, [routes, selectedRouteId, destination]);
+
+  // Fit the map to the selected route once (not on every GPS tick).
+  const selectedRoute = routes.find((r) => r.id === selectedRouteId) ?? null;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedRoute || selectedRoute.points.length < 2) return;
+    const lats = selectedRoute.points.map((p) => p[0]);
+    const lngs = selectedRoute.points.map((p) => p[1]);
+    map.fitBounds(
+      [
+        [Math.min(...lats), Math.min(...lngs)],
+        [Math.max(...lats), Math.max(...lngs)],
+      ],
+      { padding: [56, 56] },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRoute?.id]);
+
   // ── More details (full address + device telemetry) ───────────────────────
   const [moreOpen, setMoreOpen] = useState(false);
   const [fullAddress, setFullAddress] = useState<string | null>(null);
@@ -285,7 +409,7 @@ export default function UserLiveLocationPage() {
     <AppLayout>
       <div
         className="relative -mx-3.5 -mt-3 md:-mx-10 md:-mt-8 overflow-hidden rounded-none md:rounded-[28px] bg-white"
-        style={{ height: "calc(100dvh - 11.5rem)", minHeight: 480 }}
+        style={{ height: "calc(100dvh - 10rem)", minHeight: 520 }}
       >
         {/* ── Full-bleed map ── */}
         <LiveTrackingMap
@@ -293,6 +417,11 @@ export default function UserLiveLocationPage() {
           accuracy={locationState.accuracy ?? (sosState.active ? 60 : null)}
           sos={sosState.active}
           follow
+          tileUrl={satellite ? SATELLITE_TILES : undefined}
+          safetyZones={safetyZones}
+          routes={routeLayers}
+          destination={destination}
+          onMapClick={handleMapClick}
           onReady={(map) => {
             mapRef.current = map;
           }}
@@ -316,23 +445,40 @@ export default function UserLiveLocationPage() {
               Live Location
             </span>
           </div>
-          <button
+          <div className="w-10 h-10" />
+        </div>
+
+        {/* ── Floating map controls (right edge) ── */}
+        <div className="absolute top-[4.5rem] right-3 z-[480] flex flex-col gap-2">
+          <MapControl
+            icon={LocateFixed}
+            label="Current Location"
             onClick={() => {
               if (coords) flyTo(coords.lat, coords.lng);
               else onRefresh();
             }}
-            aria-label="Recenter"
-            title="Recenter on my location"
-            className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer"
-            style={{ background: "rgba(255,255,255,0.95)", boxShadow: "0 4px 16px rgba(139,58,47,0.18)", color: "#D4455C", border: "none" }}
-          >
-            <LocateFixed style={{ width: 18, height: 18 }} />
-          </button>
+          />
+          <MapControl icon={Shield} label="Safety Overlay" active={safetyOn} onClick={() => setSafetyOn((v) => !v)} />
+          <MapControl icon={Layers} label="Map Layers" active={satellite} onClick={() => setSatellite((v) => !v)} />
         </div>
 
-        {/* ── Live chip (bottom-left of map) ── */}
+        {/* ── Safety legend + live chip (bottom-left, above the sheet) ── */}
+        {safetyOn && coords && !sosState.active && (
+          <div
+            className="absolute bottom-[calc(52%+3.5rem)] left-3 z-[480] flex items-center gap-2.5 px-3 py-1.5 rounded-full"
+            style={{ background: "rgba(255,255,255,0.95)", boxShadow: "0 4px 16px rgba(139,58,47,0.16)", border: "1px solid rgba(242,149,106,0.2)" }}
+          >
+            {SAFETY_LEGEND.map((item) => (
+              <span key={item.level} className="flex items-center gap-1" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 9.5, color: "#3D2315" }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: SAFETY_ZONE_COLORS[item.level] }} />
+                {item.label}
+              </span>
+            ))}
+          </div>
+        )}
         {coords && !sosState.active && (
-          <div className="absolute bottom-40 md:bottom-44 left-3 z-[480] flex items-center gap-2 px-3 py-2 rounded-full"
+          <div
+            className="absolute bottom-[calc(52%+0.9rem)] left-3 z-[480] flex items-center gap-2 px-3 py-2 rounded-full"
             style={{ background: "rgba(255,255,255,0.95)", boxShadow: "0 4px 16px rgba(139,58,47,0.16)", border: "1px solid rgba(242,149,106,0.2)" }}
           >
             <span className="w-2 h-2 rounded-full" style={{ background: gpsStatus === "Active" ? "#3D9970" : "#F39C12", animation: "dot-pulse 1.6s ease-in-out infinite" }} />
@@ -399,10 +545,10 @@ export default function UserLiveLocationPage() {
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="absolute bottom-0 inset-x-0 z-[450] flex flex-col"
-          style={{ maxHeight: "66%" }}
+          style={{ maxHeight: "52%" }}
         >
           <div
-            className="flex-1 min-h-0 overflow-y-auto rounded-t-[28px] px-5 pt-2.5 pb-6"
+            className="flex-1 min-h-0 overflow-y-auto rounded-t-[28px] px-4 pt-2 pb-5"
             style={{
               background: "rgba(255,252,249,0.98)",
               backdropFilter: "blur(18px)",
@@ -415,9 +561,9 @@ export default function UserLiveLocationPage() {
             <div className="w-10 h-1.5 rounded-full mx-auto mb-3" style={{ background: "#F5E4D6" }} />
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-2.5">
               <div>
-                <h1 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 19, color: "#3D2315" }}>Current Location</h1>
+                <h1 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 18, color: "#3D2315" }}>Current Location</h1>
                 <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#9E7A6A", marginTop: 1 }}>
                   Updated {coords ? timeAgoShort(new Date(locationState.timestamp ?? Date.now()).toISOString()) : "—"}
                 </p>
@@ -431,33 +577,139 @@ export default function UserLiveLocationPage() {
               </span>
             </div>
 
-            {/* Address */}
-            <div className="rounded-[20px] p-4 mb-3 flex items-start gap-3"
+            {/* Address + live details (compact) */}
+            <div className="rounded-[20px] p-3.5 mb-2.5"
               style={{ background: "linear-gradient(135deg, #FDF0F4, #F3EDFB)", border: "1px solid rgba(214,82,163,0.08)" }}
             >
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(212,69,92,0.12)" }}>
-                <MapPin style={{ width: 17, height: 17, color: "#D4455C" }} />
+              <div className="flex items-start gap-2.5">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(212,69,92,0.12)" }}>
+                  <MapPin style={{ width: 15, height: 15, color: "#D4455C" }} />
+                </div>
+                <div className="min-w-0">
+                  <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 9.5, color: "#9E7A6A", textTransform: "uppercase", letterSpacing: 0.6 }}>Current Address</p>
+                  <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "#3D2315", lineHeight: 1.4, marginTop: 1 }}>
+                    {label ?? (coords ? "Fetching address…" : "Waiting for GPS fix…")}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10, color: "#9E7A6A", textTransform: "uppercase", letterSpacing: 0.6 }}>Current Address</p>
-                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13.5, color: "#3D2315", lineHeight: 1.45, marginTop: 2 }}>
-                  {label ?? (coords ? "Fetching address…" : "Waiting for GPS fix…")}
-                </p>
+              <div className="grid grid-cols-3 gap-x-2 gap-y-2 mt-3 pt-3" style={{ borderTop: "1px solid rgba(242,149,106,0.12)" }}>
+                <Field icon={sharing ? Share2 : PauseCircle} label="Sharing" value={sharing ? "Live" : "Paused"} tone={sharing ? "#2E7D56" : "#B7770D"} />
+                <Field icon={Clock} label="Updated" value={coords ? timeAgoShort(new Date(locationState.timestamp ?? Date.now()).toISOString()) : "—"} tone="#9E7A6A" />
+                <Field icon={Satellite} label="GPS Accuracy" value={locationState.accuracy != null ? `±${Math.round(locationState.accuracy)} m` : "—"} tone="#7A2B73" />
+                <Field icon={BatteryMedium} label="Battery" value={battery != null ? `${battery}%` : "—"} tone={lowBattery ? "#B7770D" : "#3D9970"} />
+                <Field icon={online ? Wifi : WifiOff} label="Internet" value={online ? "Online" : "Offline"} tone={online ? "#3D9970" : "#B7770D"} />
+                <Field icon={movement === "driving" ? Car : movement === "walking" ? Footprints : MapPin} label="Movement" value={movementLabel(movement)} tone="#7A2B73" />
               </div>
             </div>
 
-            {/* Stats grid */}
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              <Stat icon={BatteryMedium} label="Battery" value={battery != null ? `${battery}%` : "—"} tone={lowBattery ? "#B7770D" : "#3D9970"} />
-              <Stat icon={Satellite} label="GPS" value={gpsStatus} tone={gpsStatus === "Active" ? "#3D9970" : "#B7770D"} />
-              <Stat icon={online ? Wifi : WifiOff} label="Internet" value={online ? "Online" : "Offline"} tone={online ? "#3D9970" : "#B7770D"} />
-              <Stat icon={movement === "driving" ? Car : movement === "walking" ? Footprints : MapPin} label="Movement" value={movementLabel(movement)} tone="#7A2B73" />
-              <Stat icon={Clock} label="Updated" value={coords ? timeAgoShort(new Date(locationState.timestamp ?? Date.now()).toISOString()) : "—"} tone="#9E7A6A" />
-              <Stat icon={Info} label="Accuracy" value={locationState.accuracy != null ? `±${Math.round(locationState.accuracy)} m` : "—"} tone="#9E7A6A" />
+            {/* Destination & route options */}
+            <div className="mb-2.5">
+              <div className="relative">
+                <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 15, height: 15, color: "#9E7A6A" }} />
+                <input
+                  value={destQuery}
+                  onChange={(e) => {
+                    setDestQuery(e.target.value);
+                    void searchDest(e.target.value);
+                  }}
+                  onFocus={() => {
+                    if (destQuery.trim().length >= 3) void searchDest(destQuery);
+                  }}
+                  placeholder="Search destination or tap the map"
+                  aria-label="Destination"
+                  style={{
+                    width: "100%",
+                    padding: "0.6rem 2.5rem 0.6rem 2.4rem",
+                    background: "#FFF6FA",
+                    border: "1px solid rgba(214,82,163,0.12)",
+                    borderRadius: 12,
+                    fontSize: "0.8125rem",
+                    fontFamily: "'Poppins', sans-serif",
+                    fontWeight: 600,
+                    color: "#3D2315",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+                {destination && (
+                  <button
+                    onClick={clearDestination}
+                    aria-label="Clear destination"
+                    title="Clear destination"
+                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", cursor: "pointer", color: "#9E7A6A" }}
+                  >
+                    <X style={{ width: 15, height: 15 }} />
+                  </button>
+                )}
+              </div>
+
+              {destSuggestions.length > 0 && (
+                <div className="mt-2 rounded-[14px] overflow-hidden" style={{ background: "white", border: "1px solid rgba(242,149,106,0.14)", boxShadow: "0 6px 20px rgba(139,58,47,0.08)" }}>
+                  {destSuggestions.map((s) => (
+                    <button
+                      key={`${s.lat},${s.lng}`}
+                      onClick={() => void selectDestination(s)}
+                      className="w-full text-left px-3.5 py-2.5 cursor-pointer"
+                      style={{ border: "none", background: "transparent", borderBottom: "1px solid rgba(242,149,106,0.08)" }}
+                    >
+                      <p className="truncate" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 12, color: "#3D2315" }}>{s.label}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {destination && (
+                <div className="mt-2.5 rounded-[18px] p-3" style={{ background: "rgba(37,99,235,0.05)", border: "1px solid rgba(37,99,235,0.14)" }}>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <p className="flex items-center gap-1.5 truncate" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12, color: "#1E3A8A" }}>
+                      <MapPin style={{ width: 13, height: 13, flexShrink: 0 }} /> {destination.label}
+                    </p>
+                    <button
+                      onClick={() => window.open(googleMapsUrl(destination.lat, destination.lng), "_blank")}
+                      aria-label="Open destination in Google Maps"
+                      style={{ border: "none", background: "transparent", cursor: "pointer", color: "#2563EB", flexShrink: 0 }}
+                    >
+                      <ExternalLink style={{ width: 15, height: 15 }} />
+                    </button>
+                  </div>
+                  {loadingRoutes ? (
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11.5, color: "#6B7280" }}>Finding routes…</p>
+                  ) : routes.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {routes.map((r) => {
+                        const active = selectedRouteId === r.id;
+                        return (
+                          <button
+                            key={r.id}
+                            onClick={() => setSelectedRouteId(r.id)}
+                            className="rounded-[14px] px-3 py-2.5 text-left cursor-pointer"
+                            style={{
+                              background: active ? ROUTE_COLORS[r.id] : "white",
+                              border: `1px solid ${active ? ROUTE_COLORS[r.id] : "rgba(242,149,106,0.2)"}`,
+                              boxShadow: active ? "0 4px 14px rgba(139,58,47,0.15)" : "none",
+                            }}
+                          >
+                            <p className="flex items-center gap-1.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11.5, color: active ? "white" : "#3D2315" }}>
+                              <RouteIcon kind={r.id} /> {r.label.replace(" Route", "")}
+                            </p>
+                            <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10.5, color: active ? "rgba(255,255,255,0.85)" : "#6B7280", marginTop: 2 }}>
+                              {etaLabel(r.durationSec)} · {distanceLabel(r.distanceM)}
+                            </p>
+                            <p className="flex items-center gap-1 mt-1.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 9.5, color: SAFETY_COLORS[r.safety] }}>
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ background: SAFETY_COLORS[r.safety] }} />
+                              {r.safety === "safe" ? "Safe" : r.safety === "moderate" ? "Moderate" : "Caution"}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
 
             {/* Quick actions */}
-            <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="grid grid-cols-3 gap-2 mb-2.5">
               <Action icon={Share2} label="Share" onClick={() => void onShare()} />
               <Action icon={Copy} label="Copy" onClick={() => void onCopy()} />
               <Action icon={ExternalLink} label="Google Maps" onClick={() => coords && window.open(googleMapsUrl(coords.lat, coords.lng), "_blank")} disabled={!coords} />
@@ -575,17 +827,49 @@ export default function UserLiveLocationPage() {
 
 // ── Small presentational pieces ───────────────────────────────────────────────
 
-const Stat = ({ icon: Icon, label, value, tone }: { icon: typeof MapPin; label: string; value: string; tone: string }) => (
-  <div className="rounded-[16px] px-3 py-2.5" style={{ background: "white", border: "1px solid rgba(242,149,106,0.14)" }}>
-    <p className="flex items-center gap-1.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 9.5, color: "#9E7A6A", textTransform: "uppercase", letterSpacing: 0.5 }}>
-      <Icon style={{ width: 11, height: 11, color: tone }} />
-      {label}
+const Field = ({ icon: Icon, label, value, tone }: { icon: typeof MapPin; label: string; value: string; tone: string }) => (
+  <div className="min-w-0">
+    <p className="flex items-center gap-1" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 9, color: "#9E7A6A", textTransform: "uppercase", letterSpacing: 0.4 }}>
+      <Icon style={{ width: 10, height: 10, color: tone, flexShrink: 0 }} />
+      <span className="truncate">{label}</span>
     </p>
-    <p className="truncate mt-0.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12, color: "#3D2315" }}>
-      {value}
-    </p>
+    <p className="truncate mt-0.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11.5, color: "#3D2315" }}>{value}</p>
   </div>
 );
+
+const MapControl = ({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: typeof MapPin;
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    onClick={onClick}
+    title={label}
+    aria-label={label}
+    className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer"
+    style={{
+      background: active ? "rgba(122,43,115,0.95)" : "rgba(255,255,255,0.95)",
+      color: active ? "white" : "#3D2315",
+      boxShadow: "0 4px 16px rgba(139,58,47,0.18)",
+      border: `1px solid ${active ? "transparent" : "rgba(242,149,106,0.25)"}`,
+    }}
+  >
+    <Icon style={{ width: 17, height: 17 }} />
+  </button>
+);
+
+const RouteIcon = ({ kind }: { kind: RouteKind }) => {
+  if (kind === "safest") return <ShieldCheck style={{ width: 13, height: 13 }} />;
+  if (kind === "fastest") return <Zap style={{ width: 13, height: 13 }} />;
+  if (kind === "walking") return <Footprints style={{ width: 13, height: 13 }} />;
+  return <Car style={{ width: 13, height: 13 }} />;
+};
 
 const Action = ({
   icon: Icon,

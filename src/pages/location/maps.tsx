@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { TrailPoint } from "./helpers";
+import { SAFETY_ZONE_COLORS, type SafetyZone } from "./helpers";
 
 // ── Marker icons ─────────────────────────────────────────────────────────────
 
@@ -23,6 +24,20 @@ const createAvatarIcon = (initials: string, color: string, sos: boolean) =>
       </div>`,
     iconSize: sos ? [58, 58] : [48, 48],
     iconAnchor: sos ? [29, 29] : [24, 24],
+  });
+
+/** Destination pin marker. */
+const createDestIcon = () =>
+  L.divIcon({
+    className: "",
+    html: `
+      <div class="relative flex items-center justify-center" style="width:34px;height:34px">
+        <div class="absolute inset-0 rounded-full" style="background:rgba(37,99,235,0.25)"></div>
+        <div class="relative w-4 h-4 rounded-full" style="background:#2563EB;border:2.5px solid white;box-shadow:0 3px 10px rgba(30,64,175,0.45)"></div>
+        <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0" style="border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid #2563EB"></div>
+      </div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 30],
   });
 
 /** Plain dot marker with optional SOS pulse. */
@@ -71,8 +86,12 @@ export const LiveTrackingMap = ({
   accuracy,
   avatar,
   sos = false,
-  dark = false,
   follow = true,
+  tileUrl,
+  safetyZones,
+  routes,
+  destination,
+  onMapClick,
   className = "absolute inset-0",
   onReady,
 }: {
@@ -80,8 +99,17 @@ export const LiveTrackingMap = ({
   accuracy?: number | null;
   avatar?: { initials: string; color: string } | null;
   sos?: boolean;
-  dark?: boolean;
   follow?: boolean;
+  /** Swaps the base tile layer (e.g. light ↔ satellite). */
+  tileUrl?: string;
+  /** Semi-transparent safety overlay circles. */
+  safetyZones?: SafetyZone[];
+  /** Route polylines: selected route full-color, alternatives dashed gray. */
+  routes?: { points: [number, number][]; color: string; dashed?: boolean }[];
+  /** Destination pin. */
+  destination?: { lat: number; lng: number } | null;
+  /** Map click handler (tap-to-set destination). */
+  onMapClick?: (lat: number, lng: number) => void;
   className?: string;
   onReady?: (map: L.Map) => void;
 }) => {
@@ -90,9 +118,13 @@ export const LiveTrackingMap = ({
   const markerRef = useRef<L.Marker | null>(null);
   const accuracyRef = useRef<L.Circle | null>(null);
   const trailRef = useRef<L.Polyline | null>(null);
+  const destRef = useRef<L.Marker | null>(null);
+  const zonesRef = useRef<L.LayerGroup | null>(null);
+  const routesRef = useRef<L.LayerGroup | null>(null);
+  const tileRef = useRef<L.TileLayer | null>(null);
   const lastLatLngRef = useRef<[number, number] | null>(null);
 
-  // Create once.
+  // Create once (tile layer added by the tileUrl effect below).
   useEffect(() => {
     const el = containerRef.current;
     if (!el || mapRef.current) return;
@@ -101,7 +133,6 @@ export const LiveTrackingMap = ({
       attributionControl: false,
       zoom: 15,
     });
-    L.tileLayer(dark ? DARK_TILES : LIGHT_TILES, { maxZoom: 19 }).addTo(map);
     mapRef.current = map;
     onReady?.(map);
     const raf = requestAnimationFrame(() => map.invalidateSize());
@@ -112,10 +143,89 @@ export const LiveTrackingMap = ({
       markerRef.current = null;
       accuracyRef.current = null;
       trailRef.current = null;
+      destRef.current = null;
+      zonesRef.current = null;
+      routesRef.current = null;
+      tileRef.current = null;
       lastLatLngRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Tile layer (swaps when tileUrl changes).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (tileRef.current) map.removeLayer(tileRef.current);
+    tileRef.current = L.tileLayer(tileUrl ?? LIGHT_TILES, { maxZoom: 19 }).addTo(map);
+  }, [tileUrl]);
+
+  // Map click → destination.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !onMapClick) return;
+    const handler = (e: L.LeafletMouseEvent) => onMapClick(e.latlng.lat, e.latlng.lng);
+    map.on("click", handler);
+    return () => {
+      map.off("click", handler);
+    };
+  }, [onMapClick]);
+
+  // Safety overlay zones.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!zonesRef.current) zonesRef.current = L.layerGroup().addTo(map);
+    zonesRef.current.clearLayers();
+    (safetyZones ?? []).forEach((z) => {
+      L.circle([z.lat, z.lng], {
+        radius: z.radius,
+        color: SAFETY_ZONE_COLORS[z.level],
+        weight: 1.2,
+        opacity: 0.4,
+        fillColor: SAFETY_ZONE_COLORS[z.level],
+        fillOpacity: 0.1,
+      }).addTo(zonesRef.current!);
+    });
+  }, [safetyZones]);
+
+  // Route polylines.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!routesRef.current) routesRef.current = L.layerGroup().addTo(map);
+    routesRef.current.clearLayers();
+    (routes ?? []).forEach((r) => {
+      L.polyline(r.points, {
+        color: r.color,
+        weight: r.dashed ? 3 : 5,
+        opacity: r.dashed ? 0.45 : 0.9,
+        dashArray: r.dashed ? "6 8" : undefined,
+      }).addTo(routesRef.current!);
+    });
+  }, [routes]);
+
+  // Destination pin.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (destination) {
+      if (!destRef.current) {
+        destRef.current = L.marker([destination.lat, destination.lng], {
+          icon: createDestIcon(),
+          zIndexOffset: 900,
+        }).addTo(map);
+      } else {
+        destRef.current.setLatLng([destination.lat, destination.lng]);
+      }
+    } else if (destRef.current) {
+      destRef.current.remove();
+      destRef.current = null;
+    }
+    // `destination` is read fresh from the render scope; only its rounded
+    // coordinates drive updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [destination?.lat, destination?.lng]);
 
   const latest = trail[trail.length - 1];
 
