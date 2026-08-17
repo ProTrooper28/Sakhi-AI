@@ -24,15 +24,53 @@ export type EvidenceItem = {
   reportId?: string;
 };
 
+export type ReportCategory =
+  | "stalking"
+  | "harassment"
+  | "domestic-violence"
+  | "theft"
+  | "assault"
+  | "cyber"
+  | "missing-person"
+  | "suspicious-activity"
+  | "other";
+
+export type ReportSeverity = "low" | "medium" | "high" | "critical";
+
+export type ReportStatus =
+  | "draft"
+  | "pending"
+  | "submitted"
+  | "anonymous"
+  | "high-risk"
+  | "complaint"
+  | "closed";
+
 export type Report = {
   id: string;
+  /** Legacy field (cyber/general) — new reports use `category`. */
   reportType: "cyber" | "general";
+  category: ReportCategory;
   description: string;
   anonymous: boolean;
+  /** When the report was created / submitted. */
   timestamp: string;
+  /** When the incident happened. */
+  incidentDate?: string;
+  incidentTime?: string;
+  /** Address / area label of the incident. */
   location?: string;
+  /** GPS coordinates of the incident (auto-attached). */
+  coords?: { lat: number; lng: number };
+  peopleInvolved?: string;
+  witnesses?: string;
+  severity?: ReportSeverity;
   evidence: EvidenceItem[];
-  status: "pending" | "anonymous" | "high-risk" | "complaint";
+  status: ReportStatus;
+  /** Human-readable tracking number (SAKHI-YYYY-XXXXXX). */
+  reportNumber?: string;
+  /** Official channel the user chose to submit through. */
+  portal?: string;
   flaggedHighRisk?: boolean;
 };
 
@@ -427,7 +465,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addReport = (report: Omit<Report, "id" | "timestamp">): string => {
     const id = `rpt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const loc = locationState.address || undefined;
-    const newReport: Report = { ...report, id, timestamp: new Date().toISOString(), location: loc };
+    const newReport: Report = {
+      ...report,
+      category: report.category ?? (report.reportType === "cyber" ? "cyber" : "other"),
+      id,
+      timestamp: new Date().toISOString(),
+      location: report.location ?? loc,
+    };
     setReports((prev) => [newReport, ...prev]);
     newReport.evidence.forEach((ev) => {
       setEvidenceLocker((prev) => {

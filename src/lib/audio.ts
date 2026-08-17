@@ -2,6 +2,16 @@
 let audioCtx: AudioContext | null = null;
 let alarmInterval: ReturnType<typeof setInterval> | null = null;
 
+// Master volume for ALL emergency sounds (0–1). The siren loop reads this on
+// every sweep, so the SOS screen's volume slider applies immediately.
+let masterVolume = 1;
+
+export const setSOSVolume = (v: number): void => {
+  masterVolume = Math.max(0, Math.min(1, v));
+};
+
+export const getSOSVolume = (): number => masterVolume;
+
 function getAudioContext(): AudioContext {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -9,61 +19,80 @@ function getAudioContext(): AudioContext {
   return audioCtx;
 }
 
-// Helper to synthesize a single siren sweep
-function playSirenSweep(freqStart: number, freqEnd: number, duration: number, volume: number) {
+// ── Police-style wail siren ──────────────────────────────────────────────────
+// The classic "wee-oo" emergency wail: a sawtooth tone swept between 550 Hz
+// and 850 Hz by a slow triangle LFO, shaped through a bandpass filter that
+// follows the sweep. Instantly recognizable as a police siren, far less
+// piercing than a fixed high-frequency electronic tone.
+
+const WAIL_LOW    = 550;   // Hz — bottom of the sweep
+const WAIL_HIGH   = 850;   // Hz — top of the sweep
+const WAIL_CENTER = (WAIL_LOW + WAIL_HIGH) / 2;  // 700 Hz
+const WAIL_AMP    = (WAIL_HIGH - WAIL_LOW) / 2;  // ±150 Hz
+const WAIL_CYCLE  = 2.4;   // seconds per full up-and-down sweep
+
+function playPoliceWail(durationSec: number, volume: number, fadeInSec: number) {
   try {
     const ctx = getAudioContext();
     if (ctx.state === "suspended") {
-      ctx.resume();
+      void ctx.resume();
     }
     const now = ctx.currentTime;
-    
+    const vol = volume * masterVolume;
+    if (vol <= 0.001) return;
+
     const osc = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    
-    // Use standard sawtooth wave for piercing electronic sirens (very sharp & clear)
     osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(freqStart, now);
-    
-    // Frequency sweep (upward and downward)
-    const halfDuration = duration / 2;
-    osc.frequency.linearRampToValueAtTime(freqEnd, now + halfDuration);
-    osc.frequency.linearRampToValueAtTime(freqStart, now + duration);
-    
-    // Gain / volume envelope
-    gainNode.gain.setValueAtTime(0, now);
-    gainNode.gain.linearRampToValueAtTime(volume, now + 0.05); // sharp attack
-    gainNode.gain.setValueAtTime(volume, now + duration - 0.08); // sustain
-    gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration); // decay
-    
-    // Apply lowpass filter that allows high piercing harmonics to pass clearly
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.setValueAtTime(4500, now); // high cutoff for piercing clarity
-    
-    osc.connect(filter);
-    filter.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    
+    osc.frequency.setValueAtTime(WAIL_CENTER, now);
+
+    // Triangle LFO sweeps the tone up and down (the wail).
+    const lfo = ctx.createOscillator();
+    lfo.type = "triangle";
+    lfo.frequency.setValueAtTime(1 / WAIL_CYCLE, now);
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.setValueAtTime(WAIL_AMP, now);
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+
+    // Bandpass follows the sweep so the tone stays tight and siren-like.
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.Q.setValueAtTime(3.2, now);
+    bp.frequency.setValueAtTime(WAIL_CENTER, now);
+    lfoGain.connect(bp.frequency);
+
+    // Gain envelope: smooth fade-in, sustained body, gentle tail.
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(vol, now + fadeInSec);
+    gain.gain.setValueAtTime(vol, now + Math.max(fadeInSec, durationSec - 0.2));
+    gain.gain.exponentialRampToValueAtTime(0.001, now + durationSec);
+
+    osc.connect(bp);
+    bp.connect(gain);
+    gain.connect(ctx.destination);
+
     osc.start(now);
-    osc.stop(now + duration);
+    osc.stop(now + durationSec + 0.05);
+    lfo.start(now);
+    lfo.stop(now + durationSec + 0.05);
   } catch (error) {
-    console.warn("Could not synthesize siren sweep:", error);
+    console.warn("Could not synthesize police siren:", error);
   }
 }
 
 // 1. Play single SOS trigger siren (perfect for "Test Alert" button)
 export function playSOSTriggerSound(isFirst = false) {
-  // Piercing High-Pitch Siren: 1500Hz to 2100Hz over 0.35 seconds
-  // Standard volume: 0.35 gain. Loud initial burst: 0.52 gain.
-  const volume = isFirst ? 0.52 : 0.35;
-  playSirenSweep(1500, 2100, 0.35, volume);
+  // Police-style wail — one full up-down sweep. The first burst fades in
+  // smoothly from silence (0.6s) at a louder level; looped repeats use a
+  // short attack and overlap slightly so the wail stays continuous.
+  playPoliceWail(WAIL_CYCLE + 0.25, isFirst ? 0.45 : 0.3, isFirst ? 0.6 : 0.08);
 }
 
 // 2. Play single Guardian Alert siren
 export function playGuardianAlertReceivedSound() {
-  // Urgent Guardian Siren: 680Hz to 980Hz over 0.6 seconds at a safe volume (0.18 gain)
-  playSirenSweep(680, 980, 0.6, 0.18);
+  // Softer, shorter wail for the guardian device (alerting but not alarming).
+  playPoliceWail(WAIL_CYCLE * 0.75 + 0.25, 0.16, 0.2);
 }
 
 // 3. Start Repeating Alarm loop
@@ -72,19 +101,17 @@ export function startSOSAlarmLoop(isGuardian: boolean) {
   stopSOSAlarmLoop();
   
   if (isGuardian) {
-    // Play immediately
+    // Play immediately, then repeat back-to-back (continuous gentle wail).
     playGuardianAlertReceivedSound();
-    // Repeat every 1.5 seconds
     alarmInterval = setInterval(() => {
       playGuardianAlertReceivedSound();
-    }, 1500);
+    }, WAIL_CYCLE * 0.75);
   } else {
-    // Play a louder initial sound burst on first activation
+    // Play a louder initial burst on first activation, then loop seamlessly.
     playSOSTriggerSound(true);
-    // Repeat every 0.8 seconds (synchronized with active visual ripple)
     alarmInterval = setInterval(() => {
       playSOSTriggerSound(false);
-    }, 800);
+    }, WAIL_CYCLE);
   }
 }
 
@@ -93,6 +120,33 @@ export function stopSOSAlarmLoop() {
   if (alarmInterval) {
     clearInterval(alarmInterval);
     alarmInterval = null;
+  }
+}
+
+// 5b. Countdown tick — a short, soft two-tone warning beep. The pitch rises
+//     slightly as the countdown advances (3 → 2 → 1) so the user can audibly
+//     track progress without it sounding like an alarm.
+export function playCountdownBeep(tick: number) {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === "suspended") {
+      void ctx.resume();
+    }
+    const now = ctx.currentTime;
+    const base = 620 + Math.max(0, 3 - tick) * 45; // 620 → 665 → 710 Hz
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(base, now);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.22 * masterVolume, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.24);
+  } catch (error) {
+    console.warn("Could not play countdown beep:", error);
   }
 }
 

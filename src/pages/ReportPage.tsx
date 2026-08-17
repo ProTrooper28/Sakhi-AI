@@ -10,13 +10,23 @@ import {
 import AppLayout from "@/components/AppLayout";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
-import type { EvidenceItem } from "@/context/AppContext";
+import type { EvidenceItem, ReportCategory } from "@/context/AppContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type CategoryId =
   | "physical" | "cyber" | "harassment" | "stalking"
   | "suspicious" | "unsafe-location";
+
+// Map the form's categories onto the canonical ReportCategory values.
+const CATEGORY_TO_REPORT: Record<CategoryId, ReportCategory> = {
+  physical: "assault",
+  cyber: "cyber",
+  harassment: "harassment",
+  stalking: "stalking",
+  suspicious: "suspicious-activity",
+  "unsafe-location": "other",
+};
 
 type ConfidenceLevel = "high" | "medium" | "low";
 type UploadedFile = { file: File; previewUrl?: string; id: string };
@@ -343,6 +353,7 @@ const ReportPage = () => {
 
     const id = addReport({
       reportType: category === "cyber" ? "cyber" : "general",
+      category: CATEGORY_TO_REPORT[category],
       description: fullDesc,
       anonymous: true,
       location: locationStr || undefined,

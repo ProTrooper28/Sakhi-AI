@@ -2,7 +2,6 @@ import {
   MapPin,
   PhoneCall,
   CheckCircle2,
-  AlertTriangle,
   BatteryMedium,
   Wifi,
   Clock,
@@ -13,7 +12,7 @@ import {
   Satellite,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { formatElapsed, humanElapsed } from "./helpers";
+import { formatElapsed, humanElapsed, initialsOf } from "./helpers";
 import { EmergencyMap } from "./maps";
 
 /**
@@ -52,9 +51,10 @@ export const EmergencyMode = ({
     { label: "Time Since SOS", value: humanElapsed(elapsedSecs), icon: Clock, ok: true },
   ];
 
-  const actions = [
+  const primaryActions = [
     {
-      label: "Google Maps",
+      label: "Navigate",
+      sub: "Google Maps",
       icon: ExternalLink,
       color: "#F87171",
       bg: "rgba(248,113,113,0.14)",
@@ -67,6 +67,7 @@ export const EmergencyMode = ({
     },
     {
       label: "Call User",
+      sub: "Direct call",
       icon: PhoneCall,
       color: "#34D399",
       bg: "rgba(52,211,153,0.14)",
@@ -75,26 +76,30 @@ export const EmergencyMode = ({
     },
     {
       label: "Message User",
+      sub: "Alert SMS",
       icon: MessageCircle,
       color: "#C084FC",
       bg: "rgba(167,139,250,0.14)",
       border: "rgba(167,139,250,0.35)",
       action: () => { window.location.href = `sms:112?body=${encodeURIComponent(`Sakhi SOS: ${userName} needs help at ${locationLabel ?? "their current location"}`)}`; },
     },
+  ];
+
+  const emergencyCalls = [
     {
       label: "Police (112)",
       icon: Siren,
       color: "#F87171",
-      bg: "rgba(248,113,113,0.14)",
-      border: "rgba(248,113,113,0.35)",
+      bg: "rgba(248,113,113,0.12)",
+      border: "rgba(248,113,113,0.3)",
       action: () => { window.location.href = "tel:112"; },
     },
     {
       label: "Ambulance (108)",
       icon: HeartPulse,
       color: "#FBBF24",
-      bg: "rgba(251,146,60,0.14)",
-      border: "rgba(251,146,60,0.35)",
+      bg: "rgba(251,146,60,0.12)",
+      border: "rgba(251,146,60,0.3)",
       action: () => { window.location.href = "tel:108"; },
     },
   ];
@@ -111,20 +116,29 @@ export const EmergencyMode = ({
       >
         <div className="absolute top-0 left-0 w-1 h-full" style={{ background: "#EF4444" }} />
         <div className="flex items-center gap-3 mb-3">
-          <motion.div
-            animate={{ opacity: [1, 0.25, 1], scale: [1, 1.15, 1] }}
-            transition={{ duration: 0.9, repeat: Infinity }}
-            className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: "rgba(239,68,68,0.3)", border: "1px solid rgba(239,68,68,0.6)" }}
-          >
-            <AlertTriangle style={{ width: 20, height: 20, color: "#FCA5A5" }} />
-          </motion.div>
+          {/* User avatar with pulsing emergency ring */}
+          <div className="relative flex-shrink-0">
+            <motion.div
+              animate={{ opacity: [1, 0.2, 1], scale: [1, 1.25, 1] }}
+              transition={{ duration: 1.1, repeat: Infinity }}
+              className="absolute inset-0 rounded-full"
+              style={{ background: "rgba(239,68,68,0.35)", border: "2px solid rgba(239,68,68,0.6)" }}
+            />
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center relative"
+              style={{ background: "linear-gradient(135deg, #991B1B, #DC2626)", border: "1px solid rgba(254,202,202,0.5)", boxShadow: "0 0 24px rgba(239,68,68,0.5)" }}
+            >
+              <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "white" }}>
+                {initialsOf(userName)}
+              </span>
+            </div>
+          </div>
           <div className="flex-1 min-w-0">
             <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 19, color: "white", letterSpacing: "0.01em" }}>
-              ACTIVE SOS
+              ACTIVE EMERGENCY
             </p>
             <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 13, color: "rgba(255,255,255,0.75)", marginTop: 1 }}>
-              User: <span style={{ color: "white", fontWeight: 800 }}>{userName}</span>
+              <span style={{ color: "white", fontWeight: 800 }}>{userName}</span>
             </p>
           </div>
           <div className="text-right flex-shrink-0">
@@ -137,6 +151,10 @@ export const EmergencyMode = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full" style={{ background: "rgba(248,113,113,0.18)", border: "1px solid rgba(248,113,113,0.45)" }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#F87171", animation: "dot-pulse 0.7s ease-in-out infinite" }} />
+            <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10, color: "#FCA5A5", textTransform: "uppercase" }}>SOS ACTIVE</span>
+          </span>
           <span className="flex items-center gap-1.5 px-3 py-1 rounded-full" style={{ background: "rgba(52,211,153,0.16)", border: "1px solid rgba(52,211,153,0.35)" }}>
             <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#34D399" }} />
             <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10, color: "#6EE7B7", textTransform: "uppercase" }}>Live Tracking</span>
@@ -191,17 +209,33 @@ export const EmergencyMode = ({
         <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13.5, color: "rgba(255,255,255,0.65)", marginBottom: 10 }}>
           Immediate Response
         </h3>
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          {primaryActions.map((btn) => (
+            <motion.button
+              key={btn.label}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={btn.action}
+              className="rounded-[20px] p-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer"
+              style={{ background: btn.bg, border: `1px solid ${btn.border}` }}
+            >
+              <btn.icon style={{ width: 22, height: 22, color: btn.color }} />
+              <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12, color: btn.color }}>{btn.label}</span>
+              <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 9.5, color: "rgba(255,255,255,0.5)" }}>{btn.sub}</span>
+            </motion.button>
+          ))}
+        </div>
         <div className="grid grid-cols-2 gap-3">
-          {actions.map((btn) => (
+          {emergencyCalls.map((btn) => (
             <motion.button
               key={btn.label}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.95 }}
               onClick={btn.action}
-              className="rounded-[20px] p-4 flex flex-col items-center justify-center gap-2 cursor-pointer"
+              className="rounded-[18px] p-3.5 flex items-center justify-center gap-2 cursor-pointer"
               style={{ background: btn.bg, border: `1px solid ${btn.border}` }}
             >
-              <btn.icon style={{ width: 22, height: 22, color: btn.color }} />
+              <btn.icon style={{ width: 17, height: 17, color: btn.color }} />
               <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12, color: btn.color }}>{btn.label}</span>
             </motion.button>
           ))}

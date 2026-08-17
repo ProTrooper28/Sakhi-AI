@@ -526,4 +526,46 @@
       radial-gradient(120% 90% at 50% 0%, rgba(192, 57, 43, 0.32) 0%, rgba(22, 4, 4, 0.55) 55%, rgba(10, 1, 1, 0.95) 100%),
       linear-gradient(180deg, #1A0505 0%, #0D0101 100%);
   }
+
+  /* ── SOS premium emergency screen (user side) ── */
+  .sos-page-emergency {
+    background:
+      radial-gradient(110% 70% at 50% -10%, rgba(192, 57, 43, 0.38) 0%, rgba(28, 4, 4, 0.62) 55%, rgba(8, 1, 1, 0.96) 100%),
+      linear-gradient(180deg, #1C0505 0%, #0B0101 100%);
+  }
+
+  /* Glassmorphism card for the emergency screen. */
+  .sos-glass {
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  /* Top warning banner that slides down on activation. */
+  .sos-warning-banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(185, 28, 28, 0.55), rgba(127, 29, 29, 0.78));
+    border: 1px solid rgba(248, 113, 113, 0.45);
+    box-shadow: 0 8px 30px rgba(185, 28, 28, 0.35);
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    color: #FECACA;
+    text-transform: uppercase;
+  }
+
+  /* Slow ambient red breathing for the emergency backdrop. */
+  @keyframes sos-red-pulse {
+    0%, 100% { opacity: 0.6; }
+    50%      { opacity: 0.25; }
+  }
+  .sos-red-pulse { animation: sos-red-pulse 2.6s ease-in-out infinite; }
 }
