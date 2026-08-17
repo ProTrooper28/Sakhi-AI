@@ -9,6 +9,7 @@ import {
   sendSafeCheckIn,
   upsertLiveLocation,
 } from "@/lib/safety";
+import { getDeviceBattery, isSharingEnabled } from "@/pages/location/helpers";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,14 @@ export type AppLocationState = {
   address: string | null;
   error: boolean;
   loading: boolean;
+  /** GPS horizontal accuracy in meters (device-provided). */
+  accuracy?: number | null;
+  /** Instantaneous speed in m/s (device-provided, may be null). */
+  speed?: number | null;
+  /** Heading in degrees (device-provided, may be null). */
+  heading?: number | null;
+  /** Epoch ms of the last position fix. */
+  timestamp?: number | null;
 };
 
 const DEFAULT_SOS_STATE: SOSState = {
@@ -143,7 +152,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     address: null,
     error: false,
     loading: true,
+    accuracy: null,
+    speed: null,
+    heading: null,
+    timestamp: null,
   });
+
+  // Active geolocation watch id — refreshed on every requestLocation() call
+  // so "Refresh location" starts a clean watch instead of stacking new ones.
+  const locationWatchIdRef = useRef<number | null>(null);
 
   // Track reverse-geolocation coord checks to avoid API spamming
   const lastGeocodedCoords = useRef<{lat: number, lng: number} | null>(null);
@@ -242,11 +259,26 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
        return;
     }
 
+    // Replace any previous watch so repeated calls never pile up.
+    if (locationWatchIdRef.current != null) {
+      navigator.geolocation.clearWatch(locationWatchIdRef.current);
+      locationWatchIdRef.current = null;
+    }
+
     const watchId = navigator.geolocation.watchPosition(
       async (pos) => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         
-        setLocationState(prev => ({ ...prev, coords, error: false, loading: false }));
+        setLocationState(prev => ({
+          ...prev,
+          coords,
+          accuracy: pos.coords.accuracy ?? null,
+          speed: pos.coords.speed ?? null,
+          heading: pos.coords.heading ?? null,
+          timestamp: pos.timestamp,
+          error: false,
+          loading: false,
+        }));
 
         // Check distance to last geocoded point. If > 50 meters, fetch new address.
         const last = lastGeocodedCoords.current;
@@ -274,8 +306,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
     );
+    locationWatchIdRef.current = watchId;
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    return () => {
+      if (locationWatchIdRef.current === watchId) locationWatchIdRef.current = null;
+      navigator.geolocation.clearWatch(watchId);
+    };
   }, []);
 
   // Auto-start request immediately when app mounts
@@ -286,17 +322,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // ── Continuous live location → Supabase (guardian gets updates in real
   //    time without refreshing). Throttled so watchPosition's high-frequency
-  //    callbacks don't hammer the API. Never in guest mode.
+  //    callbacks don't hammer the API. Never in guest mode, and paused when
+  //    the user switches "Stop Sharing" off on the Live Location screen.
   const lastLocationUpsertRef = useRef(0);
   useEffect(() => {
     if (!isSupabaseConfigured || guest || !user) return;
+    if (!isSharingEnabled()) return;
     const coords = locationState.coords;
     if (!coords) return;
     const now = Date.now();
     if (now - lastLocationUpsertRef.current < 5000) return;
     lastLocationUpsertRef.current = now;
     const label = locationState.address ?? null;
-    void upsertLiveLocation({ lat: coords.lat, lng: coords.lng, label });
+    void (async () => {
+      const battery = await getDeviceBattery();
+      void upsertLiveLocation({ lat: coords.lat, lng: coords.lng, label, battery });
+    })();
   }, [locationState.coords, locationState.address, guest, user]);
 
   const triggerSOS = useCallback(() => {

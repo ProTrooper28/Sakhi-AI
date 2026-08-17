@@ -1,0 +1,643 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  MapPin,
+  Navigation,
+  Share2,
+  Copy,
+  RefreshCw,
+  PauseCircle,
+  PlayCircle,
+  BatteryMedium,
+  Wifi,
+  WifiOff,
+  Satellite,
+  Footprints,
+  Car,
+  Clock,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  MessageCircle,
+  PhoneCall,
+  CheckCircle2,
+  AlertTriangle,
+  LocateFixed,
+  History,
+  Info,
+} from "lucide-react";
+import { toast } from "sonner";
+import AppLayout from "@/components/AppLayout";
+import { useApp } from "@/context/AppContext";
+import { LiveTrackingMap, MiniMap } from "./maps";
+import {
+  formatCoords,
+  googleMapsUrl,
+  appleMapsUrl,
+  formatTime,
+  timeAgoShort,
+  formatElapsed,
+  movementFromSpeed,
+  movementLabel,
+  reverseGeocode,
+  getDeviceBattery,
+  copyText,
+  shareLocation,
+  isSharingEnabled,
+  setSharingEnabled,
+  haversineMeters,
+  type TrailPoint,
+} from "./helpers";
+
+const TRAIL_KEY = "sakhi_location_trail";
+
+/**
+ * Live Location — the user's premium full-screen tracking screen.
+ *
+ * A Google-Find-My style experience: full-bleed interactive map with the
+ * live position (accuracy circle + movement trail + smooth animated marker),
+ * and a clean bottom sheet with address, device stats, quick actions and a
+ * tap-to-reopen location history. While an SOS is active the map highlights
+ * the marker and an emergency action bar appears — resolving it returns to
+ * normal automatically.
+ */
+export default function UserLiveLocationPage() {
+  const navigate = useNavigate();
+  const { locationState, requestLocation, sosState, resolveSOS } = useApp();
+
+  const coords = locationState.coords;
+  const label = locationState.address;
+
+  // ── Realtime trail (sampled, persisted) ──────────────────────────────────
+  const lastSampleRef = useRef<{ lat: number; lng: number; ts: number } | null>(null);
+  const [trail, setTrail] = useState<TrailPoint[]>([]);
+
+  useEffect(() => {
+    let restored: TrailPoint[] = [];
+    try {
+      const raw = localStorage.getItem(TRAIL_KEY);
+      if (raw) {
+        restored = (JSON.parse(raw) as TrailPoint[]).filter((p) => Date.now() - p.ts < 6 * 3600 * 1000).slice(-40);
+      }
+    } catch {
+      // ignore storage errors
+    }
+    if (coords) {
+      const now = Date.now();
+      lastSampleRef.current = { ...coords, ts: now };
+      // Seed the trail with the current fix so the map has a position to
+      // show immediately (before the first real sample is appended).
+      if (restored.length === 0) restored = [{ ...coords, ts: now }];
+    }
+    setTrail(restored);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!coords) return;
+    const now = Date.now();
+    const last = lastSampleRef.current;
+    const moved = !last || haversineMeters(last.lat, last.lng, coords.lat, coords.lng) > 25;
+    const elapsed = !last || now - last.ts > 20000;
+    if (!moved && !elapsed) return;
+    lastSampleRef.current = { lat: coords.lat, lng: coords.lng, ts: now };
+    setTrail((prev) => {
+      const next = [...prev, { lat: coords.lat, lng: coords.lng, ts: now }].slice(-40);
+      try {
+        localStorage.setItem(TRAIL_KEY, JSON.stringify(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  }, [coords]);
+
+  // ── Device stats ─────────────────────────────────────────────────────────
+  const [battery, setBattery] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      const b = await getDeviceBattery();
+      if (alive) setBattery(b);
+    };
+    void poll();
+    const id = setInterval(poll, 15000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  const [online, setOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+
+  const gpsStatus = locationState.error
+    ? "Unavailable"
+    : !coords
+      ? "Acquiring…"
+      : Date.now() - (locationState.timestamp ?? 0) > 60000
+        ? "Weak signal"
+        : "Active";
+
+  const movement = useMemo(() => {
+    if (locationState.speed != null) return movementFromSpeed(locationState.speed);
+    if (trail.length < 2) return null;
+    const a = trail[trail.length - 2]!;
+    const b = trail[trail.length - 1]!;
+    const dt = Math.max(1, (b.ts - a.ts) / 1000);
+    return movementFromSpeed(haversineMeters(a.lat, a.lng, b.lat, b.lng) / dt);
+  }, [locationState.speed, trail]);
+
+  const lowBattery = battery != null && battery < 20;
+
+  // ── Sharing toggle ───────────────────────────────────────────────────────
+  const [sharing, setSharing] = useState(isSharingEnabled);
+  const toggleSharing = () => {
+    const next = !sharing;
+    setSharingEnabled(next);
+    setSharing(next);
+    toast[next ? "success" : "info"](
+      next ? "Live location sharing resumed" : "Sharing paused — guardian sees your last known location",
+    );
+  };
+
+  // ── More details (full address + device telemetry) ───────────────────────
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [fullAddress, setFullAddress] = useState<string | null>(null);
+  // Keyed on ~11m-rounded coords so GPS ticks don't re-geocode every second.
+  const coordKey = coords ? `${coords.lat.toFixed(4)},${coords.lng.toFixed(4)}` : null;
+  useEffect(() => {
+    if (!moreOpen || !coordKey) return;
+    const [latStr, lngStr] = coordKey.split(",");
+    const lat = parseFloat(latStr!);
+    const lng = parseFloat(lngStr!);
+    let alive = true;
+    void reverseGeocode(lat, lng).then((g) => {
+      if (alive) setFullAddress(g.address);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [moreOpen, coordKey]);
+
+  // ── Location history (derived from the trail) ────────────────────────────
+  const history = useMemo(() => {
+    if (trail.length === 0) return [];
+    const entries: { lat: number; lng: number; ts: number; durationMs: number }[] = [];
+    let start = trail[0]!;
+    for (let i = 1; i < trail.length; i++) {
+      const p = trail[i]!;
+      if (haversineMeters(start.lat, start.lng, p.lat, p.lng) > 50) {
+        entries.push({ lat: start.lat, lng: start.lng, ts: start.ts, durationMs: p.ts - start.ts });
+        start = p;
+      }
+    }
+    entries.push({ lat: start.lat, lng: start.lng, ts: start.ts, durationMs: Date.now() - start.ts });
+    return entries.slice(-8).reverse();
+  }, [trail]);
+
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLabels, setHistoryLabels] = useState<Record<string, string>>({});
+  // Each history stop is geocoded at most once (ref set), so GPS ticks while
+  // the section is open never re-fire Nominatim requests.
+  const geocodedKeysRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!historyOpen || history.length === 0) return;
+    let alive = true;
+    history.forEach((h) => {
+      const key = `${h.lat.toFixed(3)},${h.lng.toFixed(3)}`;
+      if (historyLabels[key] || geocodedKeysRef.current.has(key)) return;
+      geocodedKeysRef.current.add(key);
+      if (coords && label && haversineMeters(coords.lat, coords.lng, h.lat, h.lng) < 300) {
+        setHistoryLabels((prev) => ({ ...prev, [key]: label }));
+        return;
+      }
+      void reverseGeocode(h.lat, h.lng).then((g) => {
+        if (alive) setHistoryLabels((prev) => ({ ...prev, [key]: g.label }));
+      });
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyOpen, history]);
+
+  const mapRef = useRef<L.Map | null>(null);
+  const flyTo = (lat: number, lng: number) => {
+    mapRef.current?.flyTo([lat, lng], 16, { duration: 0.8 });
+  };
+
+  // ── SOS overlay (mirrors the active SOS from AppContext) ─────────────────
+  const [sosElapsed, setSosElapsed] = useState(0);
+  useEffect(() => {
+    if (!sosState.active || !sosState.triggeredAt) return;
+    const calc = () =>
+      Math.max(0, Math.floor((Date.now() - new Date(sosState.triggeredAt as string).getTime()) / 1000));
+    setSosElapsed(calc());
+    const id = setInterval(() => setSosElapsed(calc()), 1000);
+    return () => clearInterval(id);
+  }, [sosState.active, sosState.triggeredAt]);
+
+  const onShare = useCallback(async () => {
+    if (!coords) {
+      toast.error("Location not available yet");
+      return;
+    }
+    const res = await shareLocation(coords.lat, coords.lng, label);
+    if (res === "shared") toast.success("Live location shared");
+    else if (res === "copied") toast.success("Location link copied to clipboard");
+    else toast.error("Could not share — use Copy Coordinates instead");
+  }, [coords, label]);
+
+  const onCopy = useCallback(async () => {
+    if (!coords) {
+      toast.error("Location not available yet");
+      return;
+    }
+    const ok = await copyText(formatCoords(coords.lat, coords.lng));
+    toast[ok ? "success" : "error"](ok ? "Coordinates copied" : "Could not copy coordinates");
+  }, [coords]);
+
+  const onRefresh = useCallback(() => {
+    requestLocation();
+    toast.info("Refreshing location…");
+  }, [requestLocation]);
+
+  const handleMarkSafe = useCallback(() => {
+    resolveSOS();
+    toast.success("Marked safe — SOS resolved");
+  }, [resolveSOS]);
+
+  const sosCoords = sosState.coords;
+
+  return (
+    <AppLayout>
+      <div
+        className="relative -mx-3.5 -mt-3 md:-mx-10 md:-mt-8 overflow-hidden rounded-none md:rounded-[28px] bg-white"
+        style={{ height: "calc(100dvh - 11.5rem)", minHeight: 480 }}
+      >
+        {/* ── Full-bleed map ── */}
+        <LiveTrackingMap
+          trail={trail}
+          accuracy={locationState.accuracy ?? (sosState.active ? 60 : null)}
+          sos={sosState.active}
+          follow
+          onReady={(map) => {
+            mapRef.current = map;
+          }}
+        />
+
+        {/* ── Top bar overlay ── */}
+        <div
+          className="absolute top-0 inset-x-0 z-[500] flex items-center justify-between px-3 py-3"
+          style={{ background: "linear-gradient(180deg, rgba(251,240,233,0.95), rgba(251,240,233,0))" }}
+        >
+          <button
+            onClick={() => navigate(-1)}
+            aria-label="Back"
+            className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer"
+            style={{ background: "rgba(255,255,255,0.95)", boxShadow: "0 4px 16px rgba(139,58,47,0.18)", color: "#8B3A2F", border: "none" }}
+          >
+            <ArrowLeft style={{ width: 18, height: 18 }} />
+          </button>
+          <div className="flex items-center gap-1.5">
+            <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315" }}>
+              Live Location
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              if (coords) flyTo(coords.lat, coords.lng);
+              else onRefresh();
+            }}
+            aria-label="Recenter"
+            title="Recenter on my location"
+            className="w-10 h-10 rounded-full flex items-center justify-center cursor-pointer"
+            style={{ background: "rgba(255,255,255,0.95)", boxShadow: "0 4px 16px rgba(139,58,47,0.18)", color: "#D4455C", border: "none" }}
+          >
+            <LocateFixed style={{ width: 18, height: 18 }} />
+          </button>
+        </div>
+
+        {/* ── Live chip (bottom-left of map) ── */}
+        {coords && !sosState.active && (
+          <div className="absolute bottom-40 md:bottom-44 left-3 z-[480] flex items-center gap-2 px-3 py-2 rounded-full"
+            style={{ background: "rgba(255,255,255,0.95)", boxShadow: "0 4px 16px rgba(139,58,47,0.16)", border: "1px solid rgba(242,149,106,0.2)" }}
+          >
+            <span className="w-2 h-2 rounded-full" style={{ background: gpsStatus === "Active" ? "#3D9970" : "#F39C12", animation: "dot-pulse 1.6s ease-in-out infinite" }} />
+            <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "#3D2315" }}>
+              {gpsStatus === "Active" ? "Live" : gpsStatus}
+            </span>
+          </div>
+        )}
+
+        {/* ── SOS action bar (only while an SOS is active) ── */}
+        <AnimatePresence>
+          {sosState.active && (
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 30 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className="absolute bottom-0 inset-x-0 z-[520] p-3"
+            >
+              <div
+                className="rounded-[24px] p-4"
+                style={{
+                  background: "linear-gradient(135deg, rgba(153,27,27,0.97), rgba(69,10,10,0.97))",
+                  border: "1px solid rgba(248,113,113,0.5)",
+                  boxShadow: "0 16px 40px rgba(0,0,0,0.4)",
+                }}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <motion.div
+                    animate={{ opacity: [1, 0.3, 1], scale: [1, 1.12, 1] }}
+                    transition={{ duration: 0.9, repeat: Infinity }}
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ background: "rgba(239,68,68,0.35)", border: "1px solid rgba(239,68,68,0.6)" }}
+                  >
+                    <AlertTriangle style={{ width: 18, height: 18, color: "#FCA5A5" }} />
+                  </motion.div>
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 16, color: "white" }}>SOS Active</p>
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
+                      Emergency contacts are being notified
+                    </p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 9, color: "rgba(255,255,255,0.55)", textTransform: "uppercase", letterSpacing: 1 }}>Elapsed</p>
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 22, color: "white", lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
+                      {formatElapsed(sosElapsed)}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  <SosAction icon={Navigation} label="Navigate" onClick={() => window.open(googleMapsUrl(sosCoords.lat, sosCoords.lng), "_blank")} />
+                  <SosAction icon={PhoneCall} label="Call" onClick={() => { window.location.href = "tel:112"; }} />
+                  <SosAction icon={MessageCircle} label="Message" onClick={() => { window.location.href = "sms:112"; }} />
+                  <SosAction icon={CheckCircle2} label="Mark Safe" onClick={handleMarkSafe} accent />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Bottom sheet ── */}
+        <motion.div
+          initial={{ y: 60, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="absolute bottom-0 inset-x-0 z-[450] flex flex-col"
+          style={{ maxHeight: "66%" }}
+        >
+          <div
+            className="flex-1 min-h-0 overflow-y-auto rounded-t-[28px] px-5 pt-2.5 pb-6"
+            style={{
+              background: "rgba(255,252,249,0.98)",
+              backdropFilter: "blur(18px)",
+              WebkitBackdropFilter: "blur(18px)",
+              boxShadow: "0 -12px 40px rgba(139,58,47,0.14)",
+              borderTop: "1px solid rgba(242,149,106,0.18)",
+            }}
+          >
+            {/* Drag handle */}
+            <div className="w-10 h-1.5 rounded-full mx-auto mb-3" style={{ background: "#F5E4D6" }} />
+
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h1 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 19, color: "#3D2315" }}>Current Location</h1>
+                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#9E7A6A", marginTop: 1 }}>
+                  Updated {coords ? timeAgoShort(new Date(locationState.timestamp ?? Date.now()).toISOString()) : "—"}
+                </p>
+              </div>
+              <span
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full flex-shrink-0"
+                style={{ background: sharing ? "rgba(61,153,112,0.12)" : "rgba(243,156,18,0.12)", fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10, color: sharing ? "#2E7D56" : "#B7770D" }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: sharing ? "#3D9970" : "#F39C12" }} />
+                {sharing ? "Sharing Live" : "Sharing Paused"}
+              </span>
+            </div>
+
+            {/* Address */}
+            <div className="rounded-[20px] p-4 mb-3 flex items-start gap-3"
+              style={{ background: "linear-gradient(135deg, #FDF0F4, #F3EDFB)", border: "1px solid rgba(214,82,163,0.08)" }}
+            >
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(212,69,92,0.12)" }}>
+                <MapPin style={{ width: 17, height: 17, color: "#D4455C" }} />
+              </div>
+              <div className="min-w-0">
+                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 10, color: "#9E7A6A", textTransform: "uppercase", letterSpacing: 0.6 }}>Current Address</p>
+                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13.5, color: "#3D2315", lineHeight: 1.45, marginTop: 2 }}>
+                  {label ?? (coords ? "Fetching address…" : "Waiting for GPS fix…")}
+                </p>
+              </div>
+            </div>
+
+            {/* Stats grid */}
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <Stat icon={BatteryMedium} label="Battery" value={battery != null ? `${battery}%` : "—"} tone={lowBattery ? "#B7770D" : "#3D9970"} />
+              <Stat icon={Satellite} label="GPS" value={gpsStatus} tone={gpsStatus === "Active" ? "#3D9970" : "#B7770D"} />
+              <Stat icon={online ? Wifi : WifiOff} label="Internet" value={online ? "Online" : "Offline"} tone={online ? "#3D9970" : "#B7770D"} />
+              <Stat icon={movement === "driving" ? Car : movement === "walking" ? Footprints : MapPin} label="Movement" value={movementLabel(movement)} tone="#7A2B73" />
+              <Stat icon={Clock} label="Updated" value={coords ? timeAgoShort(new Date(locationState.timestamp ?? Date.now()).toISOString()) : "—"} tone="#9E7A6A" />
+              <Stat icon={Info} label="Accuracy" value={locationState.accuracy != null ? `±${Math.round(locationState.accuracy)} m` : "—"} tone="#9E7A6A" />
+            </div>
+
+            {/* Quick actions */}
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <Action icon={Share2} label="Share" onClick={() => void onShare()} />
+              <Action icon={Copy} label="Copy" onClick={() => void onCopy()} />
+              <Action icon={ExternalLink} label="Google Maps" onClick={() => coords && window.open(googleMapsUrl(coords.lat, coords.lng), "_blank")} disabled={!coords} />
+              <Action icon={RefreshCw} label="Refresh" onClick={onRefresh} />
+              <Action
+                icon={sharing ? PauseCircle : PlayCircle}
+                label={sharing ? "Stop Sharing" : "Resume"}
+                onClick={toggleSharing}
+                tone={sharing ? "#B8324A" : "#2E7D56"}
+              />
+              <Action
+                icon={Navigation}
+                label="Apple Maps"
+                onClick={() => coords && window.open(appleMapsUrl(coords.lat, coords.lng), "_blank")}
+                disabled={!coords}
+              />
+            </div>
+
+            {/* More details */}
+            <button
+              onClick={() => setMoreOpen((v) => !v)}
+              className="w-full flex items-center justify-between py-2.5 cursor-pointer"
+              style={{ border: "none", background: "transparent" }}
+            >
+              <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "#7A2B73" }}>More Details</span>
+              <ChevronDown style={{ width: 16, height: 16, color: "#9E7A6A", transform: moreOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+            </button>
+            <AnimatePresence>
+              {moreOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  <div className="rounded-[18px] p-4 space-y-2.5 mb-3" style={{ background: "#FBF0E9", border: "1px solid rgba(242,149,106,0.12)" }}>
+                    <DetailRow label="Latitude & Longitude" value={coords ? formatCoords(coords.lat, coords.lng) : "—"} />
+                    <DetailRow label="Full address" value={fullAddress ?? label ?? "—"} />
+                    <DetailRow label="GPS accuracy" value={locationState.accuracy != null ? `± ${Math.round(locationState.accuracy)} m` : "—"} />
+                    <DetailRow label="Speed" value={locationState.speed != null ? `${(locationState.speed * 3.6).toFixed(1)} km/h` : "—"} />
+                    <DetailRow label="Heading" value={locationState.heading != null ? `${Math.round(locationState.heading)}°` : "—"} />
+                    <DetailRow label="Device battery" value={battery != null ? `${battery}%` : "—"} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* History */}
+            <button
+              onClick={() => setHistoryOpen((v) => !v)}
+              className="w-full flex items-center justify-between py-2.5 cursor-pointer"
+              style={{ border: "none", background: "transparent", borderTop: "1px solid rgba(242,149,106,0.14)" }}
+            >
+              <span className="flex items-center gap-2" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "#7A2B73" }}>
+                <History style={{ width: 15, height: 15 }} /> Location History
+              </span>
+              <span className="flex items-center gap-1.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11, color: "#9E7A6A" }}>
+                {history.length > 0 ? `${history.length} stops` : ""}
+                <ChevronDown style={{ width: 15, height: 15, transform: historyOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+              </span>
+            </button>
+            <AnimatePresence>
+              {historyOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  {history.length === 0 ? (
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 12, color: "#9E7A6A", padding: "0.75rem 0", textAlign: "center" }}>
+                      Stops appear here as you move — keep location services on.
+                    </p>
+                  ) : (
+                    <div className="space-y-2.5 py-2 mb-2">
+                      {history.map((h, i) => {
+                        const key = `${h.lat.toFixed(3)},${h.lng.toFixed(3)}`;
+                        const durMin = Math.max(1, Math.round(h.durationMs / 60000));
+                        return (
+                          <button
+                            key={`${h.ts}-${i}`}
+                            onClick={() => flyTo(h.lat, h.lng)}
+                            className="w-full flex items-center gap-3 rounded-[18px] p-2.5 text-left cursor-pointer"
+                            style={{ background: "white", border: "1px solid rgba(242,149,106,0.14)", boxShadow: "0 2px 10px rgba(139,58,47,0.05)" }}
+                          >
+                            <div className="w-20 h-16 rounded-xl overflow-hidden flex-shrink-0" style={{ position: "relative" }}>
+                              <MiniMap lat={h.lat} lng={h.lng} className="w-full h-full" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="truncate" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12.5, color: "#3D2315" }}>
+                                {historyLabels[key] ?? "Loading address…"}
+                              </p>
+                              <p className="flex items-center gap-1.5 mt-1" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 10.5, color: "#9E7A6A" }}>
+                                <Clock style={{ width: 11, height: 11 }} />
+                                {formatTime(h.ts)} · {durMin} {durMin === 1 ? "min" : "mins"}
+                              </p>
+                            </div>
+                            <ChevronRight style={{ width: 15, height: 15, color: "#FDDCCC", flexShrink: 0 }} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      </div>
+    </AppLayout>
+  );
+}
+
+// ── Small presentational pieces ───────────────────────────────────────────────
+
+const Stat = ({ icon: Icon, label, value, tone }: { icon: typeof MapPin; label: string; value: string; tone: string }) => (
+  <div className="rounded-[16px] px-3 py-2.5" style={{ background: "white", border: "1px solid rgba(242,149,106,0.14)" }}>
+    <p className="flex items-center gap-1.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 9.5, color: "#9E7A6A", textTransform: "uppercase", letterSpacing: 0.5 }}>
+      <Icon style={{ width: 11, height: 11, color: tone }} />
+      {label}
+    </p>
+    <p className="truncate mt-0.5" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12, color: "#3D2315" }}>
+      {value}
+    </p>
+  </div>
+);
+
+const Action = ({
+  icon: Icon,
+  label,
+  onClick,
+  tone = "#7A2B73",
+  disabled,
+}: {
+  icon: typeof MapPin;
+  label: string;
+  onClick: () => void;
+  tone?: string;
+  disabled?: boolean;
+}) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className="flex flex-col items-center justify-center gap-1.5 rounded-[18px] py-3 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+    style={{ background: "white", border: "1px solid rgba(242,149,106,0.14)", boxShadow: "0 2px 10px rgba(139,58,47,0.05)" }}
+  >
+    <Icon style={{ width: 18, height: 18, color: tone }} />
+    <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10.5, color: "#3D2315" }}>{label}</span>
+  </button>
+);
+
+const DetailRow = ({ label, value }: { label: string; value: string }) => (
+  <div className="flex items-start justify-between gap-3">
+    <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11, color: "#9E7A6A", flexShrink: 0 }}>{label}</span>
+    <span className="text-right" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11.5, color: "#3D2315" }}>{value}</span>
+  </div>
+);
+
+const SosAction = ({
+  icon: Icon,
+  label,
+  onClick,
+  accent,
+}: {
+  icon: typeof MapPin;
+  label: string;
+  onClick: () => void;
+  accent?: boolean;
+}) => (
+  <button
+    onClick={onClick}
+    className="flex flex-col items-center justify-center gap-1 rounded-[14px] py-2.5 cursor-pointer"
+    style={{
+      background: accent ? "rgba(52,211,153,0.2)" : "rgba(255,255,255,0.08)",
+      border: `1px solid ${accent ? "rgba(52,211,153,0.45)" : "rgba(255,255,255,0.15)"}`,
+    }}
+  >
+    <Icon style={{ width: 17, height: 17, color: accent ? "#6EE7B7" : "#FCA5A5" }} />
+    <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10, color: accent ? "#6EE7B7" : "white" }}>{label}</span>
+  </button>
+);

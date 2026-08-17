@@ -18,7 +18,7 @@ const USER_NAV: NavItem[] = [
 const GUARDIAN_NAV: NavItem[] = [
   { icon: Home,   path: "/guardian", label: "Home" },
   { icon: Users,  path: "/guardian", label: "Family" },
-  { icon: Map,    path: "/guardian", label: "Live" },
+  { icon: Map,    path: "/guardian/live", label: "Live" },
   { icon: Settings, path: "/settings", label: "Settings" },
 ];
 

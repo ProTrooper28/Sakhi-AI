@@ -18,6 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { addGuardianLink, removeLink, renameRelationship } from "@/lib/guardians";
 import { RELATIONSHIPS, type GuardianLink } from "@/lib/auth-types";
 import type { LiveLocation, SafetyEvent } from "@/lib/safety";
@@ -45,6 +46,7 @@ export const NormalDashboard = ({
   const accepted = links.filter((l) => l.status === "accepted");
   const pending = links.filter((l) => l.status === "pending");
   const firstName = displayName.split(/\s+/)[0] || "Guardian";
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState("");
@@ -308,8 +310,6 @@ export const NormalDashboard = ({
               const updated = loc ? timeAgo(loc.updated_at) : null;
               const battery = loc?.battery_level;
               const lowBattery = battery != null && battery < 20;
-              const lat = loc?.latitude;
-              const lng = loc?.longitude;
               return (
                 <motion.div
                   key={link.id}
@@ -428,9 +428,8 @@ export const NormalDashboard = ({
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => { if (lat != null && lng != null) window.open(`https://www.google.com/maps?q=${lat},${lng}`, "_blank"); }}
-                      disabled={lat == null || lng == null}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                      onClick={() => navigate(`/guardian/track/${link.user_id}`)}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 cursor-pointer"
                       style={{ background: "rgba(122,43,115,0.08)", border: "none", fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11.5, color: "#7A2B73" }}
                     >
                       <Navigation style={{ width: 13, height: 13 }} /> Track

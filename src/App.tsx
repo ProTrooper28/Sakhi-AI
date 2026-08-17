@@ -28,7 +28,8 @@ import GuardianPage from "./pages/GuardianPage";
 import GuardiansPage from "./pages/GuardiansPage";
 import WearableDemoPage from "./pages/WearableDemoPage";
 import Watch3DPage from "./pages/Watch3DPage";
-import LocationTrackingPage from "./pages/LocationTrackingPage";
+import UserLiveLocationPage from "./pages/location/UserLiveLocationPage";
+import GuardianTrackingPage from "./pages/location/GuardianTrackingPage";
 import SecuritySettingsPage from "./pages/SecuritySettingsPage";
 import NotFound from "./pages/NotFound";
 
@@ -246,11 +247,36 @@ const App = () => (
                   </Protected>
                 }
               />
+              {/* Live Location — user app: premium full-screen tracking map
+                  with bottom sheet, quick actions and location history. */}
               <Route
                 path="/location"
                 element={
                   <Protected>
-                    <LocationTrackingPage />
+                    <UserLiveLocationPage />
+                  </Protected>
+                }
+              />
+              {/* Guardian Live Tracking — parents only: premium per-member
+                  tracking screen (/guardian/live picks the first linked
+                  member; /guardian/track/:userId targets one member). */}
+              <Route
+                path="/guardian/live"
+                element={
+                  <Protected>
+                    <RoleGuard expected="parent">
+                      <GuardianTrackingPage />
+                    </RoleGuard>
+                  </Protected>
+                }
+              />
+              <Route
+                path="/guardian/track/:userId"
+                element={
+                  <Protected>
+                    <RoleGuard expected="parent">
+                      <GuardianTrackingPage />
+                    </RoleGuard>
                   </Protected>
                 }
               />

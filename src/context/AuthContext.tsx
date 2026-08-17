@@ -38,7 +38,7 @@ type AuthContextType = {
   displayName: string;
   /** Initials derived from the display name (avatar). */
   initials: string;
-  /** Enter Guest/Demo mode (persisted across reloads). */
+  /** Enter Guest/Demo mode (explicit tap only — never auto-restored). */
   enterGuest: () => void;
   /** Leave Guest/Demo mode. */
   exitGuest: () => void;
@@ -55,14 +55,6 @@ type AuthContextType = {
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-const readGuestFlag = (): boolean => {
-  try {
-    return localStorage.getItem(GUEST_STORAGE_KEY) === "1";
-  } catch {
-    return false;
-  }
-};
 
 /**
  * Remove every Sakhi-owned localStorage marker. `all` wipes the whole
@@ -106,7 +98,12 @@ const initialsOf = (name: string): string =>
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [guest, setGuest] = useState<boolean>(readGuestFlag);
+  // Demo mode starts OFF and is only ever activated by an explicit
+  // "Continue as Guest" tap (enterGuest). It is NEVER restored from the
+  // persisted `sakhi_guest_mode` marker — a stale flag from an earlier demo
+  // session must not silently put the app (or a parked login screen) into
+  // Demo Mode. See syncGuestWithSession below.
+  const [guest, setGuest] = useState<boolean>(false);
   const [ready, setReady] = useState<boolean>(false);
 
   // ── Load profile whenever the authenticated user changes ────────────────
@@ -144,27 +141,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     let mounted = true;
 
-    // A REAL Supabase session always wins over Guest/Demo mode. Guest mode is
-    // a persisted flag (localStorage) that is only cleared by an explicit
-    // sign-out — if a user visited demo mode earlier and then signs in for
-    // real, a stale `sakhi_guest_mode` flag would make every post-login
-    // navigation effect early-return (`if (!ready || guest || !user) return`)
-    // and the login screen would appear "stuck": session created, no error,
-    // no redirect. Exit guest mode whenever an authenticated session exists.
-    const exitGuestOnRealSession = (s: Session | null) => {
-      if (!s?.user) return;
+    // Demo mode is session-only and NEVER auto-restored:
+    //   • A REAL Supabase session always wins — if a user visited demo mode
+    //     earlier and then signs in for real, a stale `sakhi_guest_mode`
+    //     marker would make every post-login navigation effect early-return
+    //     (`if (!ready || guest || !user) return`) and the login screen would
+    //     appear "stuck": session created, no error, no redirect. Exit guest
+    //     mode whenever an authenticated session exists.
+    //   • While signed out (login screens), purge any stale demo marker so a
+    //     leftover flag from an older demo session can never put the app into
+    //     Demo Mode on its own — the user must choose Demo Mode again or log
+    //     in normally.
+    const syncGuestWithSession = (s: Session | null) => {
       try {
-        localStorage.removeItem(GUEST_STORAGE_KEY);
+        if (s?.user) {
+          localStorage.removeItem(GUEST_STORAGE_KEY);
+          setGuest(false);
+        } else {
+          localStorage.removeItem(GUEST_STORAGE_KEY);
+        }
       } catch {
         // ignore storage errors
       }
-      setGuest(false);
     };
 
     const bootstrap = async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-      exitGuestOnRealSession(data.session);
+      syncGuestWithSession(data.session);
       setSession(data.session);
       if (data.session?.user) await loadProfile(data.session.user.id);
       setReady(true);
@@ -173,7 +177,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     void bootstrap();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      exitGuestOnRealSession(nextSession);
+      syncGuestWithSession(nextSession);
       setSession(nextSession);
       if (nextSession?.user) {
         void loadProfile(nextSession.user.id);
