@@ -16,43 +16,23 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        // Split vendor libraries into separate chunks so no single asset
-        // exceeds Workbox's 2 MiB precache limit (vite-plugin-pwa build
-        // fails otherwise) and the initial bundle loads faster.
-        // All emitted chunks still match workbox.globPatterns below, so
-        // the whole app keeps being precached for offline use.
+        // Split ONLY the truly independent heavy libraries into their own
+        // chunks. Everything else — react, react-dom, radix, router, and the
+        // whole three/react-three stack — stays together in the "vendor"
+        // chunk. Splitting react-adjacent libraries into separate chunks
+        // creates circular cross-chunk imports that break module init order
+        // at runtime ("Cannot read properties of undefined (reading
+        // 'useLayoutEffect')"), so the graph must stay acyclic: leaf chunks
+        // only import FROM the vendor chunk, never back.
+        // This also keeps every asset under Workbox's 2 MiB precache limit
+        // (vite-plugin-pwa fails the build otherwise) and speeds up first load.
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
-          if (id.includes("@react-three") || id.includes("three-stdlib") || id.includes("/three")) return "vendor-three";
           if (id.includes("leaflet")) return "vendor-maps";
           if (id.includes("recharts") || id.includes("/d3-")) return "vendor-charts";
           if (id.includes("@supabase")) return "vendor-supabase";
           if (id.includes("lucide-react")) return "vendor-icons";
           if (id.includes("framer-motion")) return "vendor-motion";
-          if (
-            id.includes("@radix-ui") ||
-            id.includes("vaul") ||
-            id.includes("cmdk") ||
-            id.includes("sonner") ||
-            id.includes("embla") ||
-            id.includes("input-otp") ||
-            id.includes("react-day-picker") ||
-            id.includes("date-fns") ||
-            id.includes("class-variance-authority") ||
-            id.includes("tailwind-merge") ||
-            id.includes("clsx")
-          )
-            return "vendor-ui";
-          if (
-            id.includes("react-router") ||
-            id.includes("react-hook-form") ||
-            id.includes("@hookform") ||
-            id.includes("zod") ||
-            id.includes("@tanstack") ||
-            id.includes("react-resizable-panels")
-          )
-            return "vendor-react";
-          if (id.includes("react") || id.includes("scheduler")) return "vendor-react";
           return "vendor";
         },
       },
