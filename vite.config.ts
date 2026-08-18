@@ -13,6 +13,51 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split vendor libraries into separate chunks so no single asset
+        // exceeds Workbox's 2 MiB precache limit (vite-plugin-pwa build
+        // fails otherwise) and the initial bundle loads faster.
+        // All emitted chunks still match workbox.globPatterns below, so
+        // the whole app keeps being precached for offline use.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("@react-three") || id.includes("three-stdlib") || id.includes("/three")) return "vendor-three";
+          if (id.includes("leaflet")) return "vendor-maps";
+          if (id.includes("recharts") || id.includes("/d3-")) return "vendor-charts";
+          if (id.includes("@supabase")) return "vendor-supabase";
+          if (id.includes("lucide-react")) return "vendor-icons";
+          if (id.includes("framer-motion")) return "vendor-motion";
+          if (
+            id.includes("@radix-ui") ||
+            id.includes("vaul") ||
+            id.includes("cmdk") ||
+            id.includes("sonner") ||
+            id.includes("embla") ||
+            id.includes("input-otp") ||
+            id.includes("react-day-picker") ||
+            id.includes("date-fns") ||
+            id.includes("class-variance-authority") ||
+            id.includes("tailwind-merge") ||
+            id.includes("clsx")
+          )
+            return "vendor-ui";
+          if (
+            id.includes("react-router") ||
+            id.includes("react-hook-form") ||
+            id.includes("@hookform") ||
+            id.includes("zod") ||
+            id.includes("@tanstack") ||
+            id.includes("react-resizable-panels")
+          )
+            return "vendor-react";
+          if (id.includes("react") || id.includes("scheduler")) return "vendor-react";
+          return "vendor";
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     mode === "development" && componentTagger(),
