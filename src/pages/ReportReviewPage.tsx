@@ -1,10 +1,11 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, AlertTriangle, FileText, Clock,
   MapPin, Image, Film, FileAudio, File,
   BookLock, Gavel, ChevronLeft, Lock, CheckCircle2,
-  BarChart3, Eye, Sparkles
+  BarChart3, Eye, Sparkles, ExternalLink
 } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
@@ -98,6 +99,11 @@ const getFileLabel = (type?: string) => {
   return "Document";
 };
 
+// ── Official Cyber Crime Portal ────────────────────────────────────────────────
+
+const CYBER_CRIME_PORTAL_URL = "https://cybercrime.gov.in/Webform/crmcondi.aspx";
+const CYBER_PORTAL_PROMPT_KEY = "sakhi_cyber_portal_prompt_shown";
+
 // ── Label style ───────────────────────────────────────────────────────────────
 
 const labelStyle: React.CSSProperties = {
@@ -120,6 +126,19 @@ const ReportReviewPage = () => {
   const { getReport, updateReport } = useApp();
 
   const report = id ? getReport(id) : undefined;
+
+  const [showCyberPortalPrompt, setShowCyberPortalPrompt] = useState(false);
+
+  useEffect(() => {
+    if (!report) return;
+    if (sessionStorage.getItem(CYBER_PORTAL_PROMPT_KEY) === "true") return;
+    setShowCyberPortalPrompt(true);
+    sessionStorage.setItem(CYBER_PORTAL_PROMPT_KEY, "true");
+  }, [report]);
+
+  const openCyberCrimePortal = () => {
+    window.open(CYBER_CRIME_PORTAL_URL, "_blank", "noopener,noreferrer");
+  };
 
   if (!report) {
     return (
@@ -730,6 +749,141 @@ const ReportReviewPage = () => {
           </motion.div>
 
         </div>
+
+        {/* ── Floating Official Portal button ── */}
+        <motion.button
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          onClick={openCyberCrimePortal}
+          style={{
+            position: "fixed",
+            right: 20,
+            bottom: 96,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "12px 16px",
+            borderRadius: 999,
+            border: "1.5px solid rgba(37,99,235,0.18)",
+            background: "white",
+            boxShadow: "0 8px 24px rgba(37,99,235,0.18)",
+            cursor: "pointer",
+            zIndex: 40,
+          }}
+        >
+          <Shield style={{ width: 16, height: 16, color: "#2563EB" }} />
+          <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12, color: "#2563EB" }}>
+            Official Portal
+          </span>
+        </motion.button>
+
+        {/* ── Cyber Crime Portal suggestion modal ── */}
+        <AnimatePresence>
+          {showCyberPortalPrompt && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="fixed inset-0 flex items-center justify-center"
+              style={{ background: "rgba(61,35,21,0.45)", backdropFilter: "blur(3px)", zIndex: 100, padding: 20 }}
+              onClick={() => setShowCyberPortalPrompt(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 16, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 260, damping: 24 }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  background: "white",
+                  borderRadius: 22,
+                  padding: 22,
+                  maxWidth: 380,
+                  width: "100%",
+                  boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 12,
+                      background: "#DEEEFF",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Shield style={{ width: 19, height: 19, color: "#2563EB" }} />
+                  </div>
+                  <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 16, color: "#3D2315" }}>
+                    Official Cyber Crime Reporting
+                  </h2>
+                </div>
+
+                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 13, color: "#5C3D2A", lineHeight: 1.65, marginBottom: 10 }}>
+                  Your anonymous report has been prepared successfully.
+                </p>
+                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 13, color: "#5C3D2A", lineHeight: 1.65, marginBottom: 10 }}>
+                  If your incident involves cyber harassment, online fraud, cyber bullying, identity theft, financial fraud, or any other cyber crime, we also recommend filing a complaint through the Government of India's Official Cyber Crime Portal.
+                </p>
+                <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 13, color: "#5C3D2A", lineHeight: 1.65, marginBottom: 20 }}>
+                  This helps the appropriate authorities investigate and take action.
+                </p>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <button
+                    onClick={() => {
+                      openCyberCrimePortal();
+                      setShowCyberPortalPrompt(false);
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "13px 16px",
+                      borderRadius: 14,
+                      border: "none",
+                      background: "#2563EB",
+                      color: "white",
+                      fontFamily: "Nunito,sans-serif",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <ExternalLink style={{ width: 15, height: 15 }} />
+                    Visit Official Portal
+                  </button>
+                  <button
+                    onClick={() => setShowCyberPortalPrompt(false)}
+                    style={{
+                      width: "100%",
+                      padding: "13px 16px",
+                      borderRadius: 14,
+                      border: "1.5px solid rgba(158,122,106,0.2)",
+                      background: "white",
+                      color: "#9E7A6A",
+                      fontFamily: "Nunito,sans-serif",
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Maybe Later
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </AppLayout>
   );
