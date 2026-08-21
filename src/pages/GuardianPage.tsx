@@ -263,17 +263,7 @@ const GuardianPage = () => {
                 {isSOS ? "Live emergency — realtime updates active" : "Monitoring in real time — no active emergencies"}
               </span>
             </div>
-            {isSOS && (
-              <span
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full flex-shrink-0"
-                style={{ background: "rgba(239,68,68,0.18)", border: "1px solid rgba(239,68,68,0.4)" }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#EF4444", animation: "dot-pulse 0.8s ease-in-out infinite" }} />
-                <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10, color: "#FCA5A5", textTransform: "uppercase" }}>
-                  SOS Active
-                </span>
-              </span>
-            )}
+
           </div>
 
           {!isSOS ? (
@@ -317,6 +307,7 @@ const GuardianPage = () => {
                   userName={activeSos?.userName ?? "Linked user"}
                   locationLabel={userLoc?.label ?? null}
                   elapsedSecs={elapsedSecs}
+                  triggeredAt={activeSos?.triggeredAt}
                   userLoc={userLoc}
                   onMarkSafe={handleMarkSafe}
                 />
