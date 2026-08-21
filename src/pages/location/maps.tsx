@@ -92,6 +92,7 @@ export const LiveTrackingMap = ({
   routes,
   destination,
   onMapClick,
+  bottomPadding,
   className = "absolute inset-0",
   onReady,
 }: {
@@ -110,6 +111,8 @@ export const LiveTrackingMap = ({
   destination?: { lat: number; lng: number } | null;
   /** Map click handler (tap-to-set destination). */
   onMapClick?: (lat: number, lng: number) => void;
+  /** Pixel offset from bottom to shift map center when following user (for bottom sheet). */
+  bottomPadding?: number;
   className?: string;
   onReady?: (map: L.Map) => void;
 }) => {
@@ -309,13 +312,30 @@ export const LiveTrackingMap = ({
       trailRef.current = null;
     }
 
-    if (follow) map.panTo(to, { animate: true });
+    if (follow) {
+      // Offset the map center upward so the marker stays visible above
+      // any overlay (e.g. a bottom sheet). The offset is converted from
+      // screen pixels to lat/lng using Leaflet's projection.
+      const offsetPx = bottomPadding ?? 0;
+      if (offsetPx > 0) {
+        const mapSize = map.getSize();
+        const mapCenter = L.point(mapSize.x / 2, mapSize.y / 2);
+        const offsetCenter = L.point(mapSize.x / 2, mapSize.y / 2 - offsetPx);
+        const centerLatLng = map.containerPointToLatLng(mapCenter);
+        const offsetLatLng = map.containerPointToLatLng(offsetCenter);
+        const targetLat = to[0] + (to[0] - offsetLatLng.lat);
+        const targetLng = to[1] + (to[1] - offsetLatLng.lng);
+        map.panTo([targetLat, targetLng], { animate: true });
+      } else {
+        map.panTo(to, { animate: true });
+      }
+    }
     // Avatar is an object prop — depend on its fields, not its identity, so
     // parent re-renders (e.g. a per-second SOS timer) don't reset the icon
     // and re-pan the map on every tick. `trail`/`latest` are intentionally
     // read fresh from the render scope only when the latest point changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latest?.lat, latest?.lng, latest?.ts, accuracy, avatar?.initials, avatar?.color, sos, follow]);
+  }, [latest?.lat, latest?.lng, latest?.ts, accuracy, avatar?.initials, avatar?.color, sos, follow, bottomPadding]);
 
   return <div ref={containerRef} className={className} />;
 };

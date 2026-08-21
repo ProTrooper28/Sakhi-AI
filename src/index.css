@@ -468,6 +468,24 @@
   .navigate-btn { transition: all 0.2s cubic-bezier(0.4,0,0.2,1); }
   .navigate-btn:active { transform: scale(0.92) !important; filter: brightness(0.9); }
   .navigate-btn.clicked { background-color: #10b981 !important; color: white !important; transform: scale(0.9) !important; pointer-events: none !important; }
+
+  /* ── Live Location — responsive sheet ── */
+  @media (max-width: 640px) {
+    .live-location-sheet {
+      border-radius: 20px 20px 0 0 !important;
+    }
+    .live-location-sheet .drag-handle {
+      width: 32px !important;
+      height: 4px !important;
+    }
+  }
+  @media (min-width: 1024px) {
+    .live-location-sheet {
+      border-radius: 28px 28px 0 0 !important;
+      max-width: 480px !important;
+      margin-left: auto !important;
+    }
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

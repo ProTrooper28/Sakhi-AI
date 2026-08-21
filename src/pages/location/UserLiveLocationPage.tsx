@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent as ReactTouchEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
@@ -85,6 +85,13 @@ const SAFETY_COLORS: Record<RouteOption["safety"], string> = {
   moderate: "#B7770D",
   caution: "#B8324A",
 };
+
+/** Draggable bottom sheet snap points (px from bottom of map). */
+const SHEET_SNAPS = {
+  compact: 170,
+  half: 320,
+  full: 560,
+} as const;
 
 /**
  * Live Location — the user's premium full-screen tracking screen.
@@ -418,6 +425,36 @@ export default function UserLiveLocationPage() {
     toast[ok ? "success" : "error"](ok ? "Coordinates copied" : "Could not copy coordinates");
   }, [coords]);
 
+  // ── Draggable bottom sheet ───────────────────────────────────────────────
+  const [sheetHeight, setSheetHeight] = useState<number>(SHEET_SNAPS.compact);
+  const [sheetTransition, setSheetTransition] = useState(true);
+  const dragStartRef = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  const snapSheet = useCallback((target: number) => {
+    setSheetTransition(true);
+    const snaps = [SHEET_SNAPS.compact, SHEET_SNAPS.half, SHEET_SNAPS.full];
+    const closest = snaps.reduce((a, b) => (Math.abs(b - target) < Math.abs(a - target) ? b : a));
+    setSheetHeight(closest);
+  }, []);
+
+  const onDragStart = useCallback((clientY: number) => {
+    setSheetTransition(false);
+    dragStartRef.current = { startY: clientY, startHeight: sheetHeight };
+  }, [sheetHeight]);
+
+  const onDragMove = useCallback((clientY: number) => {
+    const d = dragStartRef.current;
+    if (!d) return;
+    const delta = d.startY - clientY;
+    setSheetHeight(Math.max(SHEET_SNAPS.compact, Math.min(SHEET_SNAPS.full, d.startHeight + delta)));
+  }, []);
+
+  const onDragEnd = useCallback(() => {
+    const d = dragStartRef.current;
+    dragStartRef.current = null;
+    if (d) snapSheet(sheetHeight);
+  }, [sheetHeight, snapSheet]);
+
   const onRefresh = useCallback(() => {
     requestLocation();
     toast.info("Refreshing location…");
@@ -434,7 +471,7 @@ export default function UserLiveLocationPage() {
     <AppLayout>
       <div
         className="relative -mx-3.5 -mt-3 md:-mx-10 md:-mt-8 overflow-hidden rounded-none md:rounded-[28px] bg-white"
-        style={{ height: "calc(100dvh - 10rem)", minHeight: 520 }}
+        style={{ height: "calc(100dvh - 8rem)", minHeight: 520 }}
       >
         {/* ── Full-bleed map ── */}
         <LiveTrackingMap
@@ -447,6 +484,7 @@ export default function UserLiveLocationPage() {
           routes={routeLayers}
           destination={destination}
           onMapClick={handleMapClick}
+          bottomPadding={sheetHeight}
           onReady={(map) => {
             mapRef.current = map;
           }}
@@ -499,8 +537,8 @@ export default function UserLiveLocationPage() {
         {/* ── Safety legend + live chip (bottom-left, above the sheet) ── */}
         {safetyOn && coords && !sosState.active && (
           <div
-            className="absolute bottom-[calc(52%+3.5rem)] left-3 z-[480] flex items-center gap-2.5 px-3 py-1.5 rounded-full"
-            style={{ background: "rgba(255,255,255,0.95)", boxShadow: "0 4px 16px rgba(139,58,47,0.16)", border: "1px solid rgba(242,149,106,0.2)" }}
+            className="absolute left-3 z-[480] flex items-center gap-2.5 px-3 py-1.5 rounded-full"
+            style={{ bottom: sheetHeight + 56, background: "rgba(255,255,255,0.95)", boxShadow: "0 4px 16px rgba(139,58,47,0.16)", border: "1px solid rgba(242,149,106,0.2)" }}
           >
             {SAFETY_LEGEND.map((item) => (
               <span key={item.level} className="flex items-center gap-1" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 9.5, color: "#3D2315" }}>
@@ -512,8 +550,8 @@ export default function UserLiveLocationPage() {
         )}
         {coords && !sosState.active && (
           <div
-            className="absolute bottom-[calc(52%+0.9rem)] left-3 z-[480] flex items-center gap-2 px-3 py-2 rounded-full"
-            style={{ background: "rgba(255,255,255,0.95)", boxShadow: "0 4px 16px rgba(139,58,47,0.16)", border: "1px solid rgba(242,149,106,0.2)" }}
+            className="absolute left-3 z-[480] flex items-center gap-2 px-3 py-2 rounded-full"
+            style={{ bottom: sheetHeight + 14, background: "rgba(255,255,255,0.95)", boxShadow: "0 4px 16px rgba(139,58,47,0.16)", border: "1px solid rgba(242,149,106,0.2)" }}
           >
             <span className="w-2 h-2 rounded-full" style={{ background: gpsStatus === "Active" ? "#3D9970" : "#F39C12", animation: "dot-pulse 1.6s ease-in-out infinite" }} />
             <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "#3D2315" }}>
@@ -573,13 +611,13 @@ export default function UserLiveLocationPage() {
           )}
         </AnimatePresence>
 
-        {/* ── Bottom sheet ── */}
-        <motion.div
-          initial={{ y: 60, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="absolute bottom-0 inset-x-0 z-[450] flex flex-col"
-          style={{ maxHeight: "52%" }}
+        {/* ── Bottom sheet (draggable) ── */}
+        <div
+          className="absolute bottom-0 inset-x-0 z-[450] flex flex-col live-location-sheet"
+          style={{
+            height: sheetHeight,
+            transition: sheetTransition ? "height 0.3s cubic-bezier(0.33,1,0.68,1)" : "none",
+          }}
         >
           <div
             className="flex-1 min-h-0 overflow-y-auto rounded-t-[28px] px-4 pt-2 pb-5"
@@ -592,10 +630,17 @@ export default function UserLiveLocationPage() {
             }}
           >
             {/* Drag handle */}
-            <div className="w-10 h-1.5 rounded-full mx-auto mb-3" style={{ background: "#F5E4D6" }} />
+            <div
+              className="w-10 h-1.5 rounded-full mx-auto mb-2 cursor-grab active:cursor-grabbing touch-none"
+              style={{ background: "#F5E4D6" }}
+              onMouseDown={(e) => { e.preventDefault(); onDragStart(e.clientY); const onMove = (ev: MouseEvent) => onDragMove(ev.clientY); const onUp = () => { onDragEnd(); window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); }; window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp); }}
+              onTouchStart={(e: ReactTouchEvent) => { onDragStart(e.touches[0]!.clientY); }}
+              onTouchMove={(e: ReactTouchEvent) => { if (dragStartRef.current) { e.preventDefault(); onDragMove(e.touches[0]!.clientY); } }}
+              onTouchEnd={onDragEnd}
+            />
 
-            {/* Header */}
-            <div className="flex items-center justify-between mb-2.5">
+            {/* ── Compact header (always visible) ── */}
+            <div className="flex items-center justify-between mb-2">
               <div>
                 <h1 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 18, color: "#3D2315" }}>Current Location</h1>
                 <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#9E7A6A", marginTop: 1 }}>
@@ -611,22 +656,41 @@ export default function UserLiveLocationPage() {
               </span>
             </div>
 
-            {/* Address + live details (compact) */}
+            {/* ── Compact summary (always visible) ── */}
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 flex-1 min-w-0 rounded-xl px-3 py-2"
+                style={{ background: "linear-gradient(135deg, #FDF0F4, #F3EDFB)", border: "1px solid rgba(214,82,163,0.08)" }}>
+                <MapPin style={{ width: 14, height: 14, color: "#D4455C", flexShrink: 0 }} />
+                <p className="truncate" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 12, color: "#3D2315" }}>
+                  {label ?? (coords ? "Fetching address…" : "Waiting for GPS fix…")}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <span className="flex items-center gap-1" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: lowBattery ? "#B7770D" : "#3D9970" }}>
+                  <BatteryMedium style={{ width: 13, height: 13 }} />
+                  {battery != null ? `${battery}%` : "—"}
+                </span>
+                <span className="flex items-center gap-1" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "#7A2B73" }}>
+                  <Satellite style={{ width: 13, height: 13 }} />
+                  {locationState.accuracy != null ? `±${Math.round(locationState.accuracy)}m` : "—"}
+                </span>
+              </div>
+            </div>
+
+            {/* ── Expanded content (visible when sheet is dragged up) ── */}
+            <div
+              className="overflow-hidden"
+              style={{
+                maxHeight: sheetHeight > SHEET_SNAPS.compact + 30 ? 1200 : 0,
+                opacity: sheetHeight > SHEET_SNAPS.compact + 30 ? 1 : 0,
+                transition: "max-height 0.35s cubic-bezier(0.33,1,0.68,1), opacity 0.25s ease",
+              }}
+            >
+            {/* Address + live details (expanded) */}
             <div className="rounded-[20px] p-3.5 mb-2.5"
               style={{ background: "linear-gradient(135deg, #FDF0F4, #F3EDFB)", border: "1px solid rgba(214,82,163,0.08)" }}
             >
-              <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(212,69,92,0.12)" }}>
-                  <MapPin style={{ width: 15, height: 15, color: "#D4455C" }} />
-                </div>
-                <div className="min-w-0">
-                  <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 9.5, color: "#9E7A6A", textTransform: "uppercase", letterSpacing: 0.6 }}>Current Address</p>
-                  <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "#3D2315", lineHeight: 1.4, marginTop: 1 }}>
-                    {label ?? (coords ? "Fetching address…" : "Waiting for GPS fix…")}
-                  </p>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-x-2 gap-y-2 mt-3 pt-3" style={{ borderTop: "1px solid rgba(242,149,106,0.12)" }}>
+              <div className="grid grid-cols-3 gap-x-2 gap-y-2" style={{ borderTop: "none" }}>
                 <Field icon={sharing ? Share2 : PauseCircle} label="Sharing" value={sharing ? "Live" : "Paused"} tone={sharing ? "#2E7D56" : "#B7770D"} />
                 <Field icon={Clock} label="Updated" value={coords ? timeAgoShort(new Date(locationState.timestamp ?? Date.now()).toISOString()) : "—"} tone="#9E7A6A" />
                 <Field icon={Satellite} label="GPS Accuracy" value={locationState.accuracy != null ? `±${Math.round(locationState.accuracy)} m` : "—"} tone="#7A2B73" />
@@ -853,8 +917,9 @@ export default function UserLiveLocationPage() {
                 </motion.div>
               )}
             </AnimatePresence>
+            </div>{/* end expanded content */}
           </div>
-        </motion.div>
+        </div>
       </div>
     </AppLayout>
   );
