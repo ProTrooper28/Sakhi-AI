@@ -5,6 +5,7 @@ import {
   Shield, ArrowLeft, AlertTriangle, Camera, ShieldAlert,
   Clock, BatteryMedium, Wifi, Satellite, Volume2, VolumeX,
   RotateCcw, Share2, Siren, UserCheck, Activity, PhoneCall, X,
+  Vibrate, Settings, ChevronRight,
 } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
@@ -17,6 +18,7 @@ import {
 } from "@/lib/audio";
 import { vibrateActivated, vibrateResolved } from "@/lib/haptics";
 import { getDeviceBattery, isSharingEnabled, shareLocation } from "@/pages/location/helpers";
+import { useEmergencyActivation } from "@/components/emergency/EmergencyActivationProvider";
 
 const FONT = "Nunito,sans-serif";
 
@@ -140,6 +142,8 @@ const SOSPage = () => {
   const audioRecorderRef   = useRef<MediaRecorder | null>(null);
   const audioStreamRef     = useRef<MediaStream | null>(null);
   const audioChunksRef     = useRef<BlobPart[]>([]);
+
+  const { voiceListening, shakeListening, voiceSupported, shakeSupported } = useEmergencyActivation();
 
   const guardianConnected = isSupabaseConfigured && !guest;
 
@@ -653,6 +657,68 @@ const SOSPage = () => {
                 <span style={{ fontFamily: FONT, fontWeight: 700, fontSize: 12, color: "#3D2315", lineHeight: 1.3 }}>{item.label}</span>
               </motion.button>
             ))}
+          </div>
+
+          {/* Emergency Activation Methods */}
+          <div className="rounded-[22px] p-4 mb-4" style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.06)" }}>
+            <div className="flex items-center justify-between mb-3">
+              <p style={{ fontFamily: FONT, fontWeight: 800, fontSize: 13, color: "#8B3A2F" }}>Emergency Activation</p>
+              <button
+                onClick={() => navigate("/settings")}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full cursor-pointer"
+                style={{ background: "rgba(212,69,92,0.08)", fontFamily: FONT, fontWeight: 700, fontSize: 10, color: "#D4455C" }}
+              >
+                <Settings className="w-3 h-3" /> Configure
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                {
+                  icon: Mic,
+                  label: "Voice SOS",
+                  active: voiceListening,
+                  supported: voiceSupported,
+                  color: "#D4455C",
+                  tip: voiceListening ? "Listening…" : "Speak to trigger",
+                },
+                {
+                  icon: Vibrate,
+                  label: "Shake SOS",
+                  active: shakeListening,
+                  supported: shakeSupported,
+                  color: "#7A2B73",
+                  tip: shakeListening ? "Monitoring…" : "Shake 2× to trigger",
+                },
+                {
+                  icon: Phone,
+                  label: "SOS Button",
+                  active: true,
+                  supported: true,
+                  color: "#D4455C",
+                  tip: "Tap big red button",
+                },
+              ].map((m) => (
+                <div
+                  key={m.label}
+                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl"
+                  style={{ background: m.active ? `${m.color}10` : "#FBF0E9" }}
+                >
+                  <div className="relative">
+                    <m.icon className="w-5 h-5" style={{ color: m.active ? m.color : "#9E7A6A" }} />
+                    {m.active && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full" style={{ background: m.color, animation: "dot-pulse 1s ease-in-out infinite" }} />
+                    )}
+                  </div>
+                  <span style={{ fontFamily: FONT, fontWeight: 800, fontSize: 10, color: "#3D2315", textAlign: "center", lineHeight: 1.2 }}>{m.label}</span>
+                  <span style={{ fontFamily: FONT, fontWeight: 500, fontSize: 8, color: "#9E7A6A", textAlign: "center", lineHeight: 1.2 }}>{m.tip}</span>
+                </div>
+              ))}
+            </div>
+            {(!voiceListening && !shakeListening) && (
+              <p className="text-center mt-2.5" style={{ fontFamily: FONT, fontWeight: 600, fontSize: 10, color: "#9E7A6A" }}>
+                Tap <strong style={{ color: "#D4455C" }}>Configure</strong> to enable voice or shake activation
+              </p>
+            )}
           </div>
 
           {/* Emergency numbers */}

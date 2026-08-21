@@ -352,6 +352,40 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
+    /**
+     * IP-based geolocation fallback for desktop browsers without GPS.
+     * Uses free ipapi.co API (no key needed, 1k requests/day).
+     */
+    const tryIpFallback = async () => {
+      try {
+        const res = await fetch("https://ipapi.co/json/", {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.latitude && data.longitude) {
+          const c = { lat: data.latitude, lng: data.longitude };
+          hasReceivedFixRef.current = true;
+          const area = data.city || data.region || "";
+          const country = data.country_name || "";
+          const readable = [area, country].filter(Boolean).join(", ");
+          setLocationState(prev => ({
+            ...prev,
+            coords: c,
+            accuracy: null,
+            speed: null,
+            heading: null,
+            timestamp: Date.now(),
+            error: false,
+            loading: false,
+            address: readable || "Current location (approximate)",
+          }));
+        }
+      } catch {
+        // IP fallback also failed — show the real error
+      }
+    };
+
     /** Handle geolocation errors with specific messaging. */
     const handleError = (err: GeolocationPositionError) => {
       console.warn("[sakhi-gps] Error:", err.code, err.message);
@@ -364,24 +398,38 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           address: "Location permission denied — enable in browser settings",
         }));
       } else if (err.code === 2) {
-        // POSITION_UNAVAILABLE
-        setLocationState(prev => ({
-          ...prev,
-          loading: false,
-          error: true,
-          address: hasReceivedFixRef.current
-            ? "GPS signal lost — waiting for reconnection"
-            : "Unable to determine location — check GPS settings",
-        }));
+        // POSITION_UNAVAILABLE — on desktop this is common (no GPS hw).
+        // Try IP geolocation as a fallback before showing an error.
+        if (!hasReceivedFixRef.current) {
+          void tryIpFallback();
+          // Show a softer message while the IP fallback is loading
+          setLocationState(prev => ({
+            ...prev,
+            loading: true,
+            error: false,
+            address: "Detecting location…",
+          }));
+        } else {
+          setLocationState(prev => ({
+            ...prev,
+            loading: false,
+            error: true,
+            address: "GPS signal lost — waiting for reconnection",
+          }));
+        }
       } else {
         // TIMEOUT (code 3) or other
+        if (!hasReceivedFixRef.current) {
+          // Timeout on first fix — also try IP fallback
+          void tryIpFallback();
+        }
         setLocationState(prev => ({
           ...prev,
           loading: false,
-          error: true,
+          error: !hasReceivedFixRef.current,
           address: hasReceivedFixRef.current
             ? "Location request timed out — retrying"
-            : "Waiting for GPS signal…",
+            : "Detecting approximate location…",
         }));
       }
     };

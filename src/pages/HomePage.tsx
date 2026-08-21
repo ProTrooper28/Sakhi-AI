@@ -671,7 +671,7 @@ const HomePage = () => {
               { icon: MapPin, label: "Live Path", path: "/location" },
               { icon: Navigation2, label: "Journey", path: "/journey" },
               { icon: HeartHandshake, label: "Aftercare", path: "/post-incident" },
-              { icon: Settings, label: "Settings", path: "/settings" },
+              { icon: Settings, label: "SOS Setup", path: "/settings" },
             ].map((item) => (
               <motion.button
                 key={item.label}
