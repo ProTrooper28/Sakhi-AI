@@ -55,12 +55,12 @@ const PostIncidentPage = () => {
           {/* Header */}
           <motion.div {...fadeUp(0)} className="mb-6">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#D4455C]">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.15em]" style={{ color: "var(--sakhi-primary)", fontFamily: "var(--font-sans)" }}>
                 Aftercare
               </span>
             </div>
             <h1 className="text-2xl font-black text-[#3D2315] flex items-center gap-2" style={{ fontFamily: "Nunito,sans-serif" }}>
-              <HeartHandshake className="w-6 h-6 text-[#D4455C]" />
+              <HeartHandshake className="w-6 h-6" style={{ color: "var(--sakhi-primary)" }} />
               Post-Incident Support
             </h1>
             <p className="text-[13px] font-semibold text-[#9E7A6A] mt-1 leading-relaxed">
@@ -85,7 +85,7 @@ const PostIncidentPage = () => {
                 animate={{ width: `${(completedCount / steps.length) * 100}%` }}
                 transition={{ duration: 0.5 }}
                 className="h-full rounded-full"
-                style={{ background: "linear-gradient(90deg,#F2956A,#D4455C)" }}
+                style={{ background: "var(--sakhi-primary)" }}
               />
             </div>
           </motion.div>

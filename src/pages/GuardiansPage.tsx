@@ -214,7 +214,7 @@ const GuardiansPage = () => {
               <button
                 onClick={() => navigate("/signin")}
                 className="inline-flex items-center gap-2 mt-5 px-5 py-2.5 rounded-full text-white cursor-pointer"
-                style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)", border: "none", fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13 }}
+                style={{ background: "var(--sakhi-primary)", border: "none", fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 13, color: "white" }}
               >
                 Sign In <ArrowRight style={{ width: 14, height: 14 }} />
               </button>
@@ -230,8 +230,8 @@ const GuardiansPage = () => {
                 {...fadeUp(0.08)}
                 className="rounded-[24px] p-5 mb-5 overflow-hidden relative"
                 style={{
-                  background: "linear-gradient(135deg,#5C2018 0%,#8B3A2F 100%)",
-                  boxShadow: "0 8px 28px rgba(92,32,24,0.25)",
+                  background: "#1A1A1A",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
                 }}
               >
                 <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full" style={{ background: "rgba(255,255,255,0.05)" }} />
@@ -320,7 +320,7 @@ const GuardiansPage = () => {
                 {pending.length === 0 ? (
                   <div className="rounded-[20px] p-4 text-center" style={{ background: "white", boxShadow: "0 2px 12px rgba(139,58,47,0.05)" }}>
                     <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 12.5, color: "#9E7A6A" }}>
-                      No pending requests. Share your code above to invite a guardian. 🎈
+                      No pending requests. Share your code above to invite a guardian.
                     </p>
                   </div>
                 ) : (
@@ -363,7 +363,7 @@ const GuardiansPage = () => {
                               onClick={() => void handleRespond(link, "accept")}
                               disabled={busyId === link.id}
                               className="px-3.5 py-2 rounded-full text-white cursor-pointer disabled:opacity-50"
-                              style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)", border: "none", fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 12 }}
+                              style={{ background: "var(--sakhi-primary)", border: "none", fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 12, color: "white" }}
                             >
                               {busyId === link.id ? "…" : "Accept"}
                             </button>

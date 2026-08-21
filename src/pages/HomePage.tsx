@@ -61,15 +61,12 @@ const RISK_CONFIG = {
 };
 
 // ── Dynamic greeting (personalized with the authenticated user's name) ────────
-const getDynamicGreeting = (firstName: string): { hindi: string; english: string } => {
+const getDynamicGreeting = (firstName: string): string => {
   const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12)
-    return { hindi: "सुप्रभात", english: `Good Morning, ${firstName}` };
-  if (hour >= 12 && hour < 17)
-    return { hindi: "नमस्ते", english: `Good Afternoon, ${firstName}` };
-  if (hour >= 17 && hour < 20)
-    return { hindi: "शुभ संध्या", english: `Good Evening, ${firstName}` };
-  return { hindi: "रात सुरक्षित हो", english: `Stay Safe Tonight, ${firstName}` };
+  if (hour >= 5 && hour < 12) return `Good Morning, ${firstName}`;
+  if (hour >= 12 && hour < 17) return `Good Afternoon, ${firstName}`;
+  if (hour >= 17 && hour < 20) return `Good Evening, ${firstName}`;
+  return `Stay Safe Tonight, ${firstName}`;
 };
 
 // ── Guardian status pill ──────────────────────────────────────────────────────
@@ -121,8 +118,8 @@ const HelplineTicker = () => {
     <div
       className="overflow-hidden flex items-center"
       style={{
-        background: "linear-gradient(135deg,#5C2018,#8B3A2F)",
-        borderRadius: 14,
+        background: "#1A1A1A",
+        borderRadius: 12,
         padding: "8px 0",
         boxShadow: "0 2px 12px rgba(92,32,24,0.18)",
       }}
@@ -348,33 +345,32 @@ const SafetyJourneyCard = () => {
   const navigate = useNavigate();
   return (
     <motion.button
-      whileHover={{ scale: 1.02, boxShadow: "0 12px 40px rgba(61,153,112,0.2)" }}
-      whileTap={{ scale: 0.97 }}
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.98 }}
       onClick={() => navigate("/journey")}
-      className="w-full rounded-[26px] overflow-hidden cursor-pointer relative text-left"
+      className="w-full rounded-[16px] overflow-hidden cursor-pointer relative text-left"
       style={{
-        background: "linear-gradient(135deg,#3D9970 0%,#2E7D56 100%)",
-        padding: "20px 22px",
-        boxShadow: "0 8px 32px rgba(61,153,112,0.2)",
-        border: "none",
+        background: "var(--sakhi-white)",
+        padding: "18px 20px",
+        border: "1px solid var(--sakhi-border)",
       }}
     >
-      <div className="relative z-10 flex items-center gap-4">
+      <div className="flex items-center gap-4">
         <div
-          className="w-13 h-13 rounded-2xl flex items-center justify-center flex-shrink-0"
-          style={{ width: 52, height: 52, background: "rgba(255,255,255,0.2)", backdropFilter: "blur(8px)" }}
+          className="rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ width: 44, height: 44, background: "var(--sakhi-green-light)" }}
         >
-          <Navigation2 className="w-6 h-6 text-white" />
+          <Navigation2 className="w-5 h-5" style={{ color: "var(--sakhi-green)" }} />
         </div>
         <div className="flex-1 min-w-0">
-          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 18, color: "white", lineHeight: 1.2 }}>
-            Start a Safety Journey
+          <p style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15, color: "var(--sakhi-text)" }}>
+            Safety Journey
           </p>
-          <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 500, fontSize: 11, color: "rgba(255,255,255,0.85)", marginTop: 3 }}>
-            I'll watch your route, ETA and deviations — your guardian can follow live
+          <p style={{ fontFamily: "var(--font-sans)", fontWeight: 400, fontSize: 12, color: "var(--sakhi-text-secondary)", marginTop: 2 }}>
+            Watch your route, ETA and deviations — your guardian can follow live
           </p>
         </div>
-        <ChevronRight className="w-6 h-6 text-white opacity-70 flex-shrink-0" />
+        <ChevronRight className="w-5 h-5 flex-shrink-0" style={{ color: "var(--sakhi-text-muted)" }} />
       </div>
     </motion.button>
   );
@@ -444,34 +440,23 @@ const HomePage = () => {
           {/* ── Dynamic Greeting ── */}
           <motion.div {...fadeUp(0.06)} className="flex items-start justify-between mb-5">
             <div>
-              <p
-                style={{
-                  fontFamily: "var(--font-deva)",
-                  fontWeight: 600,
-                  fontSize: 14,
-                  color: "#9E7A6A",
-                }}
-                className="mb-0.5"
-              >
-                {greeting.hindi}
-              </p>
               <h1
                 style={{
-                  fontFamily: "Nunito,sans-serif",
-                  fontWeight: 900,
-                  fontSize: 27,
-                  color: "#3D2315",
-                  lineHeight: 1.1,
+                  fontFamily: "var(--font-heading)",
+                  fontWeight: 700,
+                  fontSize: 24,
+                  color: "var(--sakhi-text)",
+                  lineHeight: 1.2,
                 }}
               >
-                {greeting.english}
+                {greeting}
               </h1>
               <p
                 style={{
-                  fontFamily: "Nunito,sans-serif",
-                  fontWeight: 500,
-                  fontSize: 12,
-                  color: "#9E7A6A",
+                  fontFamily: "var(--font-sans)",
+                  fontWeight: 400,
+                  fontSize: 13,
+                  color: "var(--sakhi-text-secondary)",
                   marginTop: 4,
                 }}
               >
@@ -481,8 +466,8 @@ const HomePage = () => {
             {/* Avatar */}
             <div className="relative mt-1 flex-shrink-0">
               <div
-                className="w-13 h-13 rounded-full flex items-center justify-center text-white font-black text-sm shadow-lg"
-                style={{ width: 52, height: 52, background: "linear-gradient(135deg,#F2956A,#D4455C)" }}
+                className="w-13 h-13 rounded-full flex items-center justify-center text-white font-semibold text-sm"
+                style={{ width: 52, height: 52, background: "var(--sakhi-primary)" }}
               >
                 {initials}
               </div>
@@ -508,18 +493,17 @@ const HomePage = () => {
             <CommunitySafetyCard location={locationState.address} />
           </motion.div>
 
-          {/* ── Talk to Sakhi — prominent CTA ── */}
+          {/* ── Talk to Sakhi ── */}
           <motion.div {...fadeUp(0.14)} className="mb-5">
             <motion.button
-              whileHover={{ scale: 1.02, boxShadow: "0 12px 40px rgba(212,69,92,0.22)" }}
-              whileTap={{ scale: 0.97 }}
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => navigate("/assistant")}
-              className="w-full rounded-[26px] overflow-hidden cursor-pointer relative"
+              className="w-full rounded-[16px] overflow-hidden cursor-pointer relative"
               style={{
-                background: "linear-gradient(135deg,#F2956A 0%,#D4455C 100%)",
-                padding: "22px 24px",
-                boxShadow: "0 8px 32px rgba(212,69,92,0.22)",
-                border: "none",
+                background: "var(--sakhi-white)",
+                padding: "18px 20px",
+                border: "1px solid var(--sakhi-border)",
               }}
             >
               <div className="relative z-10 flex items-center gap-4 text-left">
@@ -527,41 +511,38 @@ const HomePage = () => {
                 <div
                   className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
                   style={{
-                    background: "rgba(255,255,255,0.22)",
-                    backdropFilter: "blur(8px)",
-                    boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                    background: "var(--sakhi-primary-muted)",
                   }}
                 >
-                  <Sparkles className="w-7 h-7 text-white" />
+                  <Sparkles className="w-6 h-6" style={{ color: "var(--sakhi-primary)" }} />
                 </div>
 
                 {/* Text */}
                 <div className="flex-1 min-w-0">
-                  <p
-                    style={{
-                      fontFamily: "Nunito,sans-serif",
-                      fontWeight: 900,
-                      fontSize: 20,
-                      color: "white",
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    Talk to Sakhi
-                  </p>
-                  <p
-                    style={{
-                      fontFamily: "Nunito,sans-serif",
-                      fontWeight: 500,
-                      fontSize: 12,
-                      color: "rgba(255,255,255,0.85)",
-                      marginTop: 4,
-                    }}
-                  >
-                    Your AI companion is listening, always
-                  </p>
+              <p
+                style={{
+                  fontFamily: "var(--font-heading)",
+                  fontWeight: 700,
+                  fontSize: 18,
+                  color: "var(--sakhi-text)",
+                }}
+              >
+                Talk to Sakhi
+              </p>
+              <p
+                style={{
+                  fontFamily: "var(--font-sans)",
+                  fontWeight: 400,
+                  fontSize: 12,
+                  color: "var(--sakhi-text-secondary)",
+                  marginTop: 2,
+                }}
+              >
+                Your AI companion is listening, always
+              </p>
                 </div>
 
-                <ChevronRight className="w-6 h-6 text-white opacity-70 flex-shrink-0" />
+                <ChevronRight className="w-5 h-5 flex-shrink-0" style={{ color: "var(--sakhi-text-muted)" }} />
               </div>
             </motion.button>
           </motion.div>
@@ -571,33 +552,33 @@ const HomePage = () => {
             <div className="flex items-center justify-between mb-3">
               <h2
                 style={{
-                  fontFamily: "Nunito,sans-serif",
-                  fontWeight: 900,
-                  fontSize: 18,
-                  color: "#3D2315",
+                  fontFamily: "var(--font-heading)",
+                  fontWeight: 700,
+                  fontSize: 15,
+                  color: "var(--sakhi-text)",
                 }}
               >
-                Aapke Apnewale
+                Your Guardians
               </h2>
               <button
                 onClick={() => navigate("/guardians")}
                 className="flex items-center gap-1 cursor-pointer"
                 style={{
-                  fontFamily: "Nunito,sans-serif",
-                  fontWeight: 700,
+                  fontFamily: "var(--font-sans)",
+                  fontWeight: 600,
                   fontSize: 12,
-                  color: "#D4455C",
+                  color: "var(--sakhi-primary)",
                   background: "none",
                   border: "none",
                 }}
               >
-                Sab dekho <ChevronRight className="w-3.5 h-3.5" />
+                View all <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
             <div
-              className="rounded-[24px] p-4"
-              style={{ background: "white", boxShadow: "0 4px 24px rgba(139,58,47,0.06)" }}
+              className="rounded-[16px] p-4"
+              style={{ background: "var(--sakhi-white)", border: "1px solid var(--sakhi-border)" }}
             >
               <div className="flex items-start gap-3 flex-wrap">
                 {apnewale.map((p, i) => (
@@ -635,10 +616,10 @@ const HomePage = () => {
                     {/* Name */}
                     <span
                       style={{
-                        fontFamily: "Nunito,sans-serif",
-                        fontWeight: 700,
-                        fontSize: 10,
-                        color: "#3D2315",
+                        fontFamily: "var(--font-sans)",
+                        fontWeight: 600,
+                        fontSize: 11,
+                        color: "var(--sakhi-text)",
                         textAlign: "center",
                       }}
                     >
@@ -662,18 +643,18 @@ const HomePage = () => {
                     className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold"
                     style={{
                       background: "var(--sakhi-cream-deep)",
-                      border: "2px dashed rgba(242,149,106,0.5)",
-                      color: "#9E7A6A",
+                      border: "2px dashed var(--sakhi-border)",
+                      color: "var(--sakhi-text-muted)",
                     }}
                   >
                     +
                   </div>
                   <span
                     style={{
-                      fontFamily: "Nunito,sans-serif",
-                      fontWeight: 700,
-                      fontSize: 10,
-                      color: "#9E7A6A",
+                    fontFamily: "var(--font-sans)",
+                    fontWeight: 600,
+                    fontSize: 10,
+                    color: "var(--sakhi-text-muted)",
                     }}
                   >
                     Add
@@ -697,20 +678,19 @@ const HomePage = () => {
                 whileTap={{ scale: 0.93 }}
                 whileHover={{ scale: 1.04 }}
                 onClick={() => navigate(item.path)}
-                className="rounded-[18px] p-3 flex flex-col items-center gap-1.5 cursor-pointer"
+                className="rounded-[14px] p-3 flex flex-col items-center gap-1.5 cursor-pointer"
                 style={{
-                  background: "white",
-                  boxShadow: "0 2px 12px rgba(139,58,47,0.05)",
-                  border: "none",
+                  background: "var(--sakhi-white)",
+                  border: "1px solid var(--sakhi-border)",
                 }}
               >
-                <item.icon style={{ width: 20, height: 20, color: "#8B3A2F" }} />
+                <item.icon style={{ width: 20, height: 20, color: "var(--sakhi-text-secondary)" }} />
                 <span
                   style={{
-                    fontFamily: "Nunito,sans-serif",
-                    fontWeight: 700,
+                    fontFamily: "var(--font-sans)",
+                    fontWeight: 600,
                     fontSize: 10,
-                    color: "#8B3A2F",
+                    color: "var(--sakhi-text-secondary)",
                   }}
                 >
                   {item.label}

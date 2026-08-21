@@ -672,7 +672,7 @@ export default function UserLiveLocationPage() {
                 </span>
                 <span className="flex items-center gap-1" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "#7A2B73" }}>
                   <Satellite style={{ width: 13, height: 13 }} />
-                  {locationState.accuracy != null ? `±${Math.round(locationState.accuracy)}m` : "—"}
+                  {locationState.accuracy != null ? (locationState.accuracy < 50 ? "High" : locationState.accuracy < 200 ? "Medium" : "Low") : "—"}
                 </span>
               </div>
             </div>

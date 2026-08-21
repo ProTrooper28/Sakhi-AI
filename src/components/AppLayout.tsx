@@ -13,10 +13,10 @@ interface AppLayoutProps {
 }
 
 const notifications = [
-  { icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50", title: "Ghar pahunch gayi safely", time: "Abhi abhi" },
-  { icon: Shield,       color: "text-orange-500",  bg: "bg-orange-50",  title: "Priya didi is watching over you", time: "5 min pehle" },
-  { icon: AlertOctagon, color: "text-rose-500",    bg: "bg-rose-50",    title: "SOS Test Complete", time: "1 ghante pehle" },
-  { icon: MapPin,       color: "text-amber-500",   bg: "bg-amber-50",   title: "Location shared with Priya", time: "Kal" },
+  { icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50", title: "Arrived home safely", time: "Just now" },
+  { icon: Shield,       color: "text-teal-500",  bg: "bg-teal-50",  title: "Priya is watching over you", time: "5 min ago" },
+  { icon: AlertOctagon, color: "text-red-500",   bg: "bg-red-50",    title: "SOS Test Complete", time: "1 hour ago" },
+  { icon: MapPin,       color: "text-amber-500", bg: "bg-amber-50",  title: "Location shared with Priya", time: "Yesterday" },
 ];
 
 // ── Notifications panel ──────────────────────────────────────────────────────
@@ -26,8 +26,8 @@ const NotificationsContent = ({ onClose }: { onClose: () => void }) => (
       className="flex items-center justify-between px-4 py-3"
       style={{ borderBottom: "1px solid rgba(242,149,106,0.14)" }}
     >
-      <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "#8B3A2F" }}>
-        Khabar (सूचनाएं)
+      <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 13, color: "var(--sakhi-text)" }}>
+        Notifications
       </span>
       <button onClick={onClose} className="icon-btn w-6 h-6" style={{ color: "#9E7A6A" }}>
         <X className="w-3.5 h-3.5" />
@@ -53,9 +53,8 @@ const NotificationsContent = ({ onClose }: { onClose: () => void }) => (
         </button>
       ))}
     </div>
-    <div className="p-3" style={{ borderTop: "1px solid rgba(242,149,106,0.1)" }}>
-      <button onClick={onClose} className="w-full text-center py-1 cursor-pointer" style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "#D4455C" }}>
-        Sab padha ✓ (Mark all read)
+    <div className="p-3" style={{ borderTop: "1px solid rgba(242,149,106,0.1)" }}>          <button onClick={onClose} className="w-full text-center py-1 cursor-pointer" style={{ fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 11, color: "var(--sakhi-primary)" }}>
+        Mark all read
       </button>
     </div>
   </div>
