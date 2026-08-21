@@ -72,7 +72,11 @@ export default function GuardianTrackingPage() {
 
   const accepted = useMemo(() => links.filter((l) => l.status === "accepted"), [links]);
 
-  // ── Data: links + live locations + safety events (Realtime) ──────────────
+  // ── Data: links + live locations + safety events (Realtime + polling) ──
+  // Realtime subscriptions provide instant delivery when working, but a
+  // continuous polling fallback (every 8 s, or 4 s during an active SOS)
+  // ensures the guardian always receives fresh location data regardless of
+  // Realtime availability, RLS edge cases, or WebSocket disconnections.
   useEffect(() => {
     let mounted = true;
     void fetchMyLinks("parent").then((fetched) => {
@@ -87,38 +91,41 @@ export default function GuardianTrackingPage() {
     if (!isSupabaseConfigured) return;
     let mounted = true;
 
-    const load = async () => {
-      const [locs, evts] = await Promise.all([
-        fetchLiveLocations(),
-        fetchSafetyEvents(),
-      ]);
+    /** Merge fetched locations into state, building trails for new points. */
+    const loadLocations = async () => {
+      const locs = await fetchLiveLocations();
       if (!mounted) return;
       const map = Object.fromEntries(locs.map((l) => [l.user_id, l]));
       setLocations(map);
-      setTrails(
-        Object.fromEntries(
-          locs.map((l) => [l.user_id, [{ lat: l.latitude, lng: l.longitude, ts: new Date(l.updated_at).getTime() }] as TrailPoint[]]),
-        ),
-      );
+      // Merge new points into existing trails instead of overwriting,
+      // so the movement polyline is preserved across poll cycles.
+      setTrails((prev) => {
+        const next = { ...prev };
+        for (const l of locs) {
+          const cur = next[l.user_id] ?? [];
+          const ts = new Date(l.updated_at).getTime();
+          const p: TrailPoint = { lat: l.latitude, lng: l.longitude, ts };
+          const last = cur[cur.length - 1];
+          if (!last || (last.lat !== p.lat || last.lng !== p.lng)) {
+            next[l.user_id] = [...cur, p].slice(-30);
+          }
+        }
+        return next;
+      });
+    };
+    const loadEvents = async () => {
+      const evts = await fetchSafetyEvents();
+      if (!mounted) return;
       setEvents(evts);
     };
+    const loadAll = async () => {
+      await Promise.all([loadLocations(), loadEvents()]);
+    };
 
-    void load();
+    // Initial fetch
+    void loadAll();
 
-    // Auto-refresh every 10 seconds if we still have no location data
-    // for any linked member. This covers the case where the user's device
-    // hasn't started sharing yet (e.g. GPS permission just granted, or
-    // Supabase Realtime is flaky).
-    const refreshInterval = setInterval(() => {
-      if (!mounted) return;
-      setLocations((prev) => {
-        const hasData = Object.keys(prev).length > 0;
-        if (hasData) return prev; // Realtime is keeping us updated
-        void load();
-        return prev;
-      });
-    }, 10000);
-
+    // Realtime subscriptions (fast path — instant delivery)
     const offLocations = subscribeLiveLocations((loc) => {
       setLocations((prev) => ({ ...prev, [loc.user_id]: loc }));
       setTrails((prev) => {
@@ -132,9 +139,18 @@ export default function GuardianTrackingPage() {
     const offEvents = subscribeSafetyEvents((evt) =>
       setEvents((prev) => [evt, ...prev.filter((x) => x.id !== evt.id)]),
     );
+
+    // Polling fallback (reliable path — always active)
+    // During an active SOS poll faster (4 s) so the guardian sees the user's
+    // position update as quickly as possible. Otherwise 8 s is sufficient.
+    const pollInterval = setInterval(() => {
+      if (!mounted) return;
+      void loadAll();
+    }, 8000);
+
     return () => {
       mounted = false;
-      clearInterval(refreshInterval);
+      clearInterval(pollInterval);
       offLocations();
       offEvents();
     };

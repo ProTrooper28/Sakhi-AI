@@ -72,26 +72,50 @@ const GuardianPage = () => {
     };
   }, [isParent]);
 
-  // Snapshot + subscribe: events (SOS / check-ins) and live locations update
-  // automatically — no manual refresh. RLS only delivers rows the guardian is
-  // allowed to see (accepted linked users).
+  // Snapshot + subscribe + polling: events (SOS / check-ins) and live locations
+  // update automatically via Supabase Realtime. A continuous polling fallback
+  // (every 8 s) ensures updates arrive even when Realtime is unavailable
+  // (table not in the supabase_realtime publication, RLS edge cases, or
+  // WebSocket disconnection).
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     let mounted = true;
-    void fetchSafetyEvents().then((evts) => {
-      if (mounted) setEvents(evts);
-    });
-    void fetchLiveLocations().then((locs) => {
-      if (mounted) setLocations(Object.fromEntries(locs.map((l) => [l.user_id, l])));
-    });
+
+    const loadLocations = async () => {
+      const locs = await fetchLiveLocations();
+      if (!mounted) return;
+      setLocations(Object.fromEntries(locs.map((l) => [l.user_id, l])));
+    };
+    const loadEvents = async () => {
+      const evts = await fetchSafetyEvents();
+      if (!mounted) return;
+      setEvents(evts);
+    };
+
+    // Initial fetch
+    void loadLocations();
+    void loadEvents();
+
+    // Realtime subscriptions (fast path — instant delivery when working)
     const offEvents = subscribeSafetyEvents((evt) =>
       setEvents((prev) => [evt, ...prev.filter((x) => x.id !== evt.id)]),
     );
     const offLocations = subscribeLiveLocations((loc) =>
       setLocations((prev) => ({ ...prev, [loc.user_id]: loc })),
     );
+
+    // Polling fallback (reliable path — guaranteed delivery every 8 s)
+    // This covers: Realtime not configured, RLS blocking Realtime events,
+    // WebSocket drops, and stale subscriptions.
+    const pollInterval = setInterval(() => {
+      if (!mounted) return;
+      void loadLocations();
+      void loadEvents();
+    }, 8000);
+
     return () => {
       mounted = false;
+      clearInterval(pollInterval);
       offEvents();
       offLocations();
     };
