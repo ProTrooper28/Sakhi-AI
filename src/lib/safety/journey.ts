@@ -196,6 +196,32 @@ export const readJourney = (): Journey => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return emptyJourney();
     const parsed = JSON.parse(raw) as Journey;
+
+    // ── Auto-expire stale / finished journeys ──
+    // Completed or cancelled journeys should never block the setup flow on
+    // a fresh page load — the user must explicitly start a new journey.
+    if (parsed.status === "completed" || parsed.status === "cancelled") {
+      clearJourney();
+      return emptyJourney();
+    }
+
+    // An active journey is "stale" if:
+    //   • its expected arrival passed more than 2 h ago, OR
+    //   • it was started more than 24 h ago.
+    // In both cases the user clearly abandoned it; reset to planning.
+    const now = Date.now();
+    const etaStale =
+      parsed.expectedArrivalMs != null &&
+      now - parsed.expectedArrivalMs > 2 * 60 * 60 * 1000;
+    const ageStale =
+      parsed.startedAt != null &&
+      now - new Date(parsed.startedAt).getTime() > 24 * 60 * 60 * 1000;
+
+    if (etaStale || ageStale) {
+      clearJourney();
+      return emptyJourney();
+    }
+
     return { ...emptyJourney(), ...parsed };
   } catch {
     return emptyJourney();
