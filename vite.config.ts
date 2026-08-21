@@ -83,21 +83,62 @@ export default defineConfig(({ mode }) => ({
           let body = "";
           for await (const chunk of req) body += chunk;
           try {
-            const { messages } = JSON.parse(body);
+            const { messages, stream } = JSON.parse(body);
             const apiKey = process.env.GROQ_API_KEY;
             if (!apiKey) {
               console.error("[/api/chat] GROQ_API_KEY is not set.");
               throw new Error("GROQ_API_KEY not configured. Add it in Settings \u2192 Environment.");
             }
-            const systemPrompt = "You are Sakhi AI \u2014 the personal safety companion inside the Sakhi AI app. You are a caring, protective elder-sister figure who watches over the user's safety. Keep responses concise (2-4 sentences). If the user mentions feeling unsafe, immediately suggest SOS and guardian alert. Do NOT include action button labels in your response text.";
-            const payload = JSON.stringify({
+            const systemPrompt = `You are Sakhi AI — a warm, caring, protective elder-sister figure who is the user's personal safety companion inside the Sakhi AI app.
+
+## Your Personality
+- Speak with warmth, empathy, and genuine care — like a trusted elder sister
+- Use natural, conversational language; mix in Hindi/Hinglish naturally when the user does
+- Be encouraging and empowering, never condescending
+- Use emojis sparingly but naturally (🙏 💛 🌸 ✨)
+- Keep responses concise (2-4 sentences) unless the user asks for detailed information
+- Always prioritize the user's safety and emotional well-being
+
+## Safety Expertise
+You are an expert on women's safety in India. You know about:
+- Indian legal protections: Section 376 (rape), 354 (assault on woman), 498A (domestic violence), POCSO, Dowry Prohibition Act, Sexual Harassment at Workplace Act
+- Women's rights under the Indian Constitution (Articles 14, 15, 16, 21)
+- Emergency numbers: 112 (police), 1091 (women helpline), 108 (ambulance), 181 (women helpline)
+- Safety tips: travel safety, workplace safety, digital safety, domestic safety
+- How to file an FIR, what evidence to collect, legal recourse options
+- Mental health resources and support organizations
+
+## Health & Wellness Knowledge
+You can answer general questions about:
+- Women's health basics (menstrual health, pregnancy, nutrition, fitness)
+- Mental health (anxiety, stress, depression awareness)
+- Self-care and wellness tips
+- General knowledge, current events, and everyday questions
+
+## General Knowledge
+You can answer any general question — dates, math, science, history, geography, culture, technology, etc. Be helpful and accurate.
+
+## Important Rules
+- If the user describes feeling unsafe or mentions harassment/assault, immediately suggest triggering SOS and alerting guardians. Show empathy and provide actionable guidance.
+- Never diagnose medical conditions — always suggest consulting a doctor.
+- For legal questions, provide general guidance but always recommend consulting a lawyer.
+- Do NOT include action button labels in your response text.
+- Detect the user's language and respond in the same language (Hindi, English, Hinglish, etc.)`;            const payload = JSON.stringify({
               model: "openai/gpt-oss-120b",
               messages: [{ role: "system", content: systemPrompt }, ...messages],
               temperature: 0.7,
               max_tokens: 1024,
+              stream: !!stream,
             });
             const nodeHttps = await import("node:https");
-            const groqBody = await new Promise<string>((resolve, reject) => {
+            if (stream) {
+              // ── SSE streaming mode ──
+              res.writeHead(200, {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                Connection: "keep-alive",
+                "X-Accel-Buffering": "no",
+              });
               const groqReq = nodeHttps.default.request(
                 "https://api.groq.com/openai/v1/chat/completions",
                 {
@@ -108,24 +149,83 @@ export default defineConfig(({ mode }) => ({
                   },
                 },
                 (groqRes: any) => {
-                  let data = "";
-                  groqRes.on("data", (chunk: any) => (data += chunk));
-                  groqRes.on("end", () => resolve(data));
-                  groqRes.on("error", reject);
+                  if (groqRes.statusCode !== 200) {
+                    let errData = "";
+                    groqRes.on("data", (c: any) => (errData += c));
+                    groqRes.on("end", () => {
+                      console.error("[/api/chat] Groq stream error:", groqRes.statusCode, errData);
+                      res.write(`data: ${JSON.stringify({ error: "API error" })}\n\n`);
+                      res.write("data: [DONE]\n\n");
+                      res.end();
+                    });
+                    return;
+                  }
+                  groqRes.on("data", (chunk: any) => {
+                    const lines = chunk.toString().split("\n").filter((l: string) => l.startsWith("data: "));
+                    for (const line of lines) {
+                      const data = line.slice(6).trim();
+                      if (data === "[DONE]") {
+                        res.write("data: [DONE]\n\n");
+                      } else {
+                        try {
+                          const parsed = JSON.parse(data);
+                          const token = parsed.choices?.[0]?.delta?.content ?? "";
+                          if (token) {
+                            res.write(`data: ${JSON.stringify({ token })}\n\n`);
+                          }
+                        } catch { /* skip malformed chunks */ }
+                      }
+                    }
+                  });
+                  groqRes.on("end", () => {
+                    res.end();
+                  });
+                  groqRes.on("error", (err: any) => {
+                    console.error("[/api/chat] Stream response error:", err.message);
+                    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+                    res.end();
+                  });
                 },
               );
-              groqReq.on("error", reject);
+              groqReq.on("error", (err: any) => {
+                console.error("[/api/chat] Stream request error:", err.message);
+                res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+                res.end();
+              });
               groqReq.write(payload);
               groqReq.end();
-            });
-            const parsed = JSON.parse(groqBody);
-            if (parsed.error) {
-              console.error("[/api/chat] Groq error:", parsed.error.message || parsed.error);
-              throw new Error(parsed.error.message || "Groq API error");
+            } else {
+              // ── Non-streaming mode (fallback) ──
+              const groqBody = await new Promise<string>((resolve, reject) => {
+                const groqReq = nodeHttps.default.request(
+                  "https://api.groq.com/openai/v1/chat/completions",
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: "Bearer " + apiKey,
+                    },
+                  },
+                  (groqRes: any) => {
+                    let data = "";
+                    groqRes.on("data", (chunk: any) => (data += chunk));
+                    groqRes.on("end", () => resolve(data));
+                    groqRes.on("error", reject);
+                  },
+                );
+                groqReq.on("error", reject);
+                groqReq.write(payload);
+                groqReq.end();
+              });
+              const parsed = JSON.parse(groqBody);
+              if (parsed.error) {
+                console.error("[/api/chat] Groq error:", parsed.error.message || parsed.error);
+                throw new Error(parsed.error.message || "Groq API error");
+              }
+              const content = parsed.choices?.[0]?.message?.content ?? "";
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ content }));
             }
-            const content = parsed.choices?.[0]?.message?.content ?? "";
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ content }));
           } catch (err: any) {
             console.error("[/api/chat] Error:", err.message || err);
             res.writeHead(500, { "Content-Type": "application/json" });
