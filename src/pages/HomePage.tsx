@@ -276,7 +276,6 @@ const AreaStatusCard = ({ level, location }: { level: RiskLevel; location: strin
 // Community-driven safety foundation: clearly labels community reports vs
 // verified info, shows the nearest reports, and links into the full map.
 const CommunitySafetyCard = ({ location }: { location: string | null }) => {
-  const navigate = useNavigate();
   const anchor = useMemo(() => ({ lat: 19.0596, lng: 72.8295 }), []);
   const reports = useMemo(() => mergeCommunityReports(anchor).slice(0, 3), [anchor]);
 
@@ -295,19 +294,12 @@ const CommunitySafetyCard = ({ location }: { location: string | null }) => {
         </div>
         <div className="flex-1 min-w-0">
           <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315" }}>
-            Community Safety Map
+            Community Safety
           </p>
           <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 10, color: "#9E7A6A" }} className="truncate">
             {location || "Around your area"}
           </p>
         </div>
-        <button
-          onClick={() => navigate("/risk-map")}
-          className="flex items-center gap-1 cursor-pointer"
-          style={{ fontFamily: "Nunito,sans-serif", fontWeight: 700, fontSize: 11, color: "#D4455C", background: "none", border: "none" }}
-        >
-          Open Map <ChevronRight className="w-3 h-3" />
-        </button>
       </div>
 
       {/* Nearest reports — community vs verified clearly distinguished */}
