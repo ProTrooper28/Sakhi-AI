@@ -32,6 +32,9 @@ type EmergencyActivationContextType = {
   voiceSupported: boolean;
   voiceTranscript: string;
   voicePermissionError: string | null;
+  voiceAudioLevel: number;
+  voiceIsListening: boolean;
+  voiceConfidence: number;
 
   /** Shake SOS state. */
   shakeListening: boolean;
@@ -129,6 +132,9 @@ export function EmergencyActivationProvider({
     supported: voiceSupported,
     lastTranscript: voiceTranscript,
     permissionError: voicePermissionError,
+    audioLevel: voiceAudioLevel,
+    isListening: voiceIsListening,
+    confidence: voiceConfidence,
   } = useVoiceSOS(() => handleActivation("voice"));
 
   // Shake SOS
@@ -194,6 +200,9 @@ export function EmergencyActivationProvider({
         voiceSupported,
         voiceTranscript,
         voicePermissionError,
+        voiceAudioLevel,
+        voiceIsListening,
+        voiceConfidence,
         shakeListening,
         shakeToggle,
         shakeSensitivity,

@@ -13,6 +13,9 @@ import {
   MessageSquare,
   Pencil,
   UserPlus,
+  Mic,
+  Vibrate,
+  AlertTriangle,
   Loader2,
   Link2,
   Trash2,
@@ -474,6 +477,90 @@ export const NormalDashboard = ({
         <div className="px-3 pb-4">
           <CalmFamilyMap members={accepted} locations={locations} />
         </div>
+      </motion.section>
+
+      {/* ── Protection Status ── */}
+      <motion.section
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.18, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className="rounded-[24px] p-5"
+        style={{ background: "white", boxShadow: "0 4px 20px rgba(139,58,47,0.06)" }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <ShieldCheck style={{ width: 15, height: 15, color: "#3D9970" }} />
+          <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315" }}>
+            Protection Status
+          </h3>
+        </div>
+        <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#9E7A6A", marginBottom: 12 }}>
+          Active safety methods for your linked members
+        </p>
+        <div className="grid grid-cols-3 gap-2.5">
+          {[
+            {
+              icon: AlertTriangle,
+              label: "SOS Button",
+              status: "Always On",
+              active: true,
+              color: "#D4455C",
+              bg: "rgba(212,69,92,0.08)",
+            },
+            {
+              icon: Mic,
+              label: "Voice SOS",
+              status: "Ask user to enable in Settings",
+              active: false,
+              color: "#7A2B73",
+              bg: "rgba(122,43,115,0.06)",
+            },
+            {
+              icon: Vibrate,
+              label: "Shake SOS",
+              status: "Ask user to enable in Settings",
+              active: false,
+              color: "#7A2B73",
+              bg: "rgba(122,43,115,0.06)",
+            },
+          ].map((method) => (
+            <div
+              key={method.label}
+              className="flex flex-col items-center gap-2 p-3 rounded-[16px]"
+              style={{ background: method.bg }}
+            >
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: method.active ? `${method.color}15` : "rgba(158,122,106,0.08)" }}
+              >
+                <method.icon
+                  className="w-4 h-4"
+                  style={{ color: method.active ? method.color : "#9E7A6A" }}
+                />
+              </div>
+              <span
+                className="text-[11px] font-bold text-center leading-tight"
+                style={{ fontFamily: "Nunito,sans-serif", color: "#3D2315" }}
+              >
+                {method.label}
+              </span>
+              <span
+                className="text-[9px] font-semibold text-center leading-tight"
+                style={{
+                  fontFamily: "Nunito,sans-serif",
+                  color: method.active ? "#3D9970" : "#9E7A6A",
+                }}
+              >
+                {method.active ? "✓ Active" : method.status}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p
+          className="mt-3 text-center"
+          style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 10, color: "#9E7A6A" }}
+        >
+          All methods trigger the same emergency workflow — no duplicate alerts
+        </p>
       </motion.section>
 
       {/* ── Recent activity (colour-coded live feed) ── */}
