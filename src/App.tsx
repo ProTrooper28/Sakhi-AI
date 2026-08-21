@@ -24,6 +24,7 @@ import ReportPage from "./pages/ReportPage";
 import ReportReviewPage from "./pages/ReportReviewPage";
 import MyReportsPage from "./pages/MyReportsPage";
 import EvidenceLockerPage from "./pages/EvidenceLockerPage";
+import GuardianEvidenceLockerPage from "./pages/guardian/GuardianEvidenceLockerPage";
 import RiskMapPage from "./pages/RiskMapPage";
 import GuardianPage from "./pages/GuardianPage";
 import GuardiansPage from "./pages/GuardiansPage";
@@ -280,6 +281,16 @@ const App = () => (
                   <Protected>
                     <RoleGuard expected="parent">
                       <GuardianTrackingPage />
+                    </RoleGuard>
+                  </Protected>
+                }
+              />
+              <Route
+                path="/guardian/evidence-locker"
+                element={
+                  <Protected>
+                    <RoleGuard expected="parent">
+                      <GuardianEvidenceLockerPage />
                     </RoleGuard>
                   </Protected>
                 }
