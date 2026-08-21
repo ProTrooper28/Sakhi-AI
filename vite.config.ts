@@ -3,7 +3,6 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
-import { handleChatRequest } from "./api/chat";
 import type { IncomingMessage, ServerResponse } from "http";
 
 // https://vitejs.dev/config/
@@ -44,10 +43,38 @@ export default defineConfig(({ mode }) => ({
     react(),
     mode === "development" && componentTagger(),
     // API middleware — handles POST /api/chat → Groq in dev
+    // Uses Node.js https module to avoid esbuild mangling the global fetch.
     {
       name: "sakhi-api-middleware",
       configureServer(server: any) {
         server.middlewares.use("/api/chat", async (req: IncomingMessage, res: ServerResponse) => {
+          // Load GROQ_API_KEY from .env.local if not in process.env
+          if (!process.env.GROQ_API_KEY) {
+            try {
+              const nodeFs = await import("node:fs");
+              const nodePath = await import("node:path");
+              const envFiles = [".env.local", ".env"];
+              for (const file of envFiles) {
+                const envPath = nodePath.default.resolve(process.cwd(), file);
+                if (nodeFs.default.existsSync(envPath)) {
+                  const content = nodeFs.default.readFileSync(envPath, "utf-8");
+                  for (const line of content.split("\n")) {
+                    const trimmed = line.trim();
+                    if (!trimmed || trimmed.startsWith("#")) continue;
+                    const eqIdx = trimmed.indexOf("=");
+                    if (eqIdx === -1) continue;
+                    const key = trimmed.slice(0, eqIdx).trim();
+                    const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, "");
+                    if (key === "GROQ_API_KEY" && !process.env.GROQ_API_KEY) {
+                      process.env.GROQ_API_KEY = val;
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.error("[/api/chat] Failed to load .env.local:", e);
+            }
+          }
           if (req.method !== "POST") {
             res.writeHead(405, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Method not allowed" }));
@@ -57,11 +84,50 @@ export default defineConfig(({ mode }) => ({
           for await (const chunk of req) body += chunk;
           try {
             const { messages } = JSON.parse(body);
-            const content = await handleChatRequest(messages);
+            const apiKey = process.env.GROQ_API_KEY;
+            if (!apiKey) {
+              console.error("[/api/chat] GROQ_API_KEY is not set.");
+              throw new Error("GROQ_API_KEY not configured. Add it in Settings \u2192 Environment.");
+            }
+            const systemPrompt = "You are Sakhi AI \u2014 the personal safety companion inside the Sakhi AI app. You are a caring, protective elder-sister figure who watches over the user's safety. Keep responses concise (2-4 sentences). If the user mentions feeling unsafe, immediately suggest SOS and guardian alert. Do NOT include action button labels in your response text.";
+            const payload = JSON.stringify({
+              model: "openai/gpt-oss-120b",
+              messages: [{ role: "system", content: systemPrompt }, ...messages],
+              temperature: 0.7,
+              max_tokens: 1024,
+            });
+            const nodeHttps = await import("node:https");
+            const groqBody = await new Promise<string>((resolve, reject) => {
+              const groqReq = nodeHttps.default.request(
+                "https://api.groq.com/openai/v1/chat/completions",
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: "Bearer " + apiKey,
+                  },
+                },
+                (groqRes: any) => {
+                  let data = "";
+                  groqRes.on("data", (chunk: any) => (data += chunk));
+                  groqRes.on("end", () => resolve(data));
+                  groqRes.on("error", reject);
+                },
+              );
+              groqReq.on("error", reject);
+              groqReq.write(payload);
+              groqReq.end();
+            });
+            const parsed = JSON.parse(groqBody);
+            if (parsed.error) {
+              console.error("[/api/chat] Groq error:", parsed.error.message || parsed.error);
+              throw new Error(parsed.error.message || "Groq API error");
+            }
+            const content = parsed.choices?.[0]?.message?.content ?? "";
             res.writeHead(200, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ content }));
           } catch (err: any) {
-            console.error("[/api/chat]", err);
+            console.error("[/api/chat] Error:", err.message || err);
             res.writeHead(500, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: err.message || "Internal error" }));
           }

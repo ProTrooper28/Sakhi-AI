@@ -51,6 +51,7 @@ export async function handleChatRequest(
 ): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
+    console.error("[/api/chat] GROQ_API_KEY is not set. Add it in Settings → Environment.");
     throw new Error(
       "GROQ_API_KEY environment variable is not configured. " +
         "Add it in Settings → Environment.",
@@ -64,7 +65,7 @@ export async function handleChatRequest(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b",
       messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
       temperature: 0.7,
       max_tokens: 1024,
@@ -75,6 +76,7 @@ export async function handleChatRequest(
     const body = await response.json().catch(() => ({}));
     const msg =
       (body as any)?.error?.message || `Groq API error (${response.status})`;
+    console.error(`[/api/chat] Groq API returned ${response.status}:`, body);
     throw new Error(msg);
   }
 
