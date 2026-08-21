@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, Heart, Users, Map, AlertTriangle, Settings } from "lucide-react";
+import { Home, Heart, Users, Map, AlertTriangle, Settings, Archive } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 
@@ -14,10 +14,11 @@ const USER_NAV: NavItem[] = [
 ];
 
 const GUARDIAN_NAV: NavItem[] = [
-  { icon: Home,   path: "/guardian", label: "Home" },
-  { icon: Users,  path: "/guardian", label: "Family" },
-  { icon: Map,    path: "/guardian/live", label: "Live" },
-  { icon: Settings, path: "/settings", label: "Settings" },
+  { icon: Home,    path: "/guardian",                label: "Home" },
+  { icon: Users,   path: "/guardian",                label: "Family" },
+  { icon: Archive, path: "/guardian/evidence-locker", label: "Evidence" },
+  { icon: Map,     path: "/guardian/live",           label: "Live" },
+  { icon: Settings, path: "/settings",               label: "Settings" },
 ];
 
 const BottomNav = () => {

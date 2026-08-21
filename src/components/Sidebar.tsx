@@ -65,10 +65,12 @@ const GUARDIAN_SECTIONS: NavSection[] = [
     items: [
       { icon: LayoutDashboard, label: "Guardian Dashboard", path: "/guardian" },
       { icon: Users,           label: "Family Members",     path: "/guardian" },
+      { icon: Archive,         label: "Evidence Locker",    path: "/guardian/evidence-locker" },
       { icon: Settings,        label: "Settings",           path: "/settings" },
     ],
   },
 ];
+
 
 const Sidebar = () => {
   const location = useLocation();
