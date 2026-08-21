@@ -100,11 +100,6 @@ export const AVATAR_COLORS = ["#F2956A", "#3D9970", "#D4455C", "#7A2B73", "#B777
 
 export type GeocodeResult = { label: string; address: string };
 
-/**
- * Reverse geocode via Nominatim (OpenStreetMap). Returns a short readable
- * label ("Bandra West, Mumbai") plus a fuller address line. Never throws —
- * callers fall back to a default label on failure.
- */
 /** fetch with a timeout so a dead geocoder/routing API never hangs the UI. */
 const fetchWithTimeout = async (url: string, ms = 6000, init?: RequestInit): Promise<Response> => {
   const ctrl = new AbortController();
@@ -116,11 +111,42 @@ const fetchWithTimeout = async (url: string, ms = 6000, init?: RequestInit): Pro
   }
 };
 
+/**
+ * Reverse geocode — tries Photon (komoot, fast + CORS-friendly) first,
+ * falls back to Nominatim. Returns a short readable label and fuller
+ * address. Never throws.
+ */
 export const reverseGeocode = async (lat: number, lng: number): Promise<GeocodeResult> => {
+  try {
+    // Photon reverse geocode — much faster than Nominatim, no rate limit
+    const res = await fetchWithTimeout(
+      `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}&limit=1`,
+      3000,
+      { headers: { Accept: "application/json" } },
+    );
+    if (res.ok) {
+      const data = (await res.json()) as {
+        features?: { properties?: Record<string, string> }[];
+      };
+      const props = data.features?.[0]?.properties;
+      if (props) {
+        const area = props.suburb || props.neighbourhood || props.district || props.name || "";
+        const city = props.city || props.town || props.village || "";
+        const state = props.state || "";
+        const country = props.country || "";
+        const label = [area, city].filter(Boolean).join(", ") || props.name || "Current location";
+        const address = [area, city, state, country].filter(Boolean).join(", ") || label;
+        return { label, address };
+      }
+    }
+  } catch {
+    // fall through to Nominatim
+  }
+  // Fallback: Nominatim (slower but more complete)
   try {
     const res = await fetchWithTimeout(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`,
-      5000,
+      4000,
       { headers: { Accept: "application/json" } },
     );
     if (!res.ok) throw new Error("geocode failed");
@@ -383,7 +409,7 @@ export const geocodeSearch = async (q: string): Promise<Destination[]> => {
   const qs = encodeURIComponent(q);
   const tryGeocode = async (url: string, parse: (d: unknown) => GeoHit[]): Promise<GeoHit[]> => {
     try {
-      const res = await fetchWithTimeout(url, 5000, { headers: { Accept: "application/json" } });
+      const res = await fetchWithTimeout(url, 3000, { headers: { Accept: "application/json" } });
       if (!res.ok) return [];
       return parse(await res.json());
     } catch {
@@ -397,6 +423,25 @@ export const geocodeSearch = async (q: string): Promise<Destination[]> => {
   ]);
   const hits = photon.length > 0 ? photon : nominatim;
   return hits.slice(0, 5);
+};
+
+/**
+ * In-memory cache for reverse geocode results keyed by ~11m-rounded coords.
+ * Prevents duplicate network calls when the same location is geocoded
+ * multiple times (e.g. history stops near current position).
+ */
+const reverseGeocodeCache = new Map<string, GeocodeResult>();
+
+/** Cached reverse geocode — skips network if the same rounded coord was already looked up. */
+export const reverseGeocodeCached = async (lat: number, lng: number): Promise<GeocodeResult> => {
+  const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  const cached = reverseGeocodeCache.get(key);
+  if (cached) return cached;
+  const result = await reverseGeocode(lat, lng);
+  // Keep cache bounded
+  if (reverseGeocodeCache.size > 200) reverseGeocodeCache.clear();
+  reverseGeocodeCache.set(key, result);
+  return result;
 };
 
 type OsrmRoute = {

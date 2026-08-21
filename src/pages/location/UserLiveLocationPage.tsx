@@ -48,7 +48,7 @@ import {
   formatElapsed,
   movementFromSpeed,
   movementLabel,
-  reverseGeocode,
+  reverseGeocodeCached,
   getDeviceBattery,
   copyText,
   shareLocation,
@@ -269,7 +269,7 @@ export default function UserLiveLocationPage() {
     (lat: number, lng: number) => {
       setDestQuery("");
       setDestSuggestions([]);
-      void reverseGeocode(lat, lng).then((g) => selectDestination({ lat, lng, label: g.label }));
+      void reverseGeocodeCached(lat, lng).then((g) => selectDestination({ lat, lng, label: g.label }));
     },
     [selectDestination],
   );
@@ -339,7 +339,7 @@ export default function UserLiveLocationPage() {
     const lat = parseFloat(latStr!);
     const lng = parseFloat(lngStr!);
     let alive = true;
-    void reverseGeocode(lat, lng).then((g) => {
+    void reverseGeocodeCached(lat, lng).then((g) => {
       if (alive) setFullAddress(g.address);
     });
     return () => {
@@ -379,7 +379,7 @@ export default function UserLiveLocationPage() {
         setHistoryLabels((prev) => ({ ...prev, [key]: label }));
         return;
       }
-      void reverseGeocode(h.lat, h.lng).then((g) => {
+      void reverseGeocodeCached(h.lat, h.lng).then((g) => {
         if (alive) setHistoryLabels((prev) => ({ ...prev, [key]: g.label }));
       });
     });

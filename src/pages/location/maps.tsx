@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { TrailPoint } from "./helpers";
@@ -60,7 +60,7 @@ const DARK_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.pn
 
 // ── Marker animation (smooth glide between realtime updates) ────────────────
 
-const animateMarker = (marker: L.Marker, from: [number, number], to: [number, number], dur = 650) => {
+const animateMarker = (marker: L.Marker, from: [number, number], to: [number, number], dur = 500) => {
   const start = performance.now();
   const step = (t: number) => {
     const p = Math.min(1, (t - start) / dur);
@@ -126,6 +126,8 @@ export const LiveTrackingMap = ({
   const routesRef = useRef<L.LayerGroup | null>(null);
   const tileRef = useRef<L.TileLayer | null>(null);
   const lastLatLngRef = useRef<[number, number] | null>(null);
+  // Cache marker icons to avoid DOM recreation on every GPS tick
+  const cachedIconRef = useRef<{ key: string; icon: L.DivIcon } | null>(null);
 
   // Create once (tile layer added by the tileUrl effect below). The map is
   // ALWAYS created with an initial view — a Leaflet map without a view has
@@ -146,17 +148,15 @@ export const LiveTrackingMap = ({
     mapRef.current = map;
     onReady?.(map);
     // Leaflet needs the container to have non-zero dimensions when tiles
-    // load. Use multiple invalidation calls to cover async CSS layout,
-    // and a ResizeObserver to catch viewport changes (mobile address bar).
+    // load. Use a single rAF + a delayed invalidation to cover async CSS
+    // layout, plus a ResizeObserver to catch viewport changes (mobile address bar).
     const raf1 = requestAnimationFrame(() => map.invalidateSize());
-    const raf2 = setTimeout(() => map.invalidateSize(), 150);
-    const raf3 = setTimeout(() => map.invalidateSize(), 500);
+    const raf2 = setTimeout(() => map.invalidateSize(), 100);
     const ro = new ResizeObserver(() => map.invalidateSize());
     ro.observe(el);
     return () => {
       cancelAnimationFrame(raf1);
       clearTimeout(raf2);
-      clearTimeout(raf3);
       ro.disconnect();
       map.remove();
       mapRef.current = null;
@@ -168,6 +168,7 @@ export const LiveTrackingMap = ({
       routesRef.current = null;
       tileRef.current = null;
       lastLatLngRef.current = null;
+      cachedIconRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -186,8 +187,6 @@ export const LiveTrackingMap = ({
       crossOrigin: true,
     });
     tileLayer.on("tileerror", () => {
-      // If primary tiles fail, switch to OpenStreetMap fallback.
-      // Only do this once to avoid infinite loops.
       if (tileRef.current === tileLayer) {
         console.warn("[sakhi-map] Primary tiles failed, switching to OSM fallback");
         map.removeLayer(tileLayer);
@@ -215,8 +214,6 @@ export const LiveTrackingMap = ({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    // Defense-in-depth: never paint vector layers on a map without a view.
-    if (!map.getBounds()) return;
     if (!zonesRef.current) zonesRef.current = L.layerGroup().addTo(map);
     zonesRef.current.clearLayers();
     const fc = safetyGeoJson;
@@ -246,7 +243,6 @@ export const LiveTrackingMap = ({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (!map.getBounds()) return;
     if (!routesRef.current) routesRef.current = L.layerGroup().addTo(map);
     routesRef.current.clearLayers();
     (routes ?? []).forEach((r) => {
@@ -262,7 +258,7 @@ export const LiveTrackingMap = ({
   // Destination pin.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.getBounds()) return;
+    if (!map) return;
     if (destination) {
       if (!destRef.current) {
         destRef.current = L.marker([destination.lat, destination.lng], {
@@ -276,8 +272,6 @@ export const LiveTrackingMap = ({
       destRef.current.remove();
       destRef.current = null;
     }
-    // `destination` is read fresh from the render scope; only its rounded
-    // coordinates drive updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destination?.lat, destination?.lng]);
 
@@ -301,7 +295,6 @@ export const LiveTrackingMap = ({
         }).addTo(map);
       } else {
         accuracyRef.current.setLatLng(to).setRadius(accuracy);
-        // Reflect SOS state in both directions (red while active, calm after).
         accuracyRef.current.setStyle({
           color: sos ? "#DC2626" : "#7A2B73",
           fillColor: sos ? "#DC2626" : "#7A2B73",
@@ -312,8 +305,15 @@ export const LiveTrackingMap = ({
       accuracyRef.current = null;
     }
 
-    // Marker (create once, glide to each new fix)
-    const icon = avatar ? createAvatarIcon(avatar.initials, avatar.color, sos) : createDotIcon(sos);
+    // Marker — use cached icon to avoid DOM recreation on every tick
+    const iconKey = `${avatar?.initials ?? ""}|${avatar?.color ?? ""}|${sos}`;
+    let icon: L.DivIcon;
+    if (cachedIconRef.current?.key === iconKey) {
+      icon = cachedIconRef.current.icon;
+    } else {
+      icon = avatar ? createAvatarIcon(avatar.initials, avatar.color, sos) : createDotIcon(sos);
+      cachedIconRef.current = { key: iconKey, icon };
+    }
     if (!markerRef.current) {
       markerRef.current = L.marker(to, { icon, zIndexOffset: 1000 }).addTo(map);
       lastLatLngRef.current = to;
@@ -324,46 +324,45 @@ export const LiveTrackingMap = ({
       lastLatLngRef.current = to;
     }
 
-    // Movement trail
-    const line = trail.map((t) => [t.lat, t.lng] as [number, number]);
-    if (line.length > 1) {
-      if (!trailRef.current) {
-        trailRef.current = L.polyline(line, {
-          color: sos ? "#EF4444" : "#7A2B73",
-          weight: 3,
-          opacity: 0.7,
-          dashArray: sos ? "6 8" : undefined,
-        }).addTo(map);
-      } else {
-        trailRef.current.setLatLngs(line);
+    // Movement trail — append new point efficiently instead of rebuilding
+    if (trailRef.current) {
+      const latlngs = trailRef.current.getLatLngs() as L.LatLng[];
+      if (latlngs.length > 0) {
+        const last = latlngs[latlngs.length - 1];
+        if (last.lat !== to[0] || last.lng !== to[1]) {
+          latlngs.push(L.latLng(to[0], to[1]));
+          // Keep max 40 points
+          if (latlngs.length > 40) latlngs.splice(0, latlngs.length - 40);
+          trailRef.current.setLatLngs(latlngs);
+        }
       }
-    } else if (trailRef.current) {
-      trailRef.current.remove();
-      trailRef.current = null;
+    } else if (trail.length > 1) {
+      const line = trail.map((t) => [t.lat, t.lng] as [number, number]);
+      trailRef.current = L.polyline(line, {
+        color: sos ? "#EF4444" : "#7A2B73",
+        weight: 3,
+        opacity: 0.7,
+        dashArray: sos ? "6 8" : undefined,
+      }).addTo(map);
     }
 
     if (follow) {
-      // Offset the map center upward so the marker stays visible above
-      // any overlay (e.g. a bottom sheet). The offset is converted from
-      // screen pixels to lat/lng using Leaflet's projection.
+      // Simple offset: shift map center upward by bottomPadding pixels.
+      // This is equivalent to panning the map so the user's marker sits
+      // above the visual center, leaving room for the bottom sheet.
       const offsetPx = bottomPadding ?? 0;
       if (offsetPx > 0) {
         const mapSize = map.getSize();
-        const mapCenter = L.point(mapSize.x / 2, mapSize.y / 2);
-        const offsetCenter = L.point(mapSize.x / 2, mapSize.y / 2 - offsetPx);
-        const centerLatLng = map.containerPointToLatLng(mapCenter);
-        const offsetLatLng = map.containerPointToLatLng(offsetCenter);
-        const targetLat = to[0] + (to[0] - offsetLatLng.lat);
-        const targetLng = to[1] + (to[1] - offsetLatLng.lng);
-        map.panTo([targetLat, targetLng], { animate: true });
+        // Convert pixel offset to lat/lng delta using the map's pixel-per-degree ratio
+        const topLatLng = map.containerPointToLatLng(L.point(0, 0));
+        const bottomLatLng = map.containerPointToLatLng(L.point(0, mapSize.y));
+        const pxPerDegLat = mapSize.y / (topLatLng.lat - bottomLatLng.lat);
+        const latOffset = offsetPx / 2 / pxPerDegLat;
+        map.panTo([to[0] + latOffset, to[1]], { animate: true, duration: 0.5 });
       } else {
-        map.panTo(to, { animate: true });
+        map.panTo(to, { animate: true, duration: 0.5 });
       }
     }
-    // Avatar is an object prop — depend on its fields, not its identity, so
-    // parent re-renders (e.g. a per-second SOS timer) don't reset the icon
-    // and re-pan the map on every tick. `trail`/`latest` are intentionally
-    // read fresh from the render scope only when the latest point changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latest?.lat, latest?.lng, latest?.ts, accuracy, avatar?.initials, avatar?.color, sos, follow, bottomPadding]);
 
