@@ -289,12 +289,22 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // ── GPS Geolocation Engine ──
+  // Track whether we have successfully received at least one fix, so we
+  // can distinguish "still loading" from "permission denied / unavailable".
+  const hasReceivedFixRef = useRef(false);
+
   const requestLocation = useCallback(() => {
     setLocationState(prev => ({ ...prev, loading: true, error: false }));
-    
+
     if (!("geolocation" in navigator)) {
-       setLocationState({ coords: null, address: null, loading: false, error: true });
-       return;
+      setLocationState(prev => ({
+        ...prev,
+        loading: false,
+        error: true,
+        // Provide a meaningful address so UI never shows blank
+        address: prev.address ?? "Location services unavailable",
+      }));
+      return;
     }
 
     // Replace any previous watch so repeated calls never pile up.
@@ -303,52 +313,117 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       locationWatchIdRef.current = null;
     }
 
-    const watchId = navigator.geolocation.watchPosition(
-      async (pos) => {
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        
+    /** Process a successful position fix — shared by getCurrent + watch. */
+    const handlePosition = async (pos: GeolocationPosition) => {
+      const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      hasReceivedFixRef.current = true;
+
+      setLocationState(prev => ({
+        ...prev,
+        coords: c,
+        accuracy: pos.coords.accuracy ?? null,
+        speed: pos.coords.speed ?? null,
+        heading: pos.coords.heading ?? null,
+        timestamp: pos.timestamp,
+        error: false,
+        loading: false,
+      }));
+
+      // Reverse geocode when the user has moved >50 m from the last geocoded point.
+      const last = lastGeocodedCoords.current;
+      if (!last || calculateDistance(last.lat, last.lng, c.lat, c.lng) > 50) {
+        lastGeocodedCoords.current = c;
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${c.lat}&lon=${c.lng}&zoom=14`,
+            { headers: { Accept: "application/json" } },
+          );
+          const data = await res.json();
+          if (data?.address) {
+            const a = data.address;
+            const area = a.suburb || a.neighbourhood || a.residential || "";
+            const city = a.city || a.town || a.village || a.county || "";
+            const readable = [area, city].filter(Boolean).join(", ");
+            if (readable) setLocationState(prev => ({ ...prev, address: readable }));
+          }
+        } catch {
+          // Network error — ignore, coords are still valid
+        }
+      }
+    };
+
+    /** Handle geolocation errors with specific messaging. */
+    const handleError = (err: GeolocationPositionError) => {
+      console.warn("[sakhi-gps] Error:", err.code, err.message);
+      if (err.code === 1) {
+        // PERMISSION_DENIED
         setLocationState(prev => ({
           ...prev,
-          coords,
-          accuracy: pos.coords.accuracy ?? null,
-          speed: pos.coords.speed ?? null,
-          heading: pos.coords.heading ?? null,
-          timestamp: pos.timestamp,
-          error: false,
           loading: false,
+          error: true,
+          address: "Location permission denied — enable in browser settings",
         }));
+      } else if (err.code === 2) {
+        // POSITION_UNAVAILABLE
+        setLocationState(prev => ({
+          ...prev,
+          loading: false,
+          error: true,
+          address: hasReceivedFixRef.current
+            ? "GPS signal lost — waiting for reconnection"
+            : "Unable to determine location — check GPS settings",
+        }));
+      } else {
+        // TIMEOUT (code 3) or other
+        setLocationState(prev => ({
+          ...prev,
+          loading: false,
+          error: true,
+          address: hasReceivedFixRef.current
+            ? "Location request timed out — retrying"
+            : "Waiting for GPS signal…",
+        }));
+      }
+    };
 
-        // Check distance to last geocoded point. If > 50 meters, fetch new address.
-        const last = lastGeocodedCoords.current;
-        if (!last || calculateDistance(last.lat, last.lng, coords.lat, coords.lng) > 50) {
-            lastGeocodedCoords.current = coords;
-            try {
-              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}&zoom=14`);
-              const data = await res.json();
-              if (data && data.address) {
-                 // Try to formulate a clean city location (e.g. "Bandra West, Mumbai")
-                 const suburb = data.address.suburb || data.address.neighbourhood || data.address.residential;
-                 const city = data.address.city || data.address.town || data.address.county;
-                 const readable = [suburb, city].filter(Boolean).join(", ");
-                 setLocationState(prev => ({ ...prev, address: readable || "Unknown Area" }));
-              }
-            } catch (err) {
-              console.warn("Reverse geocoding failed", err);
-              // don't set error: true because we still have coords
-            }
-        }
+    const geoOptions: PositionOptions = {
+      enableHighAccuracy: true,
+      maximumAge: 5000,
+      timeout: 15000,
+    };
+
+    // Step 1: Request a one-shot fix (triggers the permission prompt on
+    // browsers that require a user gesture before prompting).
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        // Got an immediate fix — process it and start continuous watching.
+        void handlePosition(pos);
+        const watchId = navigator.geolocation.watchPosition(
+          handlePosition,
+          handleError,
+          geoOptions,
+        );
+        locationWatchIdRef.current = watchId;
       },
       (err) => {
-        console.warn("GPS Tracking Warning:", err.message);
-        setLocationState(prev => ({ ...prev, loading: false, error: true }));
+        // Initial request failed — still start watchPosition in case the
+        // user grants permission after the prompt or the device acquires GPS.
+        handleError(err);
+        const watchId = navigator.geolocation.watchPosition(
+          handlePosition,
+          handleError,
+          geoOptions,
+        );
+        locationWatchIdRef.current = watchId;
       },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      geoOptions,
     );
-    locationWatchIdRef.current = watchId;
 
     return () => {
-      if (locationWatchIdRef.current === watchId) locationWatchIdRef.current = null;
-      navigator.geolocation.clearWatch(watchId);
+      if (locationWatchIdRef.current != null) {
+        navigator.geolocation.clearWatch(locationWatchIdRef.current);
+        locationWatchIdRef.current = null;
+      }
     };
   }, []);
 
@@ -363,18 +438,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   //    callbacks don't hammer the API. Never in guest mode, and paused when
   //    the user switches "Stop Sharing" off on the Live Location screen.
   const lastLocationUpsertRef = useRef(0);
+  const upsertFailedRef = useRef(false);
   useEffect(() => {
     if (!isSupabaseConfigured || guest || !user) return;
     if (!isSharingEnabled()) return;
     const coords = locationState.coords;
     if (!coords) return;
     const now = Date.now();
-    if (now - lastLocationUpsertRef.current < 5000) return;
+    // Throttle to every 5 seconds, BUT always allow the first write
+    // (lastLocationUpsertRef starts at 0, so the very first call always
+    // passes). After a successful write, update the ref. After a failure,
+    // retry sooner (2 seconds) so the guardian isn't left stale.
+    const interval = upsertFailedRef.current ? 2000 : 5000;
+    if (now - lastLocationUpsertRef.current < interval) return;
     lastLocationUpsertRef.current = now;
     const label = locationState.address ?? null;
     void (async () => {
-      const battery = await getDeviceBattery();
-      void upsertLiveLocation({ lat: coords.lat, lng: coords.lng, label, battery });
+      try {
+        const battery = await getDeviceBattery();
+        await upsertLiveLocation({ lat: coords.lat, lng: coords.lng, label, battery });
+        upsertFailedRef.current = false;
+      } catch {
+        upsertFailedRef.current = true;
+      }
     })();
   }, [locationState.coords, locationState.address, guest, user]);
 

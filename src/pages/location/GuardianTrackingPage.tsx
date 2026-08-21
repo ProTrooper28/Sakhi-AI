@@ -86,7 +86,12 @@ export default function GuardianTrackingPage() {
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     let mounted = true;
-    void fetchLiveLocations().then((locs) => {
+
+    const load = async () => {
+      const [locs, evts] = await Promise.all([
+        fetchLiveLocations(),
+        fetchSafetyEvents(),
+      ]);
       if (!mounted) return;
       const map = Object.fromEntries(locs.map((l) => [l.user_id, l]));
       setLocations(map);
@@ -95,10 +100,25 @@ export default function GuardianTrackingPage() {
           locs.map((l) => [l.user_id, [{ lat: l.latitude, lng: l.longitude, ts: new Date(l.updated_at).getTime() }] as TrailPoint[]]),
         ),
       );
-    });
-    void fetchSafetyEvents().then((evts) => {
-      if (mounted) setEvents(evts);
-    });
+      setEvents(evts);
+    };
+
+    void load();
+
+    // Auto-refresh every 10 seconds if we still have no location data
+    // for any linked member. This covers the case where the user's device
+    // hasn't started sharing yet (e.g. GPS permission just granted, or
+    // Supabase Realtime is flaky).
+    const refreshInterval = setInterval(() => {
+      if (!mounted) return;
+      setLocations((prev) => {
+        const hasData = Object.keys(prev).length > 0;
+        if (hasData) return prev; // Realtime is keeping us updated
+        void load();
+        return prev;
+      });
+    }, 10000);
+
     const offLocations = subscribeLiveLocations((loc) => {
       setLocations((prev) => ({ ...prev, [loc.user_id]: loc }));
       setTrails((prev) => {
@@ -114,6 +134,7 @@ export default function GuardianTrackingPage() {
     );
     return () => {
       mounted = false;
+      clearInterval(refreshInterval);
       offLocations();
       offEvents();
     };
@@ -257,7 +278,11 @@ export default function GuardianTrackingPage() {
             <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 14, color: "#3D2315" }}>
               {selected ? "Waiting for live location…" : "No linked family members yet"}
             </p>
-            {!selected && (
+            {selected ? (
+              <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#9E7A6A", textAlign: "center", maxWidth: 260, lineHeight: 1.5 }}>
+                {selected.user_name} hasn't shared their location yet. Make sure they have Location Services enabled and are signed in.
+              </p>
+            ) : (
               <button
                 onClick={() => navigate("/guardian")}
                 className="px-4 py-2 rounded-full text-white cursor-pointer"

@@ -467,6 +467,15 @@ export default function UserLiveLocationPage() {
 
   const sosCoords = sosState.coords;
 
+  // ── GPS error state messages ──
+  const gpsErrorMessage = locationState.error
+    ? locationState.address?.includes("denied")
+      ? "Location permission denied"
+      : locationState.address?.includes("unavailable") || locationState.address?.includes("Unable")
+        ? "GPS unavailable"
+        : "Location unavailable"
+    : null;
+
   return (
     <AppLayout>
       <div
@@ -489,6 +498,53 @@ export default function UserLiveLocationPage() {
             mapRef.current = map;
           }}
         />
+
+        {/* ── GPS error / loading overlay ── */}
+        {(!coords && !sosState.active) && (
+          <div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[600] flex flex-col items-center gap-3 px-6 py-5 rounded-[24px]"
+            style={{
+              background: "rgba(255,252,249,0.96)",
+              backdropFilter: "blur(12px)",
+              boxShadow: "0 8px 32px rgba(139,58,47,0.15)",
+              border: "1px solid rgba(242,149,106,0.2)",
+              maxWidth: 300,
+              fontFamily: "Nunito,sans-serif",
+            }}
+          >
+            {gpsErrorMessage ? (
+              <>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "rgba(212,69,92,0.12)" }}>
+                  <AlertTriangle style={{ width: 20, height: 20, color: "#D4455C" }} />
+                </div>
+                <p style={{ fontWeight: 800, fontSize: 13, color: "#3D2315", textAlign: "center" }}>{gpsErrorMessage}</p>
+                <p style={{ fontWeight: 600, fontSize: 11, color: "#9E7A6A", textAlign: "center", lineHeight: 1.5 }}>
+                  {gpsErrorMessage.includes("denied")
+                    ? "Please enable location access in your browser or device settings to use Live Location."
+                    : "Make sure GPS is enabled and you have a clear view of the sky."
+                  }
+                </p>
+                <button
+                  onClick={onRefresh}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl cursor-pointer"
+                  style={{ background: "#D4455C", color: "white", fontWeight: 800, fontSize: 12, border: "none" }}
+                >
+                  <RefreshCw style={{ width: 13, height: 13 }} /> Retry
+                </button>
+              </>
+            ) : locationState.loading ? (
+              <>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: "rgba(122,43,115,0.1)" }}>
+                  <Satellite className="w-5 h-5 animate-spin" style={{ color: "#7A2B73" }} />
+                </div>
+                <p style={{ fontWeight: 800, fontSize: 13, color: "#3D2315", textAlign: "center" }}>Acquiring GPS signal…</p>
+                <p style={{ fontWeight: 600, fontSize: 11, color: "#9E7A6A", textAlign: "center" }}>
+                  This may take a few seconds on first use
+                </p>
+              </>
+            ) : null}
+          </div>
+        )}
 
         {/* ── Top bar overlay ── */}
         <div

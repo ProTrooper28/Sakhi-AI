@@ -145,9 +145,19 @@ export const LiveTrackingMap = ({
     });
     mapRef.current = map;
     onReady?.(map);
-    const raf = requestAnimationFrame(() => map.invalidateSize());
+    // Leaflet needs the container to have non-zero dimensions when tiles
+    // load. Use multiple invalidation calls to cover async CSS layout,
+    // and a ResizeObserver to catch viewport changes (mobile address bar).
+    const raf1 = requestAnimationFrame(() => map.invalidateSize());
+    const raf2 = setTimeout(() => map.invalidateSize(), 150);
+    const raf3 = setTimeout(() => map.invalidateSize(), 500);
+    const ro = new ResizeObserver(() => map.invalidateSize());
+    ro.observe(el);
     return () => {
-      cancelAnimationFrame(raf);
+      cancelAnimationFrame(raf1);
+      clearTimeout(raf2);
+      clearTimeout(raf3);
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
@@ -162,12 +172,32 @@ export const LiveTrackingMap = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Tile layer (swaps when tileUrl changes).
+  // Tile layer (swaps when tileUrl changes). Includes a fallback tile
+  // provider in case the primary tiles fail to load (e.g. network issue,
+  // CORS restriction, or rate limiting).
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     if (tileRef.current) map.removeLayer(tileRef.current);
-    tileRef.current = L.tileLayer(tileUrl ?? LIGHT_TILES, { maxZoom: 19 }).addTo(map);
+    const primaryUrl = tileUrl ?? LIGHT_TILES;
+    const fallbackUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+    const tileLayer = L.tileLayer(primaryUrl, {
+      maxZoom: 19,
+      crossOrigin: true,
+    });
+    tileLayer.on("tileerror", () => {
+      // If primary tiles fail, switch to OpenStreetMap fallback.
+      // Only do this once to avoid infinite loops.
+      if (tileRef.current === tileLayer) {
+        console.warn("[sakhi-map] Primary tiles failed, switching to OSM fallback");
+        map.removeLayer(tileLayer);
+        const fallback = L.tileLayer(fallbackUrl, { maxZoom: 19, crossOrigin: true });
+        fallback.addTo(map);
+        tileRef.current = fallback;
+      }
+    });
+    tileLayer.addTo(map);
+    tileRef.current = tileLayer;
   }, [tileUrl]);
 
   // Map click → destination.
