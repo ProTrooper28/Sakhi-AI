@@ -374,4 +374,7 @@
   .guardian-sos-card {
     animation: sos-ring 1.6s ease-out infinite;
   }
+  .guardian-emergency-bg {
+    background: linear-gradient(180deg, #0A0A0A 0%, #1A0505 30%, #2D0A0A 60%, #0A0A0A 100%);
+  }
 }
