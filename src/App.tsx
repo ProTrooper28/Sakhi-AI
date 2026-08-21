@@ -6,7 +6,10 @@ import { Toaster } from "@/components/ui/toaster";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { AppProvider } from "@/context/AppContext";
+import { AppProvider, useApp } from "@/context/AppContext";
+import { EmergencyActivationProvider } from "@/components/emergency/EmergencyActivationProvider";
+import VoiceSOSIndicator from "@/components/emergency/VoiceSOSIndicator";
+import ShakeCountdown from "@/components/emergency/ShakeCountdown";
 import { canAccess, roleHomePath } from "@/lib/auth-types";
 import WelcomePage from "./pages/WelcomePage";
 import AuthChoicePage from "./pages/AuthChoicePage";
@@ -110,10 +113,27 @@ const Protected = ({ children }: { children: ReactNode }) => {
   return <>{children}</>;
 };
 
+/**
+ * Wraps the app with EmergencyActivationProvider once the AppContext
+ * (which owns triggerSOS) is available. Renders the global overlays
+ * (voice indicator + shake countdown) that must live outside routes.
+ */
+const EmergencyShell = ({ children }: { children: ReactNode }) => {
+  const { triggerSOS } = useApp();
+  return (
+    <EmergencyActivationProvider triggerSOS={triggerSOS}>
+      <VoiceSOSIndicator />
+      <ShakeCountdown />
+      {children}
+    </EmergencyActivationProvider>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <AppProvider>
+        <EmergencyShell>
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -327,6 +347,7 @@ const App = () => (
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
+        </EmergencyShell>
       </AppProvider>
     </AuthProvider>
   </QueryClientProvider>

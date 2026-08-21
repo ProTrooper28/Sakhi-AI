@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Lock, Bell, Fingerprint, Eye, EyeOff, Phone, ChevronRight, AlertTriangle, Check, X, Sparkles, AlertCircle, Radio, Volume2, Watch, Hand } from "lucide-react";
+import { Shield, Lock, Bell, Fingerprint, Eye, EyeOff, Phone, ChevronRight, AlertTriangle, Check, X, Sparkles, AlertCircle, Radio, Volume2, Watch, Hand, Mic, Vibrate, TestTube2, Trash2, Plus } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
@@ -14,6 +14,7 @@ import {
   type TriggerConfig,
   type TriggerMethodId,
 } from "@/lib/safety";
+import { useEmergencyActivation } from "@/components/emergency/EmergencyActivationProvider";
 
 const TRIGGER_ICONS: Record<TriggerMethodId, typeof Radio> = {
   "voice-phrase": Volume2,
@@ -51,6 +52,288 @@ const sections = [
     ],
   },
 ];
+
+/**
+ * Emergency Activation section — Voice SOS + Double Shake SOS.
+ * Reads/writes settings via the EmergencyActivationProvider context.
+ */
+function EmergencyActivationSection() {
+  const {
+    voiceListening, voiceToggle, voicePhrases, voiceAddPhrase, voiceRemovePhrase,
+    voiceSupported, voiceTranscript, voicePermissionError,
+    shakeListening, shakeToggle, shakeSensitivity, shakeSetSensitivity,
+    shakeSupported, shakePermissionError,
+    testMode, enterTestMode, exitTestMode,
+  } = useEmergencyActivation();
+
+  const [newPhrase, setNewPhrase] = useState("");
+  const [testToast, setTestToast] = useState<string | null>(null);
+
+  const showTestToast = (msg: string) => {
+    setTestToast(msg);
+    setTimeout(() => setTestToast(null), 3000);
+  };
+
+  return (
+    <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="p-2.5 rounded-2xl bg-[#D4455C]/10 text-[#D4455C]">
+          <Shield className="w-5 h-5" />
+        </div>
+        <div>
+          <h2 className="font-extrabold text-base text-[#3D2315] font-heading">Emergency Activation</h2>
+          <p className="text-[10px] font-bold text-[#D4455C] uppercase">
+            {(voiceListening ? 1 : 0) + (shakeListening ? 1 : 0)} method{(voiceListening ? 1 : 0) + (shakeListening ? 1 : 0) === 1 ? "" : "s"} active
+          </p>
+        </div>
+      </div>
+      <p className="text-[#9E7A6A] text-xs mt-2 leading-relaxed">
+        Trigger SOS hands-free with voice phrases or shake gestures. Both invoke the exact same
+        emergency workflow as the SOS button — no duplicate logic.
+      </p>
+
+      {/* ── Voice SOS ── */}
+      <div className="mt-5 pt-4 border-t border-[#F5E4D6]">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: voiceListening ? "rgba(212,69,92,0.1)" : "#FBF0E9" }}>
+              <Mic className="w-4 h-4" style={{ color: voiceListening ? "#D4455C" : "#9E7A6A" }} />
+            </div>
+            <div>
+              <p className="text-[#3D2315] text-sm font-bold">Voice SOS</p>
+              <p className="text-[#9E7A6A] text-[10px] leading-relaxed">
+                {voiceSupported ? (voiceListening ? "Monitoring active" : "Off — enable to start") : "Not supported on this device"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={voiceToggle}
+            disabled={!voiceSupported}
+            className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-0.5 cursor-pointer ${
+              voiceListening ? "bg-[#D4455C]" : "bg-[#F5E4D6]"
+            } ${!voiceSupported ? "opacity-50" : ""}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+              voiceListening ? "translate-x-5.5" : "translate-x-0.5"
+            }`} />
+          </button>
+        </div>
+
+        {voiceListening && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
+            {/* Listening indicator */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl mb-3" style={{ background: "rgba(212,69,92,0.06)" }}>
+              <span className="w-2 h-2 rounded-full" style={{ background: "#D4455C", animation: "dot-pulse 1s ease-in-out infinite" }} />
+              <span className="text-[10px] font-bold text-[#D4455C] uppercase tracking-wide">
+                Listening for phrases...
+              </span>
+              {voiceTranscript && (
+                <span className="text-[9px] font-semibold text-[#9E7A6A] ml-auto truncate max-w-[120px]">
+                  &quot;{voiceTranscript}&quot;
+                </span>
+              )}
+            </div>
+
+            {/* Default phrases */}
+            <p className="text-[10px] font-black uppercase tracking-widest text-[#9E7A6A] mb-2">
+              Activation Phrases
+            </p>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {voicePhrases.slice(0, 7).map((p) => (
+                <span key={p} className="px-2.5 py-1 rounded-full text-[10px] font-bold text-[#D4455C]" style={{ background: "rgba(212,69,92,0.08)" }}>
+                  &quot;{p}&quot;
+                </span>
+              ))}
+            </div>
+
+            {/* Custom phrase input */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newPhrase}
+                onChange={(e) => setNewPhrase(e.target.value)}
+                placeholder="Add custom phrase..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newPhrase.trim()) {
+                    voiceAddPhrase(newPhrase);
+                    setNewPhrase("");
+                  }
+                }}
+                className="flex-1 bg-[#FBF0E9] border border-[#F5E4D6] rounded-xl px-3 py-2 text-xs font-bold text-[#3D2315] focus:outline-none focus:border-[#F2956A]"
+              />
+              <button
+                onClick={() => { if (newPhrase.trim()) { voiceAddPhrase(newPhrase); setNewPhrase(""); } }}
+                disabled={!newPhrase.trim()}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-white bg-[#D4455C] disabled:opacity-40 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {voicePermissionError && (
+          <p className="text-[10px] font-bold text-[#D4455C] mt-2">{voicePermissionError}</p>
+        )}
+
+        {/* Test Voice Detection */}
+        <div className="mt-3 pt-3 border-t border-[#F5E4D6]">
+          <button
+            onClick={() => {
+              if (testMode.active && testMode.method === "voice") {
+                exitTestMode();
+                showTestToast("Test mode ended");
+              } else {
+                enterTestMode("voice");
+                showTestToast("Speak a phrase — SOS will NOT be triggered");
+              }
+            }}
+            className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+              testMode.active && testMode.method === "voice"
+                ? "text-white bg-[#D4455C]"
+                : "text-[#D4455C] bg-[#FBDDED]/50 hover:bg-[#FBDDED]"
+            }`}
+          >
+            <TestTube2 className="w-3.5 h-3.5" />
+            {testMode.active && testMode.method === "voice" ? "Stop Testing" : "Test Voice Detection"}
+          </button>
+          {testMode.active && testMode.method === "voice" && testMode.timestamp && (
+            <p className="text-[10px] font-bold text-[#3D9970] mt-2 text-center">
+              ✓ Phrase detected — no alert sent (test mode)
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Double Shake SOS ── */}
+      <div className="mt-5 pt-4 border-t border-[#F5E4D6]">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: shakeListening ? "rgba(122,43,115,0.1)" : "#FBF0E9" }}>
+              <Vibrate className="w-4 h-4" style={{ color: shakeListening ? "#7A2B73" : "#9E7A6A" }} />
+            </div>
+            <div>
+              <p className="text-[#3D2315] text-sm font-bold">Double Shake SOS</p>
+              <p className="text-[#9E7A6A] text-[10px] leading-relaxed">
+                {shakeSupported ? (shakeListening ? "Monitoring active" : "Off — enable to start") : "Not supported on this device"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={shakeToggle}
+            disabled={!shakeSupported}
+            className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-0.5 cursor-pointer ${
+              shakeListening ? "bg-[#7A2B73]" : "bg-[#F5E4D6]"
+            } ${!shakeSupported ? "opacity-50" : ""}`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+              shakeListening ? "translate-x-5.5" : "translate-x-0.5"
+            }`} />
+          </button>
+        </div>
+
+        {shakeListening && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
+            {/* Sensitivity selector */}
+            <p className="text-[10px] font-black uppercase tracking-widest text-[#9E7A6A] mb-2">
+              Sensitivity
+            </p>
+            <div className="flex gap-2 mb-3">
+              {(["low", "medium", "high"] as const).map((level) => (
+                <button
+                  key={level}
+                  onClick={() => shakeSetSensitivity(level)}
+                  className={`flex-1 py-2 rounded-xl text-[11px] font-bold capitalize cursor-pointer transition-all ${
+                    shakeSensitivity === level
+                      ? "bg-[#7A2B73] text-white"
+                      : "bg-[#FBF0E9] text-[#9E7A6A] hover:bg-[#F5E4D6]"
+                  }`}
+                >
+                  {level}
+                </button>
+              ))}
+            </div>
+
+            {/* How it works */}
+            <div className="px-3 py-2 rounded-xl mb-3" style={{ background: "rgba(122,43,115,0.06)" }}>
+              <p className="text-[10px] font-bold text-[#7A2B73] leading-relaxed">
+                Shake your phone twice rapidly (within 2.5s). A 3-second countdown will appear
+                with Cancel and Trigger Now buttons.
+              </p>
+            </div>
+          </motion.div>
+        )}
+
+        {shakePermissionError && (
+          <p className="text-[10px] font-bold text-[#D4455C] mt-2">{shakePermissionError}</p>
+        )}
+
+        {/* Test Shake Detection */}
+        <div className="mt-3 pt-3 border-t border-[#F5E4D6]">
+          <button
+            onClick={() => {
+              if (testMode.active && testMode.method === "shake") {
+                exitTestMode();
+                showTestToast("Test mode ended");
+              } else {
+                enterTestMode("shake");
+                showTestToast("Shake your phone — SOS will NOT be triggered");
+              }
+            }}
+            className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+              testMode.active && testMode.method === "shake"
+                ? "text-white bg-[#7A2B73]"
+                : "text-[#7A2B73] bg-[#7A2B73]/8 hover:bg-[#7A2B73]/15"
+            }`}
+          >
+            <TestTube2 className="w-3.5 h-3.5" />
+            {testMode.active && testMode.method === "shake" ? "Stop Testing" : "Test Shake Detection"}
+          </button>
+          {testMode.active && testMode.method === "shake" && testMode.timestamp && (
+            <p className="text-[10px] font-bold text-[#3D9970] mt-2 text-center">
+              ✓ Shake detected — no alert sent (test mode)
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Privacy notice ── */}
+      <div className="mt-4 pt-4 border-t border-[#F5E4D6]">
+        <p className="text-[10px] font-black uppercase tracking-widest text-[#9E7A6A] mb-2">
+          Privacy
+        </p>
+        <ul className="space-y-1.5">
+          {[
+            "Voice monitoring is active only when Voice SOS is enabled.",
+            "Audio is not stored or uploaded — speech recognition runs locally.",
+            "Motion data is processed only for shake detection.",
+            "Both methods invoke the same SOS workflow as the button.",
+          ].map((item) => (
+            <li key={item} className="flex items-start gap-2">
+              <Check className="w-3 h-3 text-[#3D9970] mt-0.5 flex-shrink-0" />
+              <span className="text-[10px] font-semibold text-[#9E7A6A] leading-relaxed">{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Test toast */}
+      <AnimatePresence>
+        {testToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="mt-3 px-3 py-2 rounded-xl text-[11px] font-bold text-center"
+            style={{ background: "rgba(61,153,112,0.1)", color: "#3D9970" }}
+          >
+            {testToast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 export default function SecuritySettingsPage() {
   const navigate = useNavigate();
@@ -265,6 +548,9 @@ export default function SecuritySettingsPage() {
                   </p>
                 </div>
               </div>
+
+              {/* ── Emergency Activation (Voice SOS + Double Shake SOS) ── */}
+              <EmergencyActivationSection />
             </div>
 
             {/* Right Section: Access PIN & Contacts */}
