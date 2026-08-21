@@ -6,6 +6,7 @@ import { Mic, Send, MapPin, Shield, AlertTriangle, Lock, Sparkles, Check, Phone,
 import { motion, AnimatePresence } from "framer-motion";
 import { recommendForText, type SafetyAction } from "@/lib/safety";
 import { shareLocation } from "@/pages/location/helpers";
+import { sendMessageToApi } from "@/lib/chatApi";
 
 type Message = {
   id: string;
@@ -171,7 +172,7 @@ export default function AssistantPage() {
     }
   };
 
-  const dispatch = (text: string) => {
+  const dispatch = async (text: string) => {
     if (!text.trim() || isProcessing) return;
 
     const userMsg: Message = { id: Date.now().toString(), role: "user", content: text };
@@ -182,34 +183,58 @@ export default function AssistantPage() {
     setInput("");
     setIsProcessing(true);
 
-    // Feature 3 — the AI safety engine turns the message into a concrete
-    // recommendation (intent → reply + actionable buttons, no hallucination).
+    // Local intent detection for safety action buttons + emergency escalation.
     const rec = recommendForText(text);
+    const newMode = rec.escalate ? "emergency" : "normal";
+    setMode(newMode);
 
-    setTimeout(() => {
-      const newMode = rec.escalate ? "emergency" : "normal";
-      setMode(newMode);
-      setMessages(prev => prev.map(msg =>
-        msg.id === typingId
-          ? {
-              ...msg,
-              content: rec.reply,
-              isTyping: false,
-              suggestions: rec.actions.map((a) => ({ label: a.label, action: a.id })),
-            }
-          : msg
-      ));
+    // Build conversation history for the Groq backend.
+    const conversationHistory = [...messages, userMsg]
+      .filter((m) => !m.isTyping)
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-      setTimeout(() => {
-        setIsProcessing(false);
-        // High-risk auto-actions (same behaviour as before, driven by the engine)
-        if (rec.intent === "panic") {
-          triggerSOS();
-        } else if (rec.intent === "recovery") {
-          cancelSOS();
-        }
-      }, 500);
-    }, Math.random() * 600 + 700);
+    try {
+      const reply = await sendMessageToApi(conversationHistory);
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === typingId
+            ? {
+                ...msg,
+                content: reply,
+                isTyping: false,
+                suggestions: rec.actions.map((a) => ({ label: a.label, action: a.id })),
+              }
+            : msg,
+        ),
+      );
+
+      // High-risk auto-actions driven by the local safety engine.
+      if (rec.intent === "panic") {
+        triggerSOS();
+      } else if (rec.intent === "recovery") {
+        cancelSOS();
+      }
+    } catch {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === typingId
+            ? {
+                ...msg,
+                content:
+                  "I couldn't reach my servers right now. Please try again — or use the SOS button for immediate help.",
+                isTyping: false,
+                suggestions: [
+                  { label: "Emergency SOS", action: "trigger_sos" },
+                  { label: "Call Guardian", action: "call_apne" },
+                ],
+              }
+            : msg,
+        ),
+      );
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (

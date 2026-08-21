@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
+import { handleChatRequest } from "./api/chat";
+import type { IncomingMessage, ServerResponse } from "http";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -41,6 +43,31 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     mode === "development" && componentTagger(),
+    // API middleware — handles POST /api/chat → Groq in dev
+    {
+      name: "sakhi-api-middleware",
+      configureServer(server: any) {
+        server.middlewares.use("/api/chat", async (req: IncomingMessage, res: ServerResponse) => {
+          if (req.method !== "POST") {
+            res.writeHead(405, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Method not allowed" }));
+            return;
+          }
+          let body = "";
+          for await (const chunk of req) body += chunk;
+          try {
+            const { messages } = JSON.parse(body);
+            const content = await handleChatRequest(messages);
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ content }));
+          } catch (err: any) {
+            console.error("[/api/chat]", err);
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: err.message || "Internal error" }));
+          }
+        });
+      },
+    },
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["logo.png", "logo.svg", "logo-mark.svg", "logo-maskable.svg", "icon-192.svg", "icon-512.svg", "icon-192.png", "icon-512.png", "icon-maskable-512.png"],
