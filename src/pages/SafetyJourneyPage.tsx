@@ -44,7 +44,7 @@ import {
   GPS_LOSS_ALERT_SEC,
   type JourneyAlert,
 } from "@/lib/safety";
-import { upsertLiveLocation, sendSafeCheckIn } from "@/lib/safety";
+import { upsertLiveLocation, sendSafeCheckIn, sendJourneyNotification } from "@/lib/safety";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
 // ─── Leaflet icon defaults (same as the Risk Map page) ───────────────────────
@@ -327,6 +327,13 @@ const SafetyJourneyPage = () => {
 
       if (guardianConnected && monitoring.shareLiveLocation) {
         void upsertLiveLocation({ lat: currentPos[0], lng: currentPos[1], label: locationState.address });
+        // Notify guardian that journey has started
+        void sendJourneyNotification({
+          lat: currentPos[0],
+          lng: currentPos[1],
+          label: `Journey started: ${selectedDest?.label ?? "unknown"}`,
+          alertType: "journey-start",
+        });
       }
       toast({ title: "Journey Started", description: `${MODE_LABEL[mode]} · AI monitoring is active.` });
     } finally {
@@ -335,6 +342,18 @@ const SafetyJourneyPage = () => {
   }, [selectedDest, mode, currentPos, guardianConnected, locationState.address, ride, monitoring, trustedContactId, etaOverrideMs, starting]);
 
   // ── Live monitoring ticker (every GPS fix + 10s safety tick) ──
+  // ── Notify guardian of route deviation via Supabase safety_events ──
+  const notifyGuardianDeviation = useCallback(async (message: string) => {
+    if (!guardianConnected) return;
+    const pos = locationState.coords;
+    await sendJourneyNotification({
+      lat: pos?.lat ?? 0,
+      lng: pos?.lng ?? 0,
+      label: `Route deviation: ${message}`,
+      alertType: "deviation",
+    });
+  }, [guardianConnected, locationState.coords]);
+
   const handleAlerts = useCallback((alerts: JourneyAlert[]) => {
     for (const alert of alerts) {
       if (alert.kind === "arrived") {
@@ -346,13 +365,15 @@ const SafetyJourneyPage = () => {
         deviationAckedRef.current = true;
         setNeedHelpOpen(false);
         setPrompt({ kind: "deviation", message: alert.message, askedAt: Date.now() });
+        // Immediately notify the guardian of the deviation
+        void notifyGuardianDeviation(alert.message);
         continue;
       }
       // inactivity / GPS loss / long journey → unified "Everything okay?"
       setNeedHelpOpen(false);
       setPrompt({ kind: "check", message: alert.message, askedAt: Date.now() });
     }
-  }, []);
+  }, [notifyGuardianDeviation]);
 
   useEffect(() => {
     if (journeyRef.current.status !== "active") return;
@@ -1008,6 +1029,7 @@ const SafetyJourneyPage = () => {
                 {prompt.kind === "deviation" && responseLeft != null && responseLeft <= 0 && (
                   <button
                     onClick={() => {
+                      void notifyGuardianDeviation(prompt.message);
                       toast({ title: "Guardian Notified", description: "Your guardian has been alerted about the route change." });
                       acknowledgePrompt();
                     }}

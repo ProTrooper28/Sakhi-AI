@@ -109,6 +109,34 @@ export const sendSafeCheckIn = async (p: {
   return data as SafetyEvent;
 };
 
+/** ── User side: journey alert notification (deviation, ETA change, SOS during journey) ── */
+export const sendJourneyNotification = async (p: {
+  lat: number;
+  lng: number;
+  label: string | null;
+  alertType?: string;
+}): Promise<SafetyEvent | null> => {
+  const userId = await currentUserId();
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from("safety_events")
+    .insert({
+      user_id: userId,
+      type: "checkin",
+      status: "active",
+      latitude: p.lat,
+      longitude: p.lng,
+      location_label: p.label,
+    })
+    .select()
+    .single();
+  if (error) {
+    logError("sendJourneyNotification failed", error);
+    return null;
+  }
+  return data as SafetyEvent;
+};
+
 /** ── Resolve an SOS event (own, or a linked user's — guardian Mark Safe) ─── */
 export const resolveSosEvent = async (eventId: string): Promise<boolean> => {
   if (!configured) return false;
