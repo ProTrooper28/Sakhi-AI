@@ -2,9 +2,20 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
 import AppLayout from "@/components/AppLayout";
-import { Mic, Send, MapPin, Shield, AlertTriangle, Lock, Sparkles, Check, Phone, Clock, Volume2, ShieldAlert } from "lucide-react";
+import {
+  Mic,
+  Send,
+  MapPin,
+  AlertTriangle,
+  Lock,
+  Clock,
+  ShieldAlert,
+  Paperclip,
+  RefreshCw,
+  Sparkle,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { recommendForText, type SafetyAction } from "@/lib/safety";
+import { recommendForText } from "@/lib/safety";
 import { shareLocation } from "@/pages/location/helpers";
 import { sendMessageToApi } from "@/lib/chatApi";
 
@@ -13,10 +24,71 @@ type Message = {
   role: "user" | "assistant";
   content: string;
   isTyping?: boolean;
+  isStreaming?: boolean;
   suggestions?: { label: string; action: string }[];
+  timestamp: number;
+  isError?: boolean;
 };
 
 type ChatMode = "normal" | "emergency";
+
+/** Simulate streaming by revealing text character by character. */
+function useTypewriter(text: string, speed = 18) {
+  const [displayed, setDisplayed] = useState("");
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!text) {
+      setDone(true);
+      return;
+    }
+    setDisplayed("");
+    setDone(false);
+    let i = 0;
+    const id = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) {
+        clearInterval(id);
+        setDone(true);
+      }
+    }, speed);
+    return () => clearInterval(id);
+  }, [text, speed]);
+
+  return { displayed, done };
+}
+
+/** Format timestamp as short time string. */
+function formatTimestamp(ts: number) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Streaming message bubble with typewriter effect. */
+function StreamingBubble({ msg }: { msg: Message }) {
+  const { displayed, done } = useTypewriter(msg.content);
+
+  useEffect(() => {
+    // Auto-scroll as text streams
+    const el = document.getElementById("chat-scroll-container");
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [displayed]);
+
+  if (!done) {
+    return (
+      <div>
+        <span className="whitespace-pre-wrap">{displayed}</span>
+        <motion.span
+          animate={{ opacity: [1, 0.3, 1] }}
+          transition={{ repeat: Infinity, duration: 0.8 }}
+          className="inline-block w-[2px] h-4 bg-[#0D9488] ml-0.5 align-middle"
+        />
+      </div>
+    );
+  }
+  return <span className="whitespace-pre-wrap">{displayed}</span>;
+}
 
 export default function AssistantPage() {
   const navigate = useNavigate();
@@ -24,40 +96,39 @@ export default function AssistantPage() {
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<ChatMode>("normal");
   const [messages, setMessages] = useState<Message[]>([
-    { 
-      id: "init", 
-      role: "assistant", 
-      content: "Namaste didi! I am monitoring your location via GPS. If you feel unsafe or see someone following you, tell me right away. I'm here to watch over you.",
+    {
+      id: "init",
+      role: "assistant",
+      content:
+        "Namaste! I'm Sakhi AI, your personal safety companion. I'm here to watch over you 24/7. If you ever feel unsafe or need help, just tell me — I'll guide you through the right steps immediately.",
       suggestions: [
-        { label: "Share Live Path", action: "share_path" },
+        { label: "Share Live Location", action: "share_path" },
         { label: "Start Check-in", action: "start_checkin" },
-        { label: "Call Apnewale", action: "call_apne" }
-      ]
-    }
+        { label: "Call Guardian", action: "call_apne" },
+      ],
+      timestamp: Date.now(),
+    },
   ]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Check-in timer state
+  // Check-in timer
   const [checkinActive, setCheckinActive] = useState(false);
   const [checkinSeconds, setCheckinSeconds] = useState(0);
   const checkinTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Sync mode with global SOS state
+  // Sync mode with SOS state
   useEffect(() => {
-    if (sosState.active) {
-      setMode("emergency");
-    } else {
-      setMode("normal");
-    }
+    setMode(sosState.active ? "emergency" : "normal");
   }, [sosState.active]);
 
-  // Handle countdown check-in timer
+  // Check-in countdown
   useEffect(() => {
     if (checkinActive && checkinSeconds > 0) {
       checkinTimerRef.current = setInterval(() => {
-        setCheckinSeconds(s => {
+        setCheckinSeconds((s) => {
           if (s <= 1) {
             clearInterval(checkinTimerRef.current!);
             setCheckinActive(false);
@@ -76,24 +147,30 @@ export default function AssistantPage() {
   const startCheckin = (minutes: number) => {
     setCheckinSeconds(minutes * 60);
     setCheckinActive(true);
-    const checkinMsg: Message = {
-      id: `checkin_${Date.now()}`,
-      role: "assistant",
-      content: `I've set a ${minutes}-minute safety check-in, didi. If you don't confirm you're safe before the countdown ends, I will trigger your SOS and alert your Apnewale.`
-    };
-    setMessages(prev => [...prev, checkinMsg]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `checkin_${Date.now()}`,
+        role: "assistant",
+        content: `Safety check-in set for ${minutes} minutes. I'll alert your guardian if you don't confirm you're safe before time runs out.`,
+        timestamp: Date.now(),
+      },
+    ]);
   };
 
   const stopCheckin = () => {
     setCheckinActive(false);
     setCheckinSeconds(0);
     if (checkinTimerRef.current) clearInterval(checkinTimerRef.current);
-    const stopMsg: Message = {
-      id: `checkin_stop_${Date.now()}`,
-      role: "assistant",
-      content: "Check-in timer cleared, didi. Stay safe!"
-    };
-    setMessages(prev => [...prev, stopMsg]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `checkin_stop_${Date.now()}`,
+        role: "assistant",
+        content: "Check-in cancelled. You're all set!",
+        timestamp: Date.now(),
+      },
+    ]);
   };
 
   const formatTime = (secs: number) => {
@@ -102,35 +179,43 @@ export default function AssistantPage() {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
+  // Voice input
   const startVoiceInput = () => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) {
-      alert("Voice input not supported in this browser.");
-      return;
-    }
+    const SR =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (!SR) return;
     const recognition = new SR();
     recognition.lang = "en-IN";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
     setIsListening(true);
     recognition.start();
-    
     recognition.onresult = (e: any) => {
-      const transcript = e.results[0][0].transcript;
-      setInput(transcript);
+      setInput(e.results[0][0].transcript);
       setIsListening(false);
     };
     recognition.onerror = () => setIsListening(false);
     recognition.onend = () => setIsListening(false);
   };
 
+  // Auto-scroll
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isProcessing, checkinActive, checkinSeconds]);
 
-  // Route every AI-recommended action (and legacy actions) to the right place.
+  // Auto-resize textarea
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height =
+        Math.min(inputRef.current.scrollHeight, 120) + "px";
+    }
+  }, [input]);
+
+  // Route actions
   const dispatchAction = (action: string) => {
     const coords = locationState.coords;
     switch (action) {
@@ -139,7 +224,8 @@ export default function AssistantPage() {
         navigate("/journey");
         break;
       case "share-location":
-        if (coords) void shareLocation(coords.lat, coords.lng, locationState.address);
+        if (coords)
+          void shareLocation(coords.lat, coords.lng, locationState.address);
         else navigate("/location");
         break;
       case "call-guardian":
@@ -165,292 +251,570 @@ export default function AssistantPage() {
         navigate("/post-incident");
         break;
       case "start_checkin":
-        startCheckin(3); // Default 3 minutes check-in
+        startCheckin(3);
         break;
       default:
         break;
     }
   };
 
+  // Retry last failed message
+  const retryLast = useCallback(() => {
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+    if (lastUserMsg) {
+      // Remove error messages
+      setMessages((prev) => prev.filter((m) => !m.isError));
+      dispatch(lastUserMsg.content);
+    }
+  }, [messages]);
+
   const dispatch = async (text: string) => {
     if (!text.trim() || isProcessing) return;
 
-    const userMsg: Message = { id: Date.now().toString(), role: "user", content: text };
-    const typingId = "typing_" + Date.now();
-    const typingMsg: Message = { id: typingId, role: "assistant", content: "...", isTyping: true };
-    
-    setMessages(prev => [...prev, userMsg, typingMsg]);
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: text,
+      timestamp: Date.now(),
+    };
+    const streamingId = "streaming_" + Date.now();
+    const streamingMsg: Message = {
+      id: streamingId,
+      role: "assistant",
+      content: "",
+      isStreaming: true,
+      timestamp: Date.now(),
+    };
+
+    setMessages((prev) => [...prev, userMsg, streamingMsg]);
     setInput("");
     setIsProcessing(true);
 
-    // Local intent detection for safety action buttons + emergency escalation.
     const rec = recommendForText(text);
-    const newMode = rec.escalate ? "emergency" : "normal";
-    setMode(newMode);
+    setMode(rec.escalate ? "emergency" : "normal");
 
-    // Build conversation history for the Groq backend.
     const conversationHistory = [...messages, userMsg]
-      .filter((m) => !m.isTyping)
-      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+      .filter((m) => !m.isTyping && !m.isStreaming && !m.isError)
+      .map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }));
 
     try {
       const reply = await sendMessageToApi(conversationHistory);
 
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === typingId
+          msg.id === streamingId
             ? {
                 ...msg,
                 content: reply,
-                isTyping: false,
-                suggestions: rec.actions.map((a) => ({ label: a.label, action: a.id })),
+                isStreaming: false,
+                suggestions: rec.actions.map((a) => ({
+                  label: a.label,
+                  action: a.id,
+                })),
+                timestamp: Date.now(),
               }
-            : msg,
-        ),
+            : msg
+        )
       );
 
-      // High-risk auto-actions driven by the local safety engine.
-      if (rec.intent === "panic") {
-        triggerSOS();
-      } else if (rec.intent === "recovery") {
-        cancelSOS();
-      }
+      if (rec.intent === "panic") triggerSOS();
+      else if (rec.intent === "recovery") cancelSOS();
     } catch {
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === typingId
+          msg.id === streamingId
             ? {
                 ...msg,
                 content:
-                  "I couldn't reach my servers right now. Please try again — or use the SOS button for immediate help.",
-                isTyping: false,
-                suggestions: [
-                  { label: "Emergency SOS", action: "trigger_sos" },
-                  { label: "Call Guardian", action: "call_apne" },
-                ],
+                  "I'm having trouble connecting right now. Please try again in a moment.",
+                isStreaming: false,
+                isError: true,
+                timestamp: Date.now(),
               }
-            : msg,
-        ),
+            : msg
+        )
       );
     } finally {
       setIsProcessing(false);
     }
   };
 
+  const isEmergency = mode === "emergency";
+
   return (
     <AppLayout>
-      <div 
-        className="flex flex-col min-h-screen text-[#3D2315] font-sans pb-24 md:pb-6"
-        style={{ background: mode === "emergency" ? "#160404" : "#FDF6EE" }}
+      <div
+        className="flex flex-col h-full"
+        style={{
+          background: isEmergency ? "#0A0A0A" : "var(--sakhi-cream)",
+          color: isEmergency ? "#E5E5E5" : "var(--sakhi-text)",
+        }}
       >
-        {/* Top Header Card */}
-        <div className="px-4 md:px-8 pt-6 pb-3 shrink-0">
-          <div className="flex justify-between items-center w-full">
-            <div>
-              <div className="flex items-center gap-1 text-[11px] font-bold text-[#9E7A6A] tracking-wider uppercase mb-0.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#F2956A]" />
-                Your AI Sister
+        {/* ── Header ── */}
+        <div
+          className="shrink-0 px-4 md:px-6 py-3"
+          style={{
+            borderBottom: isEmergency
+              ? "1px solid rgba(220,38,38,0.15)"
+              : "1px solid var(--sakhi-border-light)",
+            background: isEmergency
+              ? "rgba(10,10,10,0.95)"
+              : "rgba(248,246,244,0.92)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <div className="max-w-[780px] mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                style={{
+                  background: isEmergency
+                    ? "linear-gradient(135deg, #DC2626, #991B1B)"
+                    : "linear-gradient(135deg, #0D9488, #0F766E)",
+                }}
+              >
+                <Sparkle className="w-4.5 h-4.5 text-white" />
               </div>
-              <h1 className="text-2xl font-extrabold font-heading tracking-tight" style={{ color: mode === "emergency" ? "#FFFFFF" : "#3D2315" }}>
-                Sakhi Companion
-              </h1>
+              <div>
+                <h1
+                  className="text-[15px] font-bold leading-tight"
+                  style={{ fontFamily: "var(--font-heading)" }}
+                >
+                  Sakhi AI
+                </h1>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      isEmergency ? "bg-red-500 animate-pulse" : "bg-[#16A34A]"
+                    }`}
+                  />
+                  <span
+                    className="text-[11px] font-medium"
+                    style={{ color: isEmergency ? "#FCA5A5" : "var(--sakhi-text-secondary)" }}
+                  >
+                    {isEmergency ? "Emergency active" : "Online"}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <motion.div 
-              animate={{ 
-                scale: mode === "emergency" ? [1, 1.05, 1] : 1,
-                borderColor: mode === "emergency" ? "#D4455C" : "rgba(242,149,106,0.25)"
-              }}
-              transition={{ repeat: mode === "emergency" ? Infinity : 0, duration: 1.5 }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-white shadow-sm"
-            >
-              <span className={`w-2 h-2 rounded-full ${mode === "emergency" ? "bg-[#D4455C] animate-pulse" : "bg-[#3D9970]"}`} />
-              <span className="text-xs font-extrabold text-[#3D2315]">
-                {mode === "emergency" ? "Emergency Mode" : "Sakhi watching"}
-              </span>
-            </motion.div>
+            <div className="flex items-center gap-2">
+              {checkinActive && (
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                  style={{
+                    background: "var(--sakhi-amber-light)",
+                    border: "1px solid rgba(217,119,6,0.2)",
+                  }}
+                >
+                  <Clock className="w-3.5 h-3.5 text-[#D97706] animate-spin" />
+                  <span className="text-xs font-bold text-[#D97706]">
+                    {formatTime(checkinSeconds)}
+                  </span>
+                </motion.div>
+              )}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={triggerSOS}
+                className="w-9 h-9 rounded-full flex items-center justify-center"
+                style={{
+                  background: isEmergency ? "#991B1B" : "var(--sakhi-red-light)",
+                  color: isEmergency ? "#FEE2E2" : "var(--sakhi-red)",
+                }}
+                title="Emergency SOS"
+              >
+                <AlertTriangle className="w-4 h-4" />
+              </motion.button>
+            </div>
           </div>
         </div>
 
-        {/* Check-In Timer Banner */}
+        {/* ── Check-in Banner ── */}
         <AnimatePresence>
           {checkinActive && (
-            <motion.div 
+            <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="mx-4 md:mx-8 mb-4 p-4 rounded-2xl border flex items-center justify-between shadow-sm transition-all"
-              style={{
-                background: "linear-gradient(135deg, #FFF3C7 0%, #FFEBA3 100%)",
-                borderColor: "rgba(242,149,106,0.3)"
-              }}
+              className="shrink-0 mx-4 md:mx-6 mt-3 max-w-[780px] md:mx-auto w-[calc(100%-2rem)]"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-[#B7770D]">
-                  <Clock className="w-5.5 h-5.5 animate-spin" />
-                </div>
-                <div>
-                  <p className="text-xs font-extrabold text-[#3D2315] uppercase tracking-wide">Safety Check-in Active</p>
-                  <p className="text-xs font-semibold text-[#8B3A2F] mt-0.5">SOS triggers in <span className="font-extrabold text-sm">{formatTime(checkinSeconds)}</span></p>
-                </div>
-              </div>
-              <button 
-                onClick={stopCheckin}
-                className="px-4 py-2 bg-white text-xs font-bold text-[#8B3A2F] rounded-xl hover:bg-[#FDF6EE] shadow-sm transition-all cursor-pointer"
+              <div
+                className="flex items-center justify-between px-4 py-3 rounded-xl"
+                style={{
+                  background: "var(--sakhi-amber-light)",
+                  border: "1px solid rgba(217,119,6,0.15)",
+                }}
               >
-                I am Safe
-              </button>
+                <div className="flex items-center gap-2.5">
+                  <Clock className="w-4 h-4 text-[#D97706] animate-pulse" />
+                  <div>
+                    <p className="text-xs font-bold text-[#92400E]">
+                      Safety Check-in
+                    </p>
+                    <p className="text-[11px] font-medium text-[#B45309]">
+                      SOS in{" "}
+                      <span className="font-bold">{formatTime(checkinSeconds)}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={stopCheckin}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all"
+                  style={{
+                    background: "white",
+                    color: "#92400E",
+                    border: "1px solid rgba(217,119,6,0.2)",
+                  }}
+                >
+                  I'm Safe
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Chat Message Panel */}
-        <div 
-          ref={scrollRef} 
-          className="flex-1 overflow-y-auto px-4 md:px-8 pt-2 pb-6 space-y-5 flex flex-col h-[calc(100vh-270px)]" 
+        {/* ── Chat Messages ── */}
+        <div
+          id="chat-scroll-container"
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto px-4 md:px-6"
           style={{ scrollBehavior: "smooth" }}
         >
-          <AnimatePresence initial={false}>
-            {messages.map((msg, idx) => (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25 }}
-                className={`flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div className="flex flex-col max-w-[85%]">
-                  <div 
-                    className="rounded-[24px] p-4 text-sm font-semibold leading-relaxed shadow-sm transition-all"
-                    style={{
-                      backgroundColor: msg.role === "user" 
-                        ? "#F9C5B0" 
-                        : (mode === "emergency" ? "#2B1010" : "#FFFFFF"),
-                      color: msg.role === "user" 
-                        ? "#3D2315" 
-                        : (mode === "emergency" ? "#FFD6D6" : "#3D2315"),
-                      border: msg.role === "assistant" && mode === "emergency" 
-                        ? "1px solid rgba(212,69,92,0.3)" 
-                        : "1px solid rgba(242,149,106,0.12)",
-                      borderRadius: msg.role === "user" 
-                        ? "24px 24px 4px 24px" 
-                        : "24px 24px 24px 4px"
-                    }}
-                  >
-                    {msg.role === "assistant" && idx > 0 && !msg.isTyping && (
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#9E7A6A] mb-1">
-                        <Shield className="w-3.5 h-3.5 text-[#F2956A]" />
-                        Sakhi Didi
+          <div className="max-w-[780px] mx-auto py-4 space-y-1">
+            <AnimatePresence initial={false}>
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className={`flex ${
+                    msg.role === "user" ? "justify-end" : "justify-start"
+                  } mb-3`}
+                >
+                  {msg.role === "assistant" ? (
+                    /* ── AI Message ── */
+                    <div className="flex gap-2.5 max-w-[85%] md:max-w-[75%]">
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-1"
+                        style={{
+                          background: isEmergency
+                            ? "rgba(220,38,38,0.15)"
+                            : "var(--sakhi-primary-muted)",
+                        }}
+                      >
+                        <Sparkle
+                          className="w-3.5 h-3.5"
+                          style={{ color: isEmergency ? "#FCA5A5" : "var(--sakhi-primary)" }}
+                        />
                       </div>
-                    )}
-
-                    {msg.isTyping ? (
-                      <div className="flex items-center gap-1.5 py-1">
-                        {[0, 1, 2].map(i => (
-                          <motion.span 
-                            key={i} 
-                            animate={{ y: [0, -4, 0] }} 
-                            transition={{ repeat: Infinity, duration: 0.6, delay: i * 0.15 }} 
-                            className="w-1.5 h-1.5 bg-[#F2956A] rounded-full" 
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <span>{msg.content}</span>
-                    )}
-                  </div>
-
-                  {/* Attachment Shortcuts */}
-                  {msg.suggestions && !msg.isTyping && (
-                    <div className="flex flex-wrap gap-2.5 mt-3 ml-1">
-                      {msg.suggestions.map((btn, i) => (
-                        <button 
-                          key={i} 
-                          onClick={() => dispatchAction(btn.action)}
-                          className="flex items-center gap-1 px-3.5 py-1.5 rounded-full border border-[#F5E4D6] bg-white shadow-sm text-xs font-bold text-[#8B3A2F] hover:bg-[#FDF6EE] transition-all cursor-pointer"
+                      <div className="flex flex-col">
+                        <div
+                          className="px-4 py-3 text-[14px] leading-relaxed"
+                          style={{
+                            background: isEmergency ? "rgba(255,255,255,0.05)" : "white",
+                            color: isEmergency ? "#E5E5E5" : "var(--sakhi-text)",
+                            border: isEmergency
+                              ? "1px solid rgba(255,255,255,0.08)"
+                              : "1px solid var(--sakhi-border-light)",
+                            borderRadius: "4px 16px 16px 16px",
+                            boxShadow: isEmergency
+                              ? "none"
+                              : "0 1px 3px rgba(0,0,0,0.03)",
+                          }}
                         >
-                          {btn.label}
-                        </button>
-                      ))}
+                          {msg.isStreaming ? (
+                            <StreamingBubble msg={msg} />
+                          ) : (
+                            <span className="whitespace-pre-wrap">{msg.content}</span>
+                          )}
+                        </div>
+
+                        {/* Suggested chips */}
+                        {msg.suggestions && !msg.isStreaming && msg.suggestions.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2.5">
+                            {msg.suggestions.map((btn, i) => (
+                              <button
+                                key={i}
+                                onClick={() => dispatchAction(btn.action)}
+                                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all"
+                                style={{
+                                  background: isEmergency
+                                    ? "rgba(255,255,255,0.06)"
+                                    : "var(--sakhi-primary-muted)",
+                                  color: isEmergency ? "#A7F3D0" : "var(--sakhi-primary)",
+                                  border: isEmergency
+                                    ? "1px solid rgba(255,255,255,0.1)"
+                                    : "1px solid rgba(13,148,136,0.15)",
+                                }}
+                              >
+                                {btn.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Error retry */}
+                        {msg.isError && (
+                          <button
+                            onClick={retryLast}
+                            className="flex items-center gap-1.5 mt-2 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all"
+                            style={{
+                              background: "var(--sakhi-red-light)",
+                              color: "var(--sakhi-red)",
+                              border: "1px solid rgba(220,38,38,0.15)",
+                            }}
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Retry
+                          </button>
+                        )}
+
+                        {/* Timestamp */}
+                        {!msg.isStreaming && (
+                          <span
+                            className="text-[10px] font-medium mt-1 ml-1"
+                            style={{
+                              color: isEmergency ? "#737373" : "var(--sakhi-text-muted)",
+                            }}
+                          >
+                            {formatTimestamp(msg.timestamp)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── User Message ── */
+                    <div className="flex flex-col items-end max-w-[85%] md:max-w-[70%]">
+                      <div
+                        className="px-4 py-3 text-[14px] leading-relaxed"
+                        style={{
+                          background: isEmergency
+                            ? "rgba(220,38,38,0.15)"
+                            : "var(--sakhi-primary)",
+                          color: "white",
+                          borderRadius: "16px 4px 16px 16px",
+                        }}
+                      >
+                        <span className="whitespace-pre-wrap">{msg.content}</span>
+                      </div>
+                      <span
+                        className="text-[10px] font-medium mt-1 mr-1"
+                        style={{
+                          color: isEmergency ? "#737373" : "var(--sakhi-text-muted)",
+                        }}
+                      >
+                        {formatTimestamp(msg.timestamp)}
+                      </span>
                     </div>
                   )}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {/* ── Typing Indicator ── */}
+            {isProcessing &&
+              !messages.some((m) => m.isStreaming) && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex justify-start mb-3"
+                >
+                  <div className="flex gap-2.5">
+                    <div
+                      className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                      style={{
+                        background: isEmergency
+                          ? "rgba(220,38,38,0.15)"
+                          : "var(--sakhi-primary-muted)",
+                      }}
+                    >
+                      <Sparkle
+                        className="w-3.5 h-3.5"
+                        style={{ color: isEmergency ? "#FCA5A5" : "var(--sakhi-primary)" }}
+                      />
+                    </div>
+                    <div
+                      className="px-4 py-3 flex items-center gap-1.5"
+                      style={{
+                        background: isEmergency ? "rgba(255,255,255,0.05)" : "white",
+                        border: isEmergency
+                          ? "1px solid rgba(255,255,255,0.08)"
+                          : "1px solid var(--sakhi-border-light)",
+                        borderRadius: "4px 16px 16px 16px",
+                      }}
+                    >
+                      {[0, 1, 2].map((i) => (
+                        <motion.span
+                          key={i}
+                          animate={{ y: [0, -3, 0] }}
+                          transition={{
+                            repeat: Infinity,
+                            duration: 0.5,
+                            delay: i * 0.12,
+                          }}
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{
+                            background: isEmergency ? "#FCA5A5" : "var(--sakhi-primary)",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+          </div>
+        </div>
+
+        {/* ── Input Area ── */}
+        <div
+          className="shrink-0"
+          style={{
+            borderTop: isEmergency
+              ? "1px solid rgba(255,255,255,0.06)"
+              : "1px solid var(--sakhi-border-light)",
+            background: isEmergency
+              ? "rgba(10,10,10,0.95)"
+              : "rgba(248,246,244,0.95)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <div className="max-w-[780px] mx-auto px-4 md:px-6 py-3">
+            {/* Suggested quick actions (only when idle) */}
+            {!isProcessing && messages.length <= 1 && (
+              <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-none">
+                {[
+                  { label: "Timer Check-in", action: () => startCheckin(3), icon: Clock, color: "#D97706", bg: "var(--sakhi-amber-light)" },
+                  { label: "Safe Streets", action: () => navigate("/location"), icon: MapPin, color: "#2563EB", bg: "#EFF6FF" },
+                  { label: "Emergency SOS", action: () => triggerSOS(), icon: ShieldAlert, color: "var(--sakhi-red)", bg: "var(--sakhi-red-light)" },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    onClick={item.action}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold shrink-0 cursor-pointer transition-all"
+                    style={{
+                      background: item.bg,
+                      color: item.color,
+                      border: `1px solid ${item.color}20`,
+                    }}
+                  >
+                    <item.icon className="w-3.5 h-3.5" />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-end gap-2.5">
+              {/* Attachment button */}
+              <button
+                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 cursor-pointer transition-all"
+                style={{
+                  background: isEmergency ? "rgba(255,255,255,0.06)" : "var(--sakhi-cream-deep)",
+                  color: isEmergency ? "#A3A3A3" : "var(--sakhi-text-secondary)",
+                  border: isEmergency
+                    ? "1px solid rgba(255,255,255,0.08)"
+                    : "1px solid var(--sakhi-border)",
+                }}
+                title="Attach file"
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
+
+              {/* Input field */}
+              <div
+                className="flex-1 flex items-end gap-2 rounded-2xl px-4 py-2.5 transition-all"
+                style={{
+                  background: isEmergency ? "rgba(255,255,255,0.06)" : "white",
+                  border: isEmergency
+                    ? "1px solid rgba(255,255,255,0.1)"
+                    : "1px solid var(--sakhi-border)",
+                }}
+              >
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      dispatch(input);
+                    }
+                  }}
+                  placeholder="Ask Sakhi AI anything..."
+                  disabled={isProcessing}
+                  rows={1}
+                  className="flex-1 bg-transparent outline-none text-sm resize-none leading-snug placeholder:opacity-40"
+                  style={{
+                    color: isEmergency ? "#E5E5E5" : "var(--sakhi-text)",
+                    maxHeight: "120px",
+                  }}
+                />
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Voice button */}
+                  <button
+                    onClick={startVoiceInput}
+                    className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-all"
+                    style={{
+                      color: isListening
+                        ? "var(--sakhi-red)"
+                        : isEmergency
+                        ? "#A3A3A3"
+                        : "var(--sakhi-text-secondary)",
+                    }}
+                    title={isListening ? "Listening..." : "Voice input"}
+                  >
+                    <Mic
+                      className={`w-4 h-4 ${isListening ? "animate-pulse" : ""}`}
+                    />
+                  </button>
+
+                  {/* Send button */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.92 }}
+                    onClick={() => dispatch(input)}
+                    disabled={!input.trim() || isProcessing}
+                    className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-all disabled:opacity-30"
+                    style={{
+                      background: input.trim()
+                        ? isEmergency
+                          ? "#991B1B"
+                          : "var(--sakhi-primary)"
+                        : "transparent",
+                      color: input.trim()
+                        ? "white"
+                        : isEmergency
+                        ? "#A3A3A3"
+                        : "var(--sakhi-text-muted)",
+                    }}
+                  >
+                    <Send className="w-4 h-4" />
+                  </motion.button>
                 </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-
-        {/* Bottom Quick Tools Row */}
-        <div className="px-4 md:px-8 pb-3 flex gap-2 overflow-x-auto shrink-0 scrollbar-none">
-          <button 
-            onClick={() => startCheckin(3)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold bg-[#FFF3C7] border border-[#F2956A]/20 text-[#3D2315] hover:bg-[#FFEBA3] transition-all shrink-0 cursor-pointer"
-          >
-            <Clock className="w-3.5 h-3.5 text-[#B7770D]" />
-            Timer Check-in
-          </button>
-          <button 
-            onClick={() => navigate("/location")}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold bg-[#DEEEFF] border border-blue-200 text-blue-800 hover:bg-[#CBE4FF] transition-all shrink-0 cursor-pointer"
-          >
-            <MapPin className="w-3.5 h-3.5 text-blue-600" />
-            Check safe streets
-          </button>
-          <button 
-            onClick={() => triggerSOS()}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-bold bg-[#FBDDE3] border border-red-200 text-[#D4455C] hover:bg-[#FBDDED] transition-all shrink-0 cursor-pointer"
-          >
-            <ShieldAlert className="w-3.5 h-3.5 text-[#D4455C]" />
-            Emergency SOS
-          </button>
-        </div>
-
-        {/* Input Panel */}
-        <div className="shrink-0 px-4 md:px-8 pb-4">
-          <div className="flex items-center gap-3">
-            {/* SOS floating action icon */}
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={triggerSOS}
-              className="w-12 h-12 rounded-full bg-[#D4455C] text-white flex items-center justify-center shrink-0 shadow-md hover:bg-[#b8324a] transition-colors cursor-pointer"
-              title="Immediate SOS"
-            >
-              <AlertTriangle className="w-5.5 h-5.5 text-white animate-pulse" />
-            </motion.button>
-
-            <div className="flex-1 relative flex items-center bg-white border border-[#F5E4D6] rounded-2xl shadow-sm px-4 py-2.5 focus-within:ring-2 focus-within:ring-[#F2956A]/20 transition-all">
-              <input 
-                value={input} 
-                onChange={(e) => setInput(e.target.value)} 
-                onKeyDown={(e) => { if (e.key === "Enter") dispatch(input); }} 
-                placeholder="Talk to Sakhi didi..." 
-                disabled={isProcessing} 
-                className="flex-1 bg-transparent outline-none text-xs md:text-sm text-[#3D2315] font-semibold placeholder:text-[#9E7A6A]" 
-              />
-              <div className="flex items-center gap-2.5 shrink-0 text-[#9E7A6A]">
-                <button
-                  onClick={startVoiceInput}
-                  className={`transition-colors cursor-pointer rounded-full p-1 ${
-                    isListening ? "text-[#D4455C] animate-pulse" : "hover:text-[#3D2315]"
-                  }`}
-                  title={isListening ? "Listening..." : "Voice input"}
-                >
-                  <Mic className="w-4.5 h-4.5" />
-                </button>
-                <button 
-                  onClick={() => dispatch(input)} 
-                  disabled={!input.trim() || isProcessing} 
-                  className="transition-colors cursor-pointer disabled:opacity-40"
-                >
-                  <Send className="w-4.5 h-4.5" />
-                </button>
               </div>
             </div>
-          </div>
-          <div className="flex items-center justify-center gap-1 mt-3 text-[10px] font-bold text-[#9E7A6A] opacity-75">
-            <Lock className="w-3 h-3 text-[#3D9970]" />
-            <span>Encrypted chat monitored for your personal security</span>
+
+            {/* Footer */}
+            <div className="flex items-center justify-center gap-1 mt-2.5">
+              <Lock
+                className="w-3 h-3"
+                style={{ color: isEmergency ? "#525252" : "var(--sakhi-green)" }}
+              />
+              <span
+                className="text-[10px] font-medium"
+                style={{ color: isEmergency ? "#525252" : "var(--sakhi-text-muted)" }}
+              >
+                End-to-end encrypted · Sakhi AI
+              </span>
+            </div>
           </div>
         </div>
       </div>
