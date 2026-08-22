@@ -1,11 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Lock, Unlock, Calendar, MapPin, Eye, Download, Trash2, ShieldCheck, MoreVertical, Search, Filter, Grid, List as ListIcon, FileVideo, FileAudio, FileText, Clock, X } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { motion, AnimatePresence } from "framer-motion";
 import { useApp } from "@/context/AppContext";
+import { fetchEvidenceItems, type EvidenceRecord } from "@/lib/safety";
 
 const GuardianEvidenceLockerPage = () => {
   const { evidenceLocker, sosState } = useApp();
+  const [remoteEvidence, setRemoteEvidence] = useState<EvidenceRecord[]>([]);
+
+  // Fetch evidence from Supabase (guardian can see linked user's evidence)
+  useEffect(() => {
+    void fetchEvidenceItems().then(setRemoteEvidence);
+  }, []);
   const [isLocked, setIsLocked] = useState(true);
   const [pin, setPin] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -67,7 +74,46 @@ const GuardianEvidenceLockerPage = () => {
     };
   });
 
-  const allEvidence = [...dynamicEvidence, ...evidenceList];
+  // Map remote Supabase evidence into the same display format
+  const remoteEvidenceMapped = remoteEvidence.map(item => {
+    const d = new Date(item.created_at);
+    const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+    let icon = FileVideo;
+    let color = "text-blue-500";
+    let bg = "bg-blue-50";
+    let type = "video";
+    if (item.item_type === "report-media" || item.item_type === "audio" || item.file_type?.includes("audio")) {
+      icon = FileAudio;
+      color = "text-teal-500";
+      bg = "bg-teal-50";
+      type = "audio";
+    } else if (item.item_type === "document") {
+      icon = FileText;
+      color = "text-orange-500";
+      bg = "bg-orange-50";
+      type = "report";
+    }
+    return {
+      id: item.id,
+      type,
+      name: item.name,
+      date: dateStr,
+      time: timeStr,
+      size: "Evidence File",
+      location: item.location_label || "Unknown Location",
+      icon,
+      color,
+      bg,
+      fileUrl: item.file_url,
+      isLive: false,
+    };
+  });
+
+  // Merge remote Supabase evidence with local demo evidence, deduplicating by id
+  const seenIds = new Set<string>([...dynamicEvidence.map((e) => e.id), ...remoteEvidenceMapped.map((e) => e.id)]);
+  const dedupedRemote = remoteEvidenceMapped.filter((e) => !seenIds.has(e.id));
+  const allEvidence = [...dynamicEvidence, ...dedupedRemote, ...evidenceList];
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +153,7 @@ const GuardianEvidenceLockerPage = () => {
                     maxLength={4}
                     value={pin}
                     onChange={(e) => setPin(e.target.value)}
-                    placeholder="••••"
+                    placeholder="ï¿½ï¿½ï¿½ï¿½"
                     className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-14 text-center text-2xl font-black tracking-[0.5em] text-slate-900 placeholder:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-100 transition-all"
                   />
                 </div>

@@ -44,7 +44,7 @@ import {
   GPS_LOSS_ALERT_SEC,
   type JourneyAlert,
 } from "@/lib/safety";
-import { upsertLiveLocation, sendSafeCheckIn, sendJourneyNotification } from "@/lib/safety";
+import { upsertLiveLocation, sendSafeCheckIn, sendJourneyNotification, upsertActiveJourney } from "@/lib/safety";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
 // ─── Leaflet icon defaults (same as the Risk Map page) ───────────────────────
@@ -335,6 +335,21 @@ const SafetyJourneyPage = () => {
           alertType: "journey-start",
         });
       }
+      // Sync active journey to Supabase so the guardian can see it
+      if (isSupabaseConfigured) {
+        void upsertActiveJourney({
+          status: "active",
+          travelMode: mode,
+          destination: selectedDest?.label ?? null,
+          destinationLat: selectedDest?.lat ?? null,
+          destinationLng: selectedDest?.lng ?? null,
+          startLat: currentPos[0],
+          startLng: currentPos[1],
+          startLabel: locationState.address,
+          etaMinutes: Math.round((route.durationSec || 0) / 60),
+          journeyData: { mode, rideDetails: ride, monitoring },
+        });
+      }
       toast({ title: "Journey Started", description: `${MODE_LABEL[mode]} · AI monitoring is active.` });
     } finally {
       setStarting(false);
@@ -396,8 +411,14 @@ const SafetyJourneyPage = () => {
       if (guardianConnected && updated.status === "active" && pos && j.monitoring.shareLiveLocation) {
         void upsertLiveLocation({ lat: pos.lat, lng: pos.lng, label: ls.address });
       }
-      if (updated.status === "completed" && j.monitoring.notifyOnArrival && guardianConnected && pos) {
-        void sendSafeCheckIn({ lat: pos.lat, lng: pos.lng, label: ls.address });
+      if (updated.status === "completed") {
+        // Sync completed journey to Supabase so guardian sees it ended
+        if (isSupabaseConfigured) {
+          void upsertActiveJourney({ status: "completed" });
+        }
+        if (j.monitoring.notifyOnArrival && guardianConnected && pos) {
+          void sendSafeCheckIn({ lat: pos.lat, lng: pos.lng, label: ls.address });
+        }
       }
       handleAlerts(alerts);
     };
@@ -455,6 +476,10 @@ const SafetyJourneyPage = () => {
   const handleCancel = () => {
     const updated = cancelJourney(journey);
     setJourney(updated);
+    // Mark journey as completed in Supabase so guardian sees it ended
+    if (isSupabaseConfigured) {
+      void upsertActiveJourney({ status: "completed" });
+    }
     toast({ title: "Journey Ended", description: "Monitoring stopped. Stay safe." });
   };
 

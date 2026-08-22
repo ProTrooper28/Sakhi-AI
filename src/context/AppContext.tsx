@@ -8,6 +8,7 @@ import {
   resolveSosEvent,
   sendSafeCheckIn,
   upsertLiveLocation,
+  insertEvidenceItem,
 } from "@/lib/safety";
 import { getDeviceBattery, isSharingEnabled } from "@/pages/location/helpers";
 
@@ -529,18 +530,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     // Automatically generate a real-time evidence recording entry
     const now = new Date();
-    setEvidenceLocker(prev => [
-      {
-        id: `ev_sos_${now.getTime()}`,
-        type: "sos-recording",
-        name: `SOS_Incident_${now.getTime()}.mp4`,
-        fileUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-        timestamp: now.toISOString(),
-        location: activeAddress,
-        fileType: "video/mp4",
-      },
-      ...prev
-    ]);
+    const evId = `ev_sos_${now.getTime()}`;
+    const evidenceItem = {
+      id: evId,
+      type: "sos-recording" as const,
+      name: `SOS_Incident_${now.getTime()}.mp4`,
+      fileUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+      timestamp: now.toISOString(),
+      location: activeAddress,
+      fileType: "video/mp4",
+    };
+    setEvidenceLocker(prev => [evidenceItem, ...prev]);
+    // Sync to Supabase so the guardian can see it
+    if (isSupabaseConfigured && !guest && user) {
+      void insertEvidenceItem({
+        name: evidenceItem.name,
+        itemType: "sos-recording",
+        fileUrl: evidenceItem.fileUrl,
+        fileType: evidenceItem.fileType,
+        locationLabel: activeAddress,
+      });
+    }
 
     // REAL backend: create the SOS event + start live location sharing so the
     // guardian's dashboard updates instantly via Supabase Realtime. Guests
@@ -624,6 +634,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const id = `ev_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const newItem: EvidenceItem = { ...item, id };
     setEvidenceLocker((prev) => [newItem, ...prev]);
+    // Sync to Supabase so the guardian can see it
+    if (isSupabaseConfigured && !guest && user) {
+      void insertEvidenceItem({
+        name: newItem.name,
+        itemType: newItem.type,
+        fileUrl: newItem.fileUrl ?? null,
+        fileType: newItem.fileType ?? null,
+        locationLabel: newItem.location ?? null,
+      });
+    }
     return id;
   };
 

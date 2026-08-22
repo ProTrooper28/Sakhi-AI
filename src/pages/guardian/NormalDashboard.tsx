@@ -24,7 +24,9 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { addGuardianLink, removeLink, renameRelationship } from "@/lib/guardians";
 import { RELATIONSHIPS, type GuardianLink } from "@/lib/auth-types";
-import type { LiveLocation, SafetyEvent } from "@/lib/safety";
+import type { LiveLocation, SafetyEvent, ActiveJourney } from "@/lib/safety";
+import { fetchActiveJourneys, subscribeActiveJourneys } from "@/lib/safety";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { AVATAR_COLORS, initialsOf, timeAgo } from "./helpers";
 import { CalmFamilyMap } from "./maps";
 
@@ -63,6 +65,41 @@ export const NormalDashboard = ({
   useEffect(() => {
     setLoading(false);
   }, []);
+
+  // ── Active journeys from Supabase (guardian can see linked users' journeys) ──
+  const [journeys, setJourneys] = useState<ActiveJourney[]>([]);
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let mounted = true;
+    void fetchActiveJourneys().then((j) => {
+      if (mounted) setJourneys(j);
+    });
+    const off = subscribeActiveJourneys((j) => {
+      setJourneys((prev) => {
+        const idx = prev.findIndex((x) => x.user_id === j.user_id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = j;
+          return next;
+        }
+        return [j, ...prev];
+      });
+    });
+    // Poll every 10s for reliable fallback
+    const poll = setInterval(() => {
+      if (!mounted) return;
+      void fetchActiveJourneys().then((j) => {
+        if (mounted) setJourneys(j);
+      });
+    }, 10000);
+    return () => {
+      mounted = false;
+      off();
+      clearInterval(poll);
+    };
+  }, []);
+
+  const activeJourneys = journeys.filter((j) => j.status === "active");
 
   const hour = new Date().getHours();
   const greeting =
@@ -274,6 +311,59 @@ export const NormalDashboard = ({
         >
           {error}
         </div>
+      )}
+
+      {/* ── Active Safety Journeys ── */}
+      {activeJourneys.length > 0 && (
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.06, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <div className="flex items-center gap-2 mb-2.5 px-1">
+            <Navigation style={{ width: 15, height: 15, color: "#7A2B73" }} />
+            <h3 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 15, color: "#3D2315" }}>
+              Active Journeys
+            </h3>
+            <span className="ml-auto px-2 py-0.5 rounded-full" style={{ background: "rgba(122,43,115,0.1)", fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 10, color: "#7A2B73" }}>
+              {activeJourneys.length} active
+            </span>
+          </div>
+          <div className="space-y-2">
+            {activeJourneys.map((j) => {
+              const uName = userNameFor(j.user_id);
+              const elapsed = Math.round((Date.now() - new Date(j.started_at).getTime()) / 60000);
+              return (
+                <motion.div
+                  key={j.user_id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-[20px] p-4 flex items-center gap-3"
+                  style={{ background: "white", boxShadow: "0 2px 12px rgba(139,58,47,0.06)", border: "1px solid rgba(122,43,115,0.12)" }}
+                >
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(122,43,115,0.1)" }}>
+                    <Navigation style={{ width: 18, height: 18, color: "#7A2B73" }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 13, color: "#3D2315" }} className="truncate">
+                      {uName} — {j.travel_mode ? j.travel_mode.charAt(0).toUpperCase() + j.travel_mode.slice(1) : "Journey"}
+                    </p>
+                    <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#9E7A6A" }}>
+                      {j.destination ?? "En route"} · {elapsed}m elapsed{j.eta_minutes ? ` · ETA ${j.eta_minutes}m` : ""}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate(`/guardian/track/${j.user_id}`)}
+                    className="px-3 py-1.5 rounded-xl cursor-pointer flex-shrink-0"
+                    style={{ background: "rgba(122,43,115,0.1)", border: "none", fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 11, color: "#7A2B73" }}
+                  >
+                    Track
+                  </button>
+                </motion.div>
+              );
+            })}
+          </div>
+        </motion.section>
       )}
 
       {/* ── Family Members ── */}

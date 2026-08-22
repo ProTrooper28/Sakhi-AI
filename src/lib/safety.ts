@@ -252,6 +252,174 @@ export const subscribeLiveLocations = (cb: (location: LiveLocation) => void): ((
   };
 };
 
+// ── Shared Evidence Locker (Supabase-backed) ──────────────────────────────
+
+export type EvidenceRecord = {
+  id: string;
+  user_id: string;
+  item_type: string;
+  name: string;
+  file_url: string | null;
+  file_type: string | null;
+  location_label: string | null;
+  report_id: string | null;
+  created_at: string;
+};
+
+/** Insert an evidence item into Supabase so the guardian can see it. */
+export const insertEvidenceItem = async (p: {
+  name: string;
+  itemType?: string;
+  fileUrl?: string | null;
+  fileType?: string | null;
+  locationLabel?: string | null;
+  reportId?: string | null;
+}): Promise<EvidenceRecord | null> => {
+  const userId = await currentUserId();
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from("evidence_items")
+    .insert({
+      user_id: userId,
+      item_type: p.itemType ?? "sos-recording",
+      name: p.name,
+      file_url: p.fileUrl ?? null,
+      file_type: p.fileType ?? null,
+      location_label: p.locationLabel ?? null,
+      report_id: p.reportId ?? null,
+    })
+    .select()
+    .single();
+  if (error) {
+    logError("insertEvidenceItem failed", error);
+    return null;
+  }
+  return data as EvidenceRecord;
+};
+
+/** Fetch all evidence items (RLS scopes to own + linked users). */
+export const fetchEvidenceItems = async (): Promise<EvidenceRecord[]> => {
+  if (!configured) return [];
+  const { data, error } = await supabase
+    .from("evidence_items")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) {
+    logError("fetchEvidenceItems failed", error);
+    return [];
+  }
+  return (data ?? []) as EvidenceRecord[];
+};
+
+/** Subscribe to new evidence items (RLS-scoped). */
+export const subscribeEvidenceItems = (cb: (item: EvidenceRecord) => void): (() => void) => {
+  if (!configured) return () => {};
+  const channel = supabase
+    .channel("sakhi-evidence-items")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "evidence_items" },
+      (payload) => cb(payload.new as EvidenceRecord),
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+};
+
+// ── Shared Active Journeys (Supabase-backed) ───────────────────────────────
+
+export type ActiveJourney = {
+  user_id: string;
+  status: string;
+  travel_mode: string | null;
+  destination: string | null;
+  destination_lat: number | null;
+  destination_lng: number | null;
+  start_lat: number | null;
+  start_lng: number | null;
+  start_label: string | null;
+  eta_minutes: number | null;
+  started_at: string;
+  ended_at: string | null;
+  updated_at: string;
+  journey_data: unknown;
+};
+
+/** Upsert the user's active journey so the guardian can see it. */
+export const upsertActiveJourney = async (p: {
+  status: string;
+  travelMode?: string | null;
+  destination?: string | null;
+  destinationLat?: number | null;
+  destinationLng?: number | null;
+  startLat?: number | null;
+  startLng?: number | null;
+  startLabel?: string | null;
+  etaMinutes?: number | null;
+  journeyData?: unknown;
+}): Promise<boolean> => {
+  const userId = await currentUserId();
+  if (!userId) return false;
+  const { error } = await supabase
+    .from("active_journeys")
+    .upsert(
+      {
+        user_id: userId,
+        status: p.status,
+        travel_mode: p.travelMode ?? null,
+        destination: p.destination ?? null,
+        destination_lat: p.destinationLat ?? null,
+        destination_lng: p.destinationLng ?? null,
+        start_lat: p.startLat ?? null,
+        start_lng: p.startLng ?? null,
+        start_label: p.startLabel ?? null,
+        eta_minutes: p.etaMinutes ?? null,
+        started_at: p.status === "active" ? new Date().toISOString() : undefined,
+        ended_at: p.status !== "active" ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+        journey_data: p.journeyData ?? null,
+      },
+      { onConflict: "user_id" },
+    );
+  if (error) {
+    logError("upsertActiveJourney failed", error);
+    return false;
+  }
+  return true;
+};
+
+/** Fetch all active journeys (RLS scopes to own + linked users). */
+export const fetchActiveJourneys = async (): Promise<ActiveJourney[]> => {
+  if (!configured) return [];
+  const { data, error } = await supabase
+    .from("active_journeys")
+    .select("*")
+    .order("updated_at", { ascending: false });
+  if (error) {
+    logError("fetchActiveJourneys failed", error);
+    return [];
+  }
+  return (data ?? []) as ActiveJourney[];
+};
+
+/** Subscribe to active journey changes (RLS-scoped). */
+export const subscribeActiveJourneys = (cb: (journey: ActiveJourney) => void): (() => void) => {
+  if (!configured) return () => {};
+  const channel = supabase
+    .channel("sakhi-active-journeys")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "active_journeys" },
+      (payload) => cb(payload.new as ActiveJourney),
+    )
+    .subscribe();
+  return () => {
+    void supabase.removeChannel(channel);
+  };
+};
+
 // ── Proactive safety services (Safety Journey, deviation detection, AI
 //    recommendations, silent triggers, post-incident, community map) ─────────
 // The directory `src/lib/safety/` holds the modular services; this file
