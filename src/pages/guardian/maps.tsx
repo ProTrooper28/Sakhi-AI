@@ -29,16 +29,6 @@ const createEmergencyUserMarker = () =>
     iconAnchor: [36, 36],
   });
 
-const createGuardianMarker = () =>
-  L.divIcon({
-    className: "custom-guardian-marker",
-    html: `<div class="relative">
-            <div class="w-9 h-9 bg-blue-500 rounded-full border-2 border-white shadow-xl flex items-center justify-center text-white"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg></div>
-           </div>`,
-    iconSize: [36, 36],
-    iconAnchor: [18, 18],
-  });
-
 // ── Calm family map (small preview, light tiles, markers update in place) ────
 
 export const CalmFamilyMap = ({
@@ -51,27 +41,27 @@ export const CalmFamilyMap = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Record<string, L.Marker>>({});
-  const guardianRef = useRef<L.Marker | null>(null);
+  // Guards the one-time auto-framing so we never fight the user's own pan/zoom.
+  const hasFitRef = useRef(false);
 
   // Create once.
   useEffect(() => {
     const el = containerRef.current;
     if (!el || mapRef.current) return;
     const map = L.map(el, {
-      center: [19.0596, 72.8295],
-      zoom: 13,
+      center: [20.5937, 78.9629],
+      zoom: 5,
       zoomControl: false,
       attributionControl: false,
     });
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-    guardianRef.current = L.marker([19.0596, 72.8295], { icon: createGuardianMarker() }).addTo(map);
     mapRef.current = map;
     requestAnimationFrame(() => map.invalidateSize());
     return () => {
       map.remove();
       mapRef.current = null;
       markersRef.current = {};
-      guardianRef.current = null;
+      hasFitRef.current = false;
     };
   }, []);
 
@@ -80,9 +70,11 @@ export const CalmFamilyMap = ({
     const map = mapRef.current;
     if (!map) return;
     const seen = new Set<string>();
+    const points: [number, number][] = [];
     members.forEach((m) => {
       const loc = locations[m.user_id];
       if (!loc) return; // only real live positions — never fake markers
+      points.push([loc.latitude, loc.longitude]);
       let marker = markersRef.current[m.user_id];
       if (!marker) {
         marker = L.marker([loc.latitude, loc.longitude], { icon: createUserMarker() }).addTo(map);
@@ -98,6 +90,16 @@ export const CalmFamilyMap = ({
         delete markersRef.current[id];
       }
     });
+    // As soon as the first real position(s) arrive, frame the map on them so
+    // the tracked person is visible immediately (no hardcoded-city default).
+    if (points.length && !hasFitRef.current) {
+      hasFitRef.current = true;
+      if (points.length === 1) {
+        map.setView(points[0], 13, { animate: true });
+      } else {
+        map.fitBounds(L.latLngBounds(points).pad(0.25), { animate: true });
+      }
+    }
   }, [members, locations]);
 
   return <div ref={containerRef} style={{ height: 220, width: "100%", borderRadius: 18 }} />;
