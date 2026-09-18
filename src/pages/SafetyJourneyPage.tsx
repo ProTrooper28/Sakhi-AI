@@ -213,7 +213,7 @@ const SafetyJourneyPage = () => {
       zoomControl: false,
       attributionControl: false,
     });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
     userMarkerRef.current = L.marker(currentPos, { icon: makeUserIcon(), zIndexOffset: 1000 }).addTo(map);
     routeLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;

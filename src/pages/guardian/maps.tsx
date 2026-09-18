@@ -63,7 +63,7 @@ export const CalmFamilyMap = ({
       zoomControl: false,
       attributionControl: false,
     });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png").addTo(map);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
     guardianRef.current = L.marker([19.0596, 72.8295], { icon: createGuardianMarker() }).addTo(map);
     mapRef.current = map;
     requestAnimationFrame(() => map.invalidateSize());
@@ -114,7 +114,9 @@ export const EmergencyMap = ({ userLoc }: { userLoc: { lat: number; lng: number 
     const el = containerRef.current;
     if (!el || mapRef.current) return;
     const map = L.map(el, { zoomControl: false, attributionControl: false, zoom: 15 });
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png").addTo(map);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      className: "map-tiles-dark",
+    }).addTo(map);
     map.setView([19.0596, 72.8295], 15);
     mapRef.current = map;
     requestAnimationFrame(() => map.invalidateSize());

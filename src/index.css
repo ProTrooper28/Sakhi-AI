@@ -377,4 +377,11 @@
   .guardian-emergency-bg {
     background: linear-gradient(180deg, #0A0A0A 0%, #1A0505 30%, #2D0A0A 60%, #0A0A0A 100%);
   }
+
+  /* ── Map tile helpers ── */
+  /* Dark-tinted OSM tiles for emergency maps (CARTO dark basemaps now
+     require an API key for anonymous traffic, so we darken OSM via CSS). */
+  .map-tiles-dark {
+    filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.7);
+  }
 }

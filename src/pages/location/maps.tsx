@@ -55,8 +55,8 @@ const createDotIcon = (sos: boolean) =>
 
 // ── Tiles ────────────────────────────────────────────────────────────────────
 
-const LIGHT_TILES = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
-const DARK_TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+const LIGHT_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const DARK_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 // ── Marker animation (smooth glide between realtime updates) ────────────────
 
@@ -181,7 +181,7 @@ export const LiveTrackingMap = ({
     if (!map) return;
     if (tileRef.current) map.removeLayer(tileRef.current);
     const primaryUrl = tileUrl ?? LIGHT_TILES;
-    const fallbackUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+    const fallbackUrl = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
     const tileLayer = L.tileLayer(primaryUrl, {
       maxZoom: 19,
       crossOrigin: true,
