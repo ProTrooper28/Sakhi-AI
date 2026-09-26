@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import {
   getSOSVolume, setSOSVolume,
-  startSOSAlarmLoop, stopSOSAlarmLoop,
+  startSOSAlarmLoop, stopSOSAlarmLoop, restartSiren,
 } from "@/lib/audio";
 import { vibrateActivated, vibrateResolved } from "@/lib/haptics";
 import { getDeviceBattery, isSharingEnabled, shareLocation } from "@/pages/location/helpers";
@@ -285,10 +285,14 @@ const SOSPage = () => {
     }
   };
 
-  // Auto-start camera recording when SOS becomes active
+  // Auto-start camera recording when SOS becomes active — but with a short
+  // delay. getUserMedia microphone capture can suspend the shared AudioContext
+  // (notably on iOS), which would cut the siren right after it starts. Let the
+  // siren establish itself first, then begin evidence capture.
   useEffect(() => {
     if (sosState.active) {
-      startRecording();
+      const id = setTimeout(() => void startRecording(), 2500);
+      return () => clearTimeout(id);
     } else {
       stopAndSaveRecording();
     }
@@ -328,7 +332,7 @@ const SOSPage = () => {
 
   const handleRestartSiren = () => {
     setSirenMuted(false);
-    startSOSAlarmLoop(false);
+    restartSiren();
   };
 
   // ── ACTIVE SOS: premium emergency mode ───────────────────────────────────
