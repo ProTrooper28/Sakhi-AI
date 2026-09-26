@@ -230,18 +230,9 @@ const SafetyJourneyPage = () => {
   // Width reserved on the right for the dashboard panel (0 on mobile).
   const panelWidth = viewport === "mobile" ? 0 : viewport === "desktop" ? 380 : 320;
 
-  // Preview ETA (straight-line estimate until the real route is fetched).
-  const previewEtaMs = useMemo(() => {
-    if (!selectedDest) return null;
-    const dist = haversineMeters(currentPos[0], currentPos[1], selectedDest.lat, selectedDest.lng);
-    return Date.now() + estimateDurationSec(dist, mode) * 1000;
-  }, [selectedDest, mode, currentPos]);
-
   const etaOverrideMs = useMemo(() => timeInputToMs(etaOverride), [etaOverride]);
-  const finalEtaMs = etaOverrideMs ?? previewEtaMs;
 
   const monitoringEnabledCount = Object.values(monitoring).filter(Boolean).length;
-  const trustedContact = TRUSTED_CONTACTS.find((c) => c.id === trustedContactId)?.name ?? "All Guardians";
 
   // ── Map lifecycle ──
   useEffect(() => {
@@ -392,13 +383,34 @@ const SafetyJourneyPage = () => {
       startedAtMs: etaOverrideMs ?? Date.now(),
       mode,
     };
-    return rankRoutes(routeOptions, ctx);
+    // Travel mode changes the pace: re-estimate every route's duration from
+    // its own distance using the selected mode's speed, so ETA, score
+    // ranking, "Fastest" badges and route cards update live when switching
+    // between walking, cab, auto, bike and public transport.
+    const modeAwareOptions: RouteOption[] = routeOptions.map((r) => ({
+      ...r,
+      durationSec: estimateDurationSec(r.distanceM, mode),
+    }));
+    return rankRoutes(modeAwareOptions, ctx);
   }, [routeOptions, safetyData, mode, etaOverrideMs]);
 
   const selectedScored = useMemo<ScoredRoute | null>(
     () => scoredRoutes.find((r) => r.route.id === selectedRouteId) ?? scoredRoutes[0] ?? null,
     [scoredRoutes, selectedRouteId],
   );
+
+  const trustedContact = TRUSTED_CONTACTS.find((c) => c.id === trustedContactId)?.name ?? "All Guardians";
+
+  // Preview ETA — uses the selected route's real distance with the selected
+  // travel mode's speed, so the Expected Arrival field updates automatically
+  // when the user switches travel modes (walking → cab → bike → public …).
+  const planningEtaMs = useMemo(() => {
+    if (!selectedDest) return null;
+    const dist = selectedScored?.route.distanceM
+      ?? haversineMeters(currentPos[0], currentPos[1], selectedDest.lat, selectedDest.lng);
+    return Date.now() + estimateDurationSec(dist, mode) * 1000;
+  }, [selectedDest, mode, currentPos, selectedScored]);
+  const finalEtaMs = etaOverrideMs ?? planningEtaMs;
 
   const whyRoute = useMemo<ScoredRoute | null>(
     () => scoredRoutes.find((r) => r.route.id === whyRouteId) ?? null,
