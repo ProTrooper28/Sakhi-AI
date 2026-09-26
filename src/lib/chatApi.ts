@@ -22,6 +22,12 @@ export interface ChatUserContext {
   sosActive?: boolean;
   journeyStatus?: "active" | "planning" | "completed" | "none";
   journeyDestination?: string;
+  /** AI Safe Check-in: minutes past the expected arrival (missed ETA). */
+  journeyOverdueMin?: number;
+  /** AI Safe Check-in status line, e.g. "AI Safety Check sent — no response yet". */
+  safeCheckinStatus?: string;
+  /** True when the user already confirmed safety via the check-in. */
+  safeCheckinAcknowledged?: boolean;
   voiceEnabled?: boolean;
   shakeEnabled?: boolean;
   guardianLinked?: boolean;

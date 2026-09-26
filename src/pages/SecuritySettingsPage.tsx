@@ -15,6 +15,12 @@ import {
   type TriggerMethodId,
 } from "@/lib/safety";
 import { useEmergencyActivation } from "@/components/emergency/EmergencyActivationProvider";
+import {
+  readSafeCheckinSettings,
+  writeSafeCheckinSettings,
+  SAFE_CHECKIN_GRACE_OPTIONS,
+  type SafeCheckinSettings,
+} from "@/lib/safety";
 
 const TRIGGER_ICONS: Record<TriggerMethodId, typeof Radio> = {
   "voice-phrase": Volume2,
@@ -52,6 +58,133 @@ const sections = [
     ],
   },
 ];
+
+/**
+ * AI Safety Check-ins section — proactive journey monitoring settings.
+ * Persists via readSafeCheckinSettings/writeSafeCheckinSettings so the Safety
+ * Journey engine picks up changes instantly (live, even mid-journey).
+ */
+function SafeCheckinSettingsSection() {
+  const [settings, setSettings] = useState<SafeCheckinSettings>(() => readSafeCheckinSettings());
+
+  const update = (patch: Partial<SafeCheckinSettings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      writeSafeCheckinSettings(next);
+      return next;
+    });
+  };
+
+  return (
+    <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="p-2.5 rounded-2xl bg-[#F2956A]/15 text-[#F2956A]">
+          <Shield className="w-5 h-5" />
+        </div>
+        <div>
+          <h2 className="font-extrabold text-base text-[#3D2315] font-heading">AI Safety Check-ins</h2>
+          <p className="text-[10px] font-bold text-[#F2956A] uppercase">
+            {settings.enabled ? "Active during journeys" : "Off"}
+          </p>
+        </div>
+      </div>
+      <p className="text-[#9E7A6A] text-xs mt-2 leading-relaxed">
+        When your Safety Journey passes its expected arrival time, Sakhi checks on you first —
+        guardians are only alerted if you stay unresponsive. SOS is never triggered automatically.
+      </p>
+
+      {/* Master toggle */}
+      <div className="flex items-start justify-between gap-4 mt-4">
+        <div className="flex-1 min-w-0">
+          <p className="text-[#3D2315] text-sm font-bold">AI Safety Check-ins</p>
+          <p className="text-[#9E7A6A] text-xs mt-0.5 leading-relaxed">
+            Proactively check on me if I haven't arrived by my ETA
+          </p>
+        </div>
+        <button
+          onClick={() => update({ enabled: !settings.enabled })}
+          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-0.5 cursor-pointer ${
+            settings.enabled ? "bg-[#3D9970]" : "bg-[#F5E4D6]"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+              settings.enabled ? "translate-x-5.5" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Grace period picker */}
+      <div className="mt-5 pt-4 border-t border-[#F5E4D6]">
+        <p className="text-[#3D2315] text-sm font-bold">Grace Period</p>
+        <p className="text-[#9E7A6A] text-xs mt-0.5 mb-3 leading-relaxed">
+          Wait this long after the ETA before the first check-in
+        </p>
+        <div className="grid grid-cols-4 gap-2">
+          {SAFE_CHECKIN_GRACE_OPTIONS.map((m) => (
+            <button
+              key={m}
+              onClick={() => update({ graceMinutes: m })}
+              className={`py-2.5 rounded-xl text-xs font-black transition-colors cursor-pointer ${
+                settings.graceMinutes === m
+                  ? "bg-[#D4455C] text-white"
+                  : "bg-[#FDF6EE] text-[#9E7A6A] hover:bg-[#FBDDD0]/60"
+              }`}
+            >
+              {m} min
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Response window picker */}
+      <div className="mt-5 pt-4 border-t border-[#F5E4D6]">
+        <p className="text-[#3D2315] text-sm font-bold">Response Window</p>
+        <p className="text-[#9E7A6A] text-xs mt-0.5 mb-3 leading-relaxed">
+          Time to respond before the follow-up, and again before guardians are alerted
+        </p>
+        <div className="grid grid-cols-4 gap-2">
+          {[1, 2, 3, 5].map((m) => (
+            <button
+              key={m}
+              onClick={() => update({ responseMinutes: m })}
+              className={`py-2.5 rounded-xl text-xs font-black transition-colors cursor-pointer ${
+                settings.responseMinutes === m
+                  ? "bg-[#D4455C] text-white"
+                  : "bg-[#FDF6EE] text-[#9E7A6A] hover:bg-[#FBDDD0]/60"
+              }`}
+            >
+              {m} min
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Auto-notify guardian */}
+      <div className="flex items-start justify-between gap-4 mt-5 pt-4 border-t border-[#F5E4D6]">
+        <div className="flex-1 min-w-0">
+          <p className="text-[#3D2315] text-sm font-bold">Auto Notify Guardian</p>
+          <p className="text-[#9E7A6A] text-xs mt-0.5 leading-relaxed">
+            Alert linked guardians automatically after continued silence
+          </p>
+        </div>
+        <button
+          onClick={() => update({ autoNotifyGuardian: !settings.autoNotifyGuardian })}
+          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-0.5 cursor-pointer ${
+            settings.autoNotifyGuardian ? "bg-[#3D9970]" : "bg-[#F5E4D6]"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+              settings.autoNotifyGuardian ? "translate-x-5.5" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Emergency Activation section — Voice SOS + Double Shake SOS.
@@ -474,6 +607,9 @@ export default function SecuritySettingsPage() {
                   )}
                 </div>
               ))}
+
+              {/* ── AI Safety Check-ins (journey monitoring settings) ── */}
+              <SafeCheckinSettingsSection />
 
               {/* ── Silent Safety Triggers (Feature 4) ── */}
               <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">

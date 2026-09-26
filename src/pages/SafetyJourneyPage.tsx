@@ -31,6 +31,18 @@ import {
   RIDE_SERVICES,
   MONITORING_DEFAULTS,
   TRUSTED_CONTACTS,
+  advanceCheckin,
+  beginCheckinMonitoring,
+  checkinStatusLine,
+  CHECKIN_EVENT_MARKERS,
+  CHECKIN_STEP_LABELS,
+  initialCheckinState,
+  readSafeCheckinSettings,
+  readSafeCheckinState,
+  resetCheckinMonitoring,
+  type SafeCheckinSettings,
+  type SafeCheckinState,
+  ARRIVAL_RADIUS_M,
   type TravelMode,
   type Journey,
   type RideDetails,
@@ -55,6 +67,7 @@ import {
 } from "@/lib/safety";
 import { upsertLiveLocation, sendSafeCheckIn, sendJourneyNotification, upsertActiveJourney } from "@/lib/safety";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import SafeCheckinSheet from "@/components/safety/SafeCheckinSheet";
 
 // ─── Leaflet icon defaults (same as the Risk Map page) ───────────────────────
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -160,7 +173,7 @@ type SafetyDataContext = Pick<RouteSafetyContext, "zones" | "reports" | "service
 const SafetyJourneyPage = () => {
   const navigate = useNavigate();
   const { locationState, triggerSOS, requestLocation } = useApp();
-  const { user, guest } = useAuth();
+  const { user, guest, displayName } = useAuth();
 
   const [journey, setJourney] = useState<Journey>(() => readJourney());
   const [searchQuery, setSearchQuery] = useState("");
@@ -177,6 +190,16 @@ const SafetyJourneyPage = () => {
 
   const [prompt, setPrompt] = useState<SafetyPrompt | null>(null);
   const [needHelpOpen, setNeedHelpOpen] = useState(false);
+
+  // ── AI Safe Check-in ──
+  const [checkinSettings, setCheckinSettings] = useState<SafeCheckinSettings>(() => readSafeCheckinSettings());
+  const [checkin, setCheckin] = useState<SafeCheckinState>(() => {
+    // Rehydrate only if the persisted state still matches the live journey.
+    const persisted = readSafeCheckinState();
+    const j = readJourney();
+    return persisted.journeyId && persisted.journeyId === j.id && j.status === "active" ? persisted : initialCheckinState();
+  });
+  const [checkinSheet, setCheckinSheet] = useState<null | "checkin" | "nudge" | "safe" | "help" | "escalated">(null);
   const [insights, setInsights] = useState<string[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -493,6 +516,9 @@ const SafetyJourneyPage = () => {
       });
       setJourney(j);
       deviationAckedRef.current = false;
+      // Arm the AI Safe Check-in ladder for this journey.
+      setCheckin(beginCheckinMonitoring(j.expectedArrivalMs, j.id));
+      setCheckinSheet(null);
 
       if (guardianConnected && monitoring.shareLiveLocation) {
         void upsertLiveLocation({ lat: currentPos[0], lng: currentPos[1], label: locationState.address });
@@ -600,6 +626,147 @@ const SafetyJourneyPage = () => {
     return () => clearInterval(id);
   }, [guardianConnected, journey.status, handleAlerts]);
 
+  // ── AI Safe Check-in — arm on journey start, advance every 5 s ──
+
+  // Arm the ladder when a journey begins (or re-arm if one is already running
+  // without a ladder, e.g. started before this feature existed).
+  useEffect(() => {
+    if (journey.status === "active" && journey.id && checkin.journeyId !== journey.id) {
+      setCheckin(beginCheckinMonitoring(journey.expectedArrivalMs, journey.id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [journey.status, journey.id]);
+
+  // Build the Supabase payload once per check-in state so the sheet, the
+  // guardians sync and the AI Companion context all see the same thing.
+  const checkinJourneyData = useMemo(
+    () => ({ mode: journey.mode, rideDetails: journey.rideDetails, monitoring: journey.monitoring, safeCheckin: checkin }),
+    [journey.mode, journey.rideDetails, journey.monitoring, checkin],
+  );
+
+  const handleCheckinEvents = useCallback(
+    (events: ReturnType<typeof advanceCheckin>["events"], state: SafeCheckinState) => {
+      const pos = locationState.coords;
+      const lat = pos?.lat ?? journey.lastPosition?.lat ?? 0;
+      const lng = pos?.lng ?? journey.lastPosition?.lng ?? 0;
+      const label = locationState.address ?? null;
+      for (const ev of events) {
+        if (ev.type === "show-checkin") {
+          setCheckinSheet("checkin");
+          if (guardianConnected) {
+            void sendJourneyNotification({ lat, lng, label: `${CHECKIN_EVENT_MARKERS.checkSent} ETA passed, asking user to confirm they are safe` });
+          }
+          if (isSupabaseConfigured) {
+            void upsertActiveJourney({ status: "active", keepStartedAt: true, journeyData: { ...checkinJourneyData, safeCheckin: state } });
+          }
+        } else if (ev.type === "show-nudge") {
+          setCheckinSheet("nudge");
+          if (guardianConnected) {
+            void sendJourneyNotification({ lat, lng, label: `${CHECKIN_EVENT_MARKERS.noResponse} second notice sent` });
+          }
+          if (isSupabaseConfigured) {
+            void upsertActiveJourney({ status: "active", keepStartedAt: true, journeyData: { ...checkinJourneyData, safeCheckin: state } });
+          }
+        } else if (ev.type === "notify-guardian") {
+          // Guardian notification ONLY — the AI never auto-triggers SOS.
+          setCheckinSheet("escalated");
+          void sendJourneyNotification({
+            lat,
+            lng,
+            label: `${CHECKIN_EVENT_MARKERS.guardianAlert} The user has not responded after missing the expected arrival time.`,
+          });
+          toast({
+            title: "Guardians Alerted",
+            description: "You didn't respond to the AI Safety Check — your guardians have been notified with your live location.",
+          });
+          if (isSupabaseConfigured) {
+            void upsertActiveJourney({ status: "active", keepStartedAt: true, journeyData: { ...checkinJourneyData, safeCheckin: state } });
+          }
+        }
+      }
+    },
+    // checkinJourneyData is included so guardian syncs always carry the
+    // freshest journey snapshot alongside the new check-in state.
+    [guardianConnected, locationState.coords, locationState.address, journey.lastPosition, checkinJourneyData],
+  );
+
+  useEffect(() => {
+    if (journey.status !== "active" || !checkinSettings.enabled || !checkin.journeyId) return;
+    const run = () => {
+      const pos = locationRef.current.coords;
+      const arrived =
+        !!pos &&
+        !!journeyRef.current.destination &&
+        haversineMeters(pos.lat, pos.lng, journeyRef.current.destination.lat, journeyRef.current.destination.lng) <=
+          ARRIVAL_RADIUS_M;
+      setCheckin((prev) => {
+        const { state, events } = advanceCheckin(prev, { settings: checkinSettings, arrived });
+        if (state !== prev) {
+          if (events.length > 0) handleCheckinEvents(events, state);
+          return state;
+        }
+        return prev;
+      });
+    };
+    run();
+    const id = setInterval(run, 5000);
+    return () => clearInterval(id);
+  }, [journey.status, checkinSettings.enabled, checkin.journeyId, checkinSettings, handleCheckinEvents]);
+
+  // Mark the ETA-missed timeline step on the guardian dashboard as soon as
+  // the ETA passes (before the grace period ends).
+  useEffect(() => {
+    if (journey.status !== "active" || checkin.phase !== "grace" || !guardianConnected) return;
+    const pos = locationState.coords;
+    void sendJourneyNotification({
+      lat: pos?.lat ?? journey.lastPosition?.lat ?? 0,
+      lng: pos?.lng ?? journey.lastPosition?.lng ?? 0,
+      label: `${CHECKIN_EVENT_MARKERS.etaMissed} Running behind the expected arrival time`,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [journey.status, checkin.phase, guardianConnected]);
+
+  const handleCheckinSafe = useCallback(() => {
+    setCheckin((prev) => {
+      const { state } = advanceCheckin(prev, { settings: checkinSettings, acknowledged: true });
+      return state;
+    });
+    setCheckinSheet("safe");
+    setPrompt(null);
+    if (guardianConnected) {
+      const pos = locationState.coords;
+      void sendSafeCheckIn({
+        lat: pos?.lat ?? journey.lastPosition?.lat ?? 0,
+        lng: pos?.lng ?? journey.lastPosition?.lng ?? 0,
+        label: "Confirmed safe via AI Safety Check",
+      });
+    }
+    if (isSupabaseConfigured) {
+      void upsertActiveJourney({
+        status: "active",
+        keepStartedAt: true,
+        journeyData: { mode: journey.mode, rideDetails: journey.rideDetails, monitoring: journey.monitoring, safeCheckin: { ...checkin, phase: "resolved", acknowledgedAt: Date.now() } },
+      });
+    }
+  }, [checkinSettings, guardianConnected, locationState.coords, journey.lastPosition, journey.mode, journey.rideDetails, journey.monitoring, checkin]);
+
+  const endJourneyFromCheckin = useCallback(() => {
+    const updated = cancelJourney(journeyRef.current);
+    setJourney(updated);
+    resetCheckinMonitoring();
+    setCheckin(initialCheckinState());
+    setCheckinSheet(null);
+    if (isSupabaseConfigured) {
+      void upsertActiveJourney({ status: "completed" });
+    }
+    toast({ title: "Journey Ended", description: "Monitoring stopped. Stay safe." });
+  }, []);
+
+  const continueJourneyFromCheckin = useCallback(() => {
+    setCheckinSheet(null);
+    toast({ title: "Welcome back", description: "AI monitoring continues until you arrive." });
+  }, []);
+
   // ── Insights (Feature 7) — refreshed while journeying ──
   useEffect(() => {
     if (journey.status !== "active" || !journey.destination) return;
@@ -652,12 +819,18 @@ const SafetyJourneyPage = () => {
     if (isSupabaseConfigured) {
       void upsertActiveJourney({ status: "completed" });
     }
+    resetCheckinMonitoring();
+    setCheckin(initialCheckinState());
+    setCheckinSheet(null);
     toast({ title: "Journey Ended", description: "Monitoring stopped. Stay safe." });
   };
 
   const resetToPlanning = () => {
     clearJourney();
     setJourney(emptyJourney());
+    resetCheckinMonitoring();
+    setCheckin(initialCheckinState());
+    setCheckinSheet(null);
     setSelectedDest(null);
     setOrigin(null);
     setWhyRouteId(null);
@@ -674,6 +847,31 @@ const SafetyJourneyPage = () => {
     <AppLayout>
       <div className="relative min-h-[calc(100vh-96px)]" style={{ background: "#FDF6EE" }}>
         <div ref={containerRef} className="absolute inset-0 z-0" />
+
+        {/* ── AI Safe Check-in — proactive check after a missed ETA ──
+            (rendered early in the tree; absolute overlay, z-50) ── */}
+        <AnimatePresence>
+          {checkinSheet && (
+            <SafeCheckinSheet
+              key="safe-checkin"
+              stage={checkinSheet}
+              displayName={displayName || ""}
+              checkin={checkin}
+              position={[locationState.coords?.lat ?? currentPos[0], locationState.coords?.lng ?? currentPos[1]]}
+              guardianConnected={guardianConnected}
+              onConfirmSafe={handleCheckinSafe}
+              onTriggerSOS={() => { triggerSOS(); navigate("/sos"); }}
+              onShareLocation={() =>
+                void shareLocation(locationState.coords?.lat ?? currentPos[0], locationState.coords?.lng ?? currentPos[1], locationState.address)
+              }
+              onOpenEvidenceLocker={() => navigate("/evidence-locker")}
+              onContinueJourney={continueJourneyFromCheckin}
+              onEndJourney={endJourneyFromCheckin}
+              onDismiss={() => setCheckinSheet(null)}
+              onBack={() => setCheckinSheet("checkin")}
+            />
+          )}
+        </AnimatePresence>
 
         {/* ── Top bar ── */}
         <div className="absolute top-0 left-0 right-0 z-20 pt-5 px-4 flex items-center justify-between pointer-events-none">
@@ -700,6 +898,26 @@ const SafetyJourneyPage = () => {
           </motion.div>
           <div className="w-10" />
         </div>
+
+        {/* ── AI Safe Check-in status chip (visible once the ETA is missed) ── */}
+        <AnimatePresence>
+          {active && checkinStatusLine(checkin) && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="absolute top-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur shadow-lg border border-[#FFF3C7] pointer-events-none"
+            >
+              <span className="relative flex w-2 h-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F39C12] opacity-60" />
+                <span className="relative inline-flex rounded-full w-2 h-2 bg-[#F39C12]" />
+              </span>
+              <span className="text-[10px] font-black text-[#B7770D] whitespace-nowrap" style={{ fontFamily: "Nunito,sans-serif" }}>
+                {checkinStatusLine(checkin)}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Bottom sheet: setup ── */}
         <AnimatePresence>

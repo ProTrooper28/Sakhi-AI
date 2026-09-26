@@ -31,6 +31,7 @@ import { recommendForText } from "@/lib/safety";
 import { shareLocation } from "@/pages/location/helpers";
 import { streamMessageToApi, type ChatApiMessage, type ChatUserContext } from "@/lib/chatApi";
 import { readTriggerConfig } from "@/lib/safety";
+import { readSafeCheckinState, checkinContextSummary } from "@/lib/safety";
 
 // ── Types ──
 
@@ -270,11 +271,28 @@ function buildUserContext(opts: {
 }): ChatUserContext {
   const journey = readJourneySnapshot();
   const triggers = readTriggerConfig();
+  // ── AI Safe Check-in context — the companion knows about missed ETAs ──
+  let journeyOverdueMin: number | undefined;
+  let safeCheckinStatus: string | undefined;
+  let safeCheckinAcknowledged: boolean | undefined;
+  const checkin = readSafeCheckinState();
+  if (journey.status === "active" && checkin.journeyId) {
+    safeCheckinAcknowledged = checkin.acknowledgedAt != null;
+    const summary = checkinContextSummary(checkin);
+    if (summary) safeCheckinStatus = summary;
+    if (checkin.etaMissedAt) {
+      const overdueMin = Math.floor((Date.now() - checkin.etaMissedAt) / 60000);
+      if (overdueMin >= 1) journeyOverdueMin = overdueMin;
+    }
+  }
   return {
     userName: opts.displayName || undefined,
     sosActive: opts.sosActive,
     journeyStatus: (journey.status as ChatUserContext["journeyStatus"]) ?? "none",
     journeyDestination: journey.destination || undefined,
+    journeyOverdueMin,
+    safeCheckinStatus,
+    safeCheckinAcknowledged,
     voiceEnabled: !!triggers["voice-phrase"],
     shakeEnabled: !!triggers["gesture"],
     guardianLinked: !!(opts.user && !opts.guest),

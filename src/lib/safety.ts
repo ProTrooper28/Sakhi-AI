@@ -359,6 +359,8 @@ export const upsertActiveJourney = async (p: {
   startLabel?: string | null;
   etaMinutes?: number | null;
   journeyData?: unknown;
+  /** Partial "active" sync (escalation/resolved updates): keep the original started_at. */
+  keepStartedAt?: boolean;
 }): Promise<boolean> => {
   const userId = await currentUserId();
   if (!userId) return false;
@@ -376,7 +378,10 @@ export const upsertActiveJourney = async (p: {
         start_lng: p.startLng ?? null,
         start_label: p.startLabel ?? null,
         eta_minutes: p.etaMinutes ?? null,
-        started_at: p.status === "active" ? new Date().toISOString() : undefined,
+        // Keep the original start time on partial syncs (escalation,
+        // resolved, completion) so the guardian's elapsed-time readout
+        // stays correct — only a fresh "active" upsert re-baselines it.
+        started_at: p.status === "active" && !p.keepStartedAt ? new Date().toISOString() : undefined,
         ended_at: p.status !== "active" ? new Date().toISOString() : null,
         updated_at: new Date().toISOString(),
         journey_data: p.journeyData ?? null,

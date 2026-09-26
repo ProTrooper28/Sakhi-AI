@@ -93,13 +93,17 @@ function buildSystemPrompt(context: unknown): string {
 - User's name: ${String(ctx.userName || "unknown")}
 - SOS/emergency mode active right now: ${ctx.sosActive ? "YES" : "no"}
 - Safety Journey status: ${String(ctx.journeyStatus || "none")}${ctx.journeyDestination ? ` (destination: ${String(ctx.journeyDestination)})` : ""}
+- Journey overdue: ${ctx.journeyOverdueMin ? `${String(ctx.journeyOverdueMin)} min past the expected arrival` : "no"}
+- AI Safe Check-in: ${String(ctx.safeCheckinStatus || "none")}${ctx.safeCheckinAcknowledged ? " (user already confirmed safe)" : ""}
 - Voice phrase trigger armed: ${ctx.voiceEnabled ? "yes" : "no"}
 - Shake trigger armed: ${ctx.shakeEnabled ? "yes" : "no"}
 - Guardian linked: ${ctx.guardianLinked ? "yes" : "no — demo mode"}
 - Approximate area (if shared): ${String(ctx.locationLabel || "not shared")}
 - Current local time: ${String(ctx.localTime || "")}
 
-Use this context to personalize replies (e.g. mention the active journey or available triggers when relevant).`;
+Use this context to personalize replies (e.g. mention the active journey or available triggers when relevant).
+
+CHECK-IN ESCALATION GUIDANCE: If the AI Safe Check-in status says a check was sent with no response, or the journey is overdue, proactively offer: notify the guardian, trigger SOS, share live location, or call 112 — but the user always decides. Never claim an SOS was triggered automatically.`;
   return SYSTEM_PROMPT + contextBlock;
 }
 

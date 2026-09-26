@@ -26,6 +26,7 @@ import { addGuardianLink, removeLink, renameRelationship } from "@/lib/guardians
 import { RELATIONSHIPS, type GuardianLink } from "@/lib/auth-types";
 import type { LiveLocation, SafetyEvent, ActiveJourney } from "@/lib/safety";
 import { fetchActiveJourneys, subscribeActiveJourneys } from "@/lib/safety";
+import { journeyEventFromLabel, checkinStepsFromJourneyData } from "@/lib/safety";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { AVATAR_COLORS, initialsOf, timeAgo } from "./helpers";
 import { CalmFamilyMap } from "./maps";
@@ -177,6 +178,30 @@ export const NormalDashboard = ({
     events.slice(0, 8).forEach((ev) => {
       const name = userNameFor(ev.user_id);
       const ts = new Date(ev.triggered_at).getTime();
+
+      // ── AI Safe Check-in journey timeline events (marked labels) ──
+      const journeyEvent = ev.type === "checkin" ? journeyEventFromLabel(ev.location_label) : null;
+      if (journeyEvent) {
+        const meta = {
+          "journey-started": { icon: Navigation, bg: "rgba(122,43,115,0.08)", color: "#7A2B73" },
+          "eta-missed": { icon: Clock, bg: "rgba(243,156,18,0.12)", color: "#B7770D" },
+          "check-sent": { icon: ShieldCheck, bg: "rgba(243,156,18,0.12)", color: "#B7770D" },
+          "no-response": { icon: Clock, bg: "rgba(243,156,18,0.14)", color: "#B7770D" },
+          "guardian-alerted": { icon: AlertTriangle, bg: "rgba(212,69,92,0.1)", color: "#B8324A" },
+        }[journeyEvent.kind];
+        items.push({
+          id: `jny-${ev.id}`,
+          icon: meta.icon,
+          bg: meta.bg,
+          color: meta.color,
+          title: `${name} ${journeyEvent.title}`,
+          sub: ev.location_label?.includes(":") ? ev.location_label.split(":").slice(1).join(":").trim() : undefined,
+          time: timeAgo(ev.triggered_at),
+          ts,
+        });
+        return;
+      }
+
       if (ev.type === "checkin") {
         items.push({
           id: ev.id,
@@ -351,6 +376,40 @@ export const NormalDashboard = ({
                     <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#9E7A6A" }}>
                       {j.destination ?? "En route"} · {elapsed}m elapsed{j.eta_minutes ? ` · ETA ${j.eta_minutes}m` : ""}
                     </p>
+                    {/* ── AI Safe Check-in timeline (live, from journey_data) ── */}
+                    {(() => {
+                      const steps = checkinStepsFromJourneyData(j.journey_data);
+                      if (steps.length === 0) return null;
+                      const reached = (s: string) => steps.includes(s as never);
+                      const chip = (label: string, reachedStep: boolean, last: boolean, danger: boolean) => (
+                        <span
+                          key={label}
+                          className="px-2 py-0.5 rounded-full whitespace-nowrap"
+                          style={{
+                            background: reachedStep
+                              ? danger ? "rgba(212,69,92,0.12)" : "rgba(243,156,18,0.14)"
+                              : "rgba(158,122,106,0.1)",
+                            color: reachedStep ? (danger ? "#B8324A" : "#B7770D") : "#9E7A6A",
+                            fontFamily: "Nunito,sans-serif",
+                            fontWeight: 800,
+                            fontSize: 9,
+                            opacity: reachedStep ? 1 : 0.55,
+                            letterSpacing: "0.03em",
+                          }}
+                        >
+                          {reachedStep ? "●" : "○"} {label}
+                        </span>
+                      );
+                      return (
+                        <div className="flex items-center gap-1 mt-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                          {chip("Started", reached("started"), reached("eta-missed"), false)}
+                          {chip("ETA Missed", reached("eta-missed"), reached("check-sent"), false)}
+                          {chip("AI Check Sent", reached("check-sent"), reached("no-response"), false)}
+                          {chip("No Response", reached("no-response"), reached("guardian-alerted"), false)}
+                          {chip("Guardian Alerted", reached("guardian-alerted"), true, true)}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <button
                     onClick={() => navigate(`/guardian/track/${j.user_id}`)}
