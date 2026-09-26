@@ -28,6 +28,12 @@ export interface ChatUserContext {
   safeCheckinStatus?: string;
   /** True when the user already confirmed safety via the check-in. */
   safeCheckinAcknowledged?: boolean;
+  /** Device battery % (null/undefined when unavailable or healthy). */
+  batteryLevel?: number;
+  /** Whether the device is currently charging. */
+  batteryCharging?: boolean;
+  /** Battery status line, e.g. "battery critically low (7%) during an active Safety Journey". */
+  batteryStatus?: string;
   voiceEnabled?: boolean;
   shakeEnabled?: boolean;
   guardianLinked?: boolean;

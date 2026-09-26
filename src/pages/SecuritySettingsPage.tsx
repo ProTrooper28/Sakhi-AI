@@ -21,6 +21,12 @@ import {
   SAFE_CHECKIN_GRACE_OPTIONS,
   type SafeCheckinSettings,
 } from "@/lib/safety";
+import {
+  readBatterySettings,
+  writeBatterySettings,
+  BATTERY_THRESHOLD_OPTIONS,
+  type BatterySafetySettings,
+} from "@/lib/safety";
 
 const TRIGGER_ICONS: Record<TriggerMethodId, typeof Radio> = {
   "voice-phrase": Volume2,
@@ -181,6 +187,110 @@ function SafeCheckinSettingsSection() {
             }`}
           />
         </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Battery Safety section — low-battery warnings during Safety Journeys.
+ * Persists via readBatterySettings/writeBatterySettings; the journey page
+ * reads the settings live on every monitoring tick.
+ */
+function BatterySafetySettingsSection() {
+  const [settings, setSettings] = useState<BatterySafetySettings>(() => readBatterySettings());
+
+  const update = (patch: Partial<BatterySafetySettings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      writeBatterySettings(next);
+      return next;
+    });
+  };
+
+  return (
+    <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="p-2.5 rounded-2xl bg-[#F2956A]/15 text-[#F2956A]">
+          <Shield className="w-5 h-5" />
+        </div>
+        <div>
+          <h2 className="font-extrabold text-base text-[#3D2315] font-heading">Battery Safety Alerts</h2>
+          <p className="text-[10px] font-bold text-[#F2956A] uppercase">
+            {settings.enabled ? "On — active during journeys" : "Off"}
+          </p>
+        </div>
+      </div>
+      <p className="text-[#9E7A6A] text-xs mt-2 leading-relaxed">
+        If your battery runs low during a Safety Journey, Sakhi warns you and alerts your guardian
+        before live tracking stops. Warnings only appear while a journey is active.
+      </p>
+
+      {/* Master toggle */}
+      <div className="flex items-start justify-between gap-4 mt-4">
+        <div className="flex-1 min-w-0">
+          <p className="text-[#3D2315] text-sm font-bold">Battery Safety Alerts</p>
+          <p className="text-[#9E7A6A] text-xs mt-0.5 leading-relaxed">
+            Warn me when my battery runs low during a journey
+          </p>
+        </div>
+        <button
+          onClick={() => update({ enabled: !settings.enabled })}
+          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-0.5 cursor-pointer ${
+            settings.enabled ? "bg-[#3D9970]" : "bg-[#F5E4D6]"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+              settings.enabled ? "translate-x-5.5" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Auto-notify guardian */}
+      <div className="flex items-start justify-between gap-4 mt-5 pt-4 border-t border-[#F5E4D6]">
+        <div className="flex-1 min-w-0">
+          <p className="text-[#3D2315] text-sm font-bold">Notify Guardian Automatically</p>
+          <p className="text-[#9E7A6A] text-xs mt-0.5 leading-relaxed">
+            Send the battery alert with your latest location when the threshold is hit
+          </p>
+        </div>
+        <button
+          onClick={() => update({ autoNotifyGuardian: !settings.autoNotifyGuardian })}
+          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-0.5 cursor-pointer ${
+            settings.autoNotifyGuardian ? "bg-[#3D9970]" : "bg-[#F5E4D6]"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+              settings.autoNotifyGuardian ? "translate-x-5.5" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Threshold picker */}
+      <div className="mt-5 pt-4 border-t border-[#F5E4D6]">
+        <p className="text-[#3D2315] text-sm font-bold">Battery Threshold</p>
+        <p className="text-[#9E7A6A] text-xs mt-0.5 mb-3 leading-relaxed">
+          Battery level that triggers the critical alert and guardian notification
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {BATTERY_THRESHOLD_OPTIONS.map((t) => (
+            <button
+              key={t}
+              onClick={() => update({ thresholdPercent: t })}
+              className={`py-2.5 rounded-xl text-xs font-black transition-colors cursor-pointer ${
+                settings.thresholdPercent === t
+                  ? "bg-[#D4455C] text-white"
+                  : "bg-[#FDF6EE] text-[#9E7A6A] hover:bg-[#FBDDD0]/60"
+              }`}
+            >
+              {t}%
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -610,6 +720,9 @@ export default function SecuritySettingsPage() {
 
               {/* ── AI Safety Check-ins (journey monitoring settings) ── */}
               <SafeCheckinSettingsSection />
+
+              {/* ── Battery Safety (low-battery journey warnings) ── */}
+              <BatterySafetySettingsSection />
 
               {/* ── Silent Safety Triggers (Feature 4) ── */}
               <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">

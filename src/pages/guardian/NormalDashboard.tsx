@@ -27,6 +27,7 @@ import { RELATIONSHIPS, type GuardianLink } from "@/lib/auth-types";
 import type { LiveLocation, SafetyEvent, ActiveJourney } from "@/lib/safety";
 import { fetchActiveJourneys, subscribeActiveJourneys } from "@/lib/safety";
 import { journeyEventFromLabel, checkinStepsFromJourneyData } from "@/lib/safety";
+import { batteryEventFromLabel, batteryGauge } from "@/lib/safety";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { AVATAR_COLORS, initialsOf, timeAgo } from "./helpers";
 import { CalmFamilyMap } from "./maps";
@@ -178,6 +179,22 @@ export const NormalDashboard = ({
     events.slice(0, 8).forEach((ev) => {
       const name = userNameFor(ev.user_id);
       const ts = new Date(ev.triggered_at).getTime();
+
+      // ── Battery Alert feed item (marked label from Battery-Aware Safety) ──
+      const batteryEvent = ev.type === "checkin" ? batteryEventFromLabel(ev.location_label) : null;
+      if (batteryEvent) {
+        items.push({
+          id: `bat-${ev.id}`,
+          icon: BatteryLow,
+          bg: "rgba(217,115,13,0.12)",
+          color: "#D9730D",
+          title: `${name}'s battery is critically low`,
+          sub: batteryEvent.summary,
+          time: timeAgo(ev.triggered_at),
+          ts,
+        });
+        return;
+      }
 
       // ── AI Safe Check-in journey timeline events (marked labels) ──
       const journeyEvent = ev.type === "checkin" ? journeyEventFromLabel(ev.location_label) : null;
@@ -376,6 +393,20 @@ export const NormalDashboard = ({
                     <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 11, color: "#9E7A6A" }}>
                       {j.destination ?? "En route"} · {elapsed}m elapsed{j.eta_minutes ? ` · ETA ${j.eta_minutes}m` : ""}
                     </p>
+                    {/* Live battery for the journeying member (from live_locations) */}
+                    {(() => {
+                      const pct = locations[j.user_id]?.battery_level;
+                      if (pct == null) return null;
+                      const g = batteryGauge(pct);
+                      return (
+                        <span
+                          className="inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full"
+                          style={{ background: g.bg, color: g.color, fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 9 }}
+                        >
+                          {g.emoji} Battery {Math.round(pct)}%
+                        </span>
+                      );
+                    })()}
                     {/* ── AI Safe Check-in timeline (live, from journey_data) ── */}
                     {(() => {
                       const steps = checkinStepsFromJourneyData(j.journey_data);
@@ -488,6 +519,22 @@ export const NormalDashboard = ({
                       </p>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      {/* ── Live battery gauge (updates with each location ping) ── */}
+                      {(() => {
+                        const g = batteryGauge(battery);
+                        return (
+                          <span
+                            title={`Battery ${battery != null ? `${Math.round(battery)}%` : "unknown"}`}
+                            className="flex items-center gap-1 px-2 py-1 rounded-full"
+                            style={{ background: g.bg, color: g.color }}
+                          >
+                            <BatteryLow style={{ width: 11, height: 11 }} />
+                            <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 9.5 }}>
+                              {battery != null ? `${Math.round(battery)}%` : "—"}
+                            </span>
+                          </span>
+                        );
+                      })()}
                       <span className="flex items-center gap-1 px-2 py-1 rounded-full" style={{ background: "rgba(61,153,112,0.1)", color: "#2E7D56" }}>
                         <ShieldCheck style={{ width: 11, height: 11 }} />
                         <span style={{ fontFamily: "Nunito,sans-serif", fontWeight: 800, fontSize: 9.5 }}>Safe</span>

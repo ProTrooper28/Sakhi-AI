@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 import {
   MapPin, Navigation2, ShieldCheck, Sparkles, Phone, Search, CheckCircle2,
   AlertTriangle, ChevronLeft, ChevronDown, Clock, Footprints, Car, Bike, Bus, UserCheck,
-  Share2, Zap, Shield, Users2, Check, HelpCircle, Loader2,
+  Share2, Zap, Shield, Users2, Check, HelpCircle, Loader2, BatteryLow,
 } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
@@ -40,8 +40,20 @@ import {
   readSafeCheckinSettings,
   readSafeCheckinState,
   resetCheckinMonitoring,
+  advanceBatteryAlerts,
+  batteryAlertLabel,
+  batteryColor,
+  batteryBg,
+  batteryLevelFor,
+  clearBatteryAlertState,
+  initialBatteryAlertState,
+  readBatterySettings,
+  readBatteryAlertState,
+  writeBatteryAlertState,
   type SafeCheckinSettings,
   type SafeCheckinState,
+  type BatterySafetySettings,
+  type BatteryAlertState,
   ARRIVAL_RADIUS_M,
   type TravelMode,
   type Journey,
@@ -68,6 +80,8 @@ import {
 import { upsertLiveLocation, sendSafeCheckIn, sendJourneyNotification, upsertActiveJourney } from "@/lib/safety";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import SafeCheckinSheet from "@/components/safety/SafeCheckinSheet";
+import { useDeviceBattery } from "@/hooks/useDeviceBattery";
+import { googleMapsUrl } from "@/pages/location/helpers";
 
 // ─── Leaflet icon defaults (same as the Risk Map page) ───────────────────────
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -200,6 +214,12 @@ const SafetyJourneyPage = () => {
     return persisted.journeyId && persisted.journeyId === j.id && j.status === "active" ? persisted : initialCheckinState();
   });
   const [checkinSheet, setCheckinSheet] = useState<null | "checkin" | "nudge" | "safe" | "help" | "escalated">(null);
+
+  // ── Battery-Aware Safety ──
+  const [batterySettings, setBatterySettings] = useState<BatterySafetySettings>(() => readBatterySettings());
+  const [batteryAlerts, setBatteryAlerts] = useState<BatteryAlertState>(() => readBatteryAlertState());
+  const [batterySheetOpen, setBatterySheetOpen] = useState(false);
+  const { level: batteryLevel, charging: batteryCharging } = useDeviceBattery();
   const [insights, setInsights] = useState<string[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -767,6 +787,109 @@ const SafetyJourneyPage = () => {
     toast({ title: "Welcome back", description: "AI monitoring continues until you arrive." });
   }, []);
 
+  // ── Battery-Aware Safety — monitor only while a journey is active ──
+  const handleBatteryAlerts = useCallback(
+    (events: ReturnType<typeof advanceBatteryAlerts>["events"], pct: number | null) => {
+      const pos = locationState.coords;
+      const lat = pos?.lat ?? journey.lastPosition?.lat ?? 0;
+      const lng = pos?.lng ?? journey.lastPosition?.lng ?? 0;
+      for (const ev of events) {
+        if (ev.type === "warning") {
+          toast({
+            title: "⚠ Battery is running low",
+            description: "Consider charging your phone to continue live tracking.",
+          });
+        } else if (ev.type === "critical") {
+          setBatterySheetOpen(true);
+          // Guardian alert at/below the critical threshold (10% default).
+          if (batterySettings.autoNotifyGuardian) {
+            void sendJourneyNotification({
+              lat,
+              lng,
+              label: batteryAlertLabel({
+                userName: displayName || "Your family member",
+                batteryPct: pct ?? 0,
+                at: Date.now(),
+                mapsUrl: googleMapsUrl(lat, lng),
+              }),
+            });
+          }
+        } else if (ev.type === "emergency") {
+          setBatterySheetOpen(true);
+          // Emergency: ALWAYS push the latest location to the guardian —
+          // this is the last chance before tracking dies.
+          void sendJourneyNotification({
+            lat,
+            lng,
+            label: batteryAlertLabel({
+              userName: displayName || "Your family member",
+              batteryPct: pct ?? 0,
+              at: Date.now(),
+              mapsUrl: googleMapsUrl(lat, lng),
+            }),
+          });
+          toast({
+            title: "🚨 Emergency Battery Alert",
+            description: "Battery is critically low. Your latest location was sent to your guardian.",
+          });
+        }
+      }
+    },
+    [batterySettings.autoNotifyGuardian, displayName, locationState.coords, journey.lastPosition],
+  );
+
+  useEffect(() => {
+    if (journey.status !== "active" || !batterySettings.enabled) return;
+    if (journey.id && batteryAlerts.journeyId !== journey.id) {
+      const fresh = { ...initialBatteryAlertState(), journeyId: journey.id };
+      setBatteryAlerts(fresh);
+      writeBatteryAlertState(fresh);
+    }
+    const run = () => {
+      // A charging phone never triggers warnings.
+      if (batteryCharging || batteryLevel == null) return;
+      const { state, events } = advanceBatteryAlerts(batteryAlerts, {
+        journeyId: journey.id,
+        level: batteryLevel,
+        settings: batterySettings,
+      });
+      if (state !== batteryAlerts) {
+        setBatteryAlerts(state);
+        writeBatteryAlertState(state);
+      }
+      if (events.length > 0) handleBatteryAlerts(events, batteryLevel);
+    };
+    run();
+    const id = setInterval(run, 30000);
+    return () => clearInterval(id);
+  }, [journey.status, journey.id, batterySettings, batteryAlerts, batteryLevel, batteryCharging, handleBatteryAlerts]);
+
+  const shareLastLocationFromBatterySheet = useCallback(() => {
+    const pos = locationState.coords;
+    void shareLocation(pos?.lat ?? currentPos[0], pos?.lng ?? currentPos[1], locationState.address);
+    setBatterySheetOpen(false);
+  }, [locationState.coords, locationState.address, currentPos]);
+
+  const notifyGuardianFromBatterySheet = useCallback(() => {
+    const pos = locationState.coords;
+    void sendJourneyNotification({
+      lat: pos?.lat ?? currentPos[0],
+      lng: pos?.lng ?? currentPos[1],
+      label: `User flagged low battery (${batteryLevel ?? "?"}%) during an active Safety Journey`,
+    });
+    toast({ title: "Guardian Notified", description: "Your guardians know your battery is low." });
+    setBatterySheetOpen(false);
+  }, [batteryLevel, currentPos, locationState.coords]);
+
+  // Cleanup when the journey ends (completed/cancelled via handleCancel etc.).
+  useEffect(() => {
+    if (journey.status !== "active") {
+      setBatterySheetOpen(false);
+      clearBatteryAlertState();
+      setBatteryAlerts(initialBatteryAlertState());
+    }
+  }, [journey.status]);
+
   // ── Insights (Feature 7) — refreshed while journeying ──
   useEffect(() => {
     if (journey.status !== "active" || !journey.destination) return;
@@ -898,6 +1021,110 @@ const SafetyJourneyPage = () => {
           </motion.div>
           <div className="w-10" />
         </div>
+
+        {/* ── Battery-Aware Safety status pill (active journey, 30% and below) ── */}
+        <AnimatePresence>
+          {active && (() => {
+            const level = batteryCharging ? null : batteryLevelFor(batteryLevel, batterySettings.thresholdPercent);
+            if (!level || batteryLevel == null) return null;
+            const label =
+              level === "emergency" ? "Emergency battery — location sent to guardian"
+              : level === "critical" ? `Critical battery · ${batteryLevel}%`
+              : level === "warning" ? `Battery low · ${batteryLevel}%`
+              : `Battery ${batteryLevel}% · consider charging`;
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="absolute top-28 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-lg pointer-events-none"
+                style={{ background: batteryBg(level), border: `1px solid ${batteryColor(level)}33` }}
+              >
+                <span
+                  className="relative flex w-2 h-2"
+                  style={{ color: batteryColor(level) }}
+                >
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-50" style={{ background: batteryColor(level) }} />
+                  <span className="relative inline-flex rounded-full w-2 h-2" style={{ background: batteryColor(level) }} />
+                </span>
+                <span className="text-[10px] font-black whitespace-nowrap" style={{ color: batteryColor(level), fontFamily: "Nunito,sans-serif" }}>
+                  {label}
+                </span>
+              </motion.div>
+            );
+          })()}
+        </AnimatePresence>
+
+        {/* ── Battery critical sheet (only below the threshold — never intrusive before that) ── */}
+        <AnimatePresence>
+          {batterySheetOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-50 bg-slate-950/45 backdrop-blur-sm flex items-end md:items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ y: 60, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 60, opacity: 0 }}
+                className="w-full max-w-md bg-white rounded-[28px] shadow-2xl p-6"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: "rgba(217,115,13,0.12)" }}>
+                    <BatteryLow className="w-5 h-5" style={{ color: "#D9730D" }} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#D9730D" }}>
+                      Battery-Aware Safety
+                    </p>
+                    <h3 className="text-xl font-black text-[#3D2315] leading-tight" style={{ fontFamily: "Nunito,sans-serif" }}>
+                      🔋 Critical Battery
+                    </h3>
+                  </div>
+                </div>
+                <p className="text-[13px] font-bold text-[#9E7A6A] leading-relaxed">
+                  Battery is at {batteryLevel ?? "—"}%{batteryCharging ? " (charging)" : ""} during your active Safety Journey. Live location sharing may stop soon.
+                </p>
+                {batterySettings.autoNotifyGuardian && (
+                  <p className="text-[11px] font-bold mt-2" style={{ color: "#B7770D" }}>
+                    Your guardian has been alerted with your latest location.
+                  </p>
+                )}
+                <div className="mt-4 space-y-2">
+                  <button
+                    onClick={shareLastLocationFromBatterySheet}
+                    className="w-full py-3.5 rounded-2xl text-white text-xs font-black cursor-pointer flex items-center justify-center gap-2"
+                    style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)", fontFamily: "Nunito,sans-serif" }}
+                  >
+                    <Share2 className="w-4 h-4" /> Share Current Location
+                  </button>
+                  <button
+                    onClick={notifyGuardianFromBatterySheet}
+                    className="w-full py-3.5 rounded-2xl bg-[#FDF6EE] text-[#8B3A2F] text-xs font-black cursor-pointer flex items-center justify-center gap-2"
+                    style={{ fontFamily: "Nunito,sans-serif" }}
+                  >
+                    <Users2 className="w-4 h-4" /> Notify Guardian
+                  </button>
+                  <button
+                    onClick={() => navigate("/risk-map")}
+                    className="w-full py-3.5 rounded-2xl bg-[#FFF3C7] text-[#B7770D] text-xs font-black cursor-pointer flex items-center justify-center gap-2"
+                    style={{ fontFamily: "Nunito,sans-serif" }}
+                  >
+                    <Zap className="w-4 h-4" /> Find Nearby Charging Point
+                  </button>
+                  <button
+                    onClick={() => setBatterySheetOpen(false)}
+                    className="w-full py-2.5 rounded-2xl bg-[#FDF6EE] text-[#9E7A6A] text-[11px] font-black cursor-pointer"
+                    style={{ fontFamily: "Nunito,sans-serif" }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── AI Safe Check-in status chip (visible once the ETA is missed) ── */}
         <AnimatePresence>

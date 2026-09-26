@@ -32,6 +32,8 @@ import { shareLocation } from "@/pages/location/helpers";
 import { streamMessageToApi, type ChatApiMessage, type ChatUserContext } from "@/lib/chatApi";
 import { readTriggerConfig } from "@/lib/safety";
 import { readSafeCheckinState, checkinContextSummary } from "@/lib/safety";
+import { readBatterySettings, batteryContextSummary } from "@/lib/safety";
+import { useDeviceBattery } from "@/hooks/useDeviceBattery";
 
 // ── Types ──
 
@@ -238,6 +240,14 @@ const EMERGENCY_RE =
 const ACTIVE_DANGER_RE =
   /\b(help me|save me|sos|kidnap\w*|attack(ed|ing|s)?\b|attacker|someone (is )?(following|chasing|after) me|(is )?(following|stalking|chasing) me|stalk(ed|er|ing) me|molest(ing|ed) me|he is touching|touching me|grabbed|assault(ed|ing) me|rape[d]? me|in danger|bachao|बचाओ|मुझे बचाओ|पीछा (कर|कर रहा)|मेरा पीछा)\b/i;
 
+// Battery-Aware Safety quick actions — shown when the battery is critical
+// during an active journey (dispatchAction handles the ids).
+const BATTERY_ACTIONS = [
+  { label: "👥 Notify Guardian", action: "notify-guardian" },
+  { label: "📍 Share Location", action: "share-location" },
+  { label: "🔌 Nearby Charging", action: "nearby-safe" },
+];
+
 const EMERGENCY_ACTIONS = [
   { label: "📞 Call 112", action: "call-112" },
   { label: "🚨 Trigger SOS", action: "sos" },
@@ -268,6 +278,9 @@ function buildUserContext(opts: {
   guest?: boolean;
   sosActive: boolean;
   locationLabel: string | null;
+  /** Device battery from useDeviceBattery (null = unknown). */
+  batteryLevel?: number | null;
+  batteryCharging?: boolean;
 }): ChatUserContext {
   const journey = readJourneySnapshot();
   const triggers = readTriggerConfig();
@@ -285,6 +298,18 @@ function buildUserContext(opts: {
       if (overdueMin >= 1) journeyOverdueMin = overdueMin;
     }
   }
+  // ── Battery context — only meaningful during an active journey ──
+  let batteryLevel: number | undefined;
+  let batteryCharging: boolean | undefined;
+  let batteryStatus: string | undefined;
+  if (journey.status === "active" && opts.batteryLevel != null) {
+    batteryLevel = opts.batteryLevel;
+    batteryCharging = opts.batteryCharging;
+    if (!opts.batteryCharging) {
+      const summary = batteryContextSummary(opts.batteryLevel, readBatterySettings().thresholdPercent);
+      if (summary) batteryStatus = summary;
+    }
+  }
   return {
     userName: opts.displayName || undefined,
     sosActive: opts.sosActive,
@@ -293,6 +318,9 @@ function buildUserContext(opts: {
     journeyOverdueMin,
     safeCheckinStatus,
     safeCheckinAcknowledged,
+    batteryLevel,
+    batteryCharging,
+    batteryStatus,
     voiceEnabled: !!triggers["voice-phrase"],
     shakeEnabled: !!triggers["gesture"],
     guardianLinked: !!(opts.user && !opts.guest),
@@ -317,6 +345,9 @@ export default function AssistantPage() {
   const [conversationId, setConversationId] = useState(generateConversationId);
   const [conversations, setConversations] = useState<StoredConversation[]>(() => loadConversations());
   const [showSidebar, setShowSidebar] = useState(false);
+
+  // ── Battery-Aware Safety — live battery for context-aware AI replies ──
+  const { level: batteryLevel, charging: batteryCharging } = useDeviceBattery();
 
   // Messages for current conversation
   const [messages, setMessages] = useState<Message[]>([
@@ -502,6 +533,10 @@ export default function AssistantPage() {
       case "start_checkin":
         startCheckin(3);
         break;
+      case "notify-guardian":
+        if (coords) void shareLocation(coords.lat, coords.lng, locationState.address);
+        navigate("/guardians");
+        break;
       default:
         break;
     }
@@ -586,6 +621,8 @@ export default function AssistantPage() {
       guest,
       sosActive: sosState.active,
       locationLabel: locationState.address,
+      batteryLevel,
+      batteryCharging,
     });
 
     const conversationHistory: ChatApiMessage[] = [...messages, userMsg]
@@ -610,6 +647,13 @@ export default function AssistantPage() {
       },
       // onDone
       () => {
+        // Battery-Aware Safety: below 10% on an active journey, surface the
+        // battery quick actions so help is one tap away before power dies.
+        const batteryUrgent =
+          !batteryCharging &&
+          batteryLevel != null &&
+          batteryLevel < 10 &&
+          userContext.journeyStatus === "active";
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === streamingId
@@ -621,7 +665,9 @@ export default function AssistantPage() {
                   emergency: emergencyDetected || rec.escalate,
                   suggestions: (emergencyDetected || rec.escalate
                     ? EMERGENCY_ACTIONS
-                    : rec.actions.map((a) => ({ label: a.label, action: a.id }))),
+                    : batteryUrgent
+                      ? BATTERY_ACTIONS
+                      : rec.actions.map((a) => ({ label: a.label, action: a.id }))),
                   timestamp: Date.now(),
                 }
               : msg,
