@@ -211,6 +211,25 @@ const SafetyJourneyPage = () => {
 
   const guardianConnected = isSupabaseConfigured && !!user && !guest;
 
+  // ── Desktop layout: the active Journey Dashboard docks to the RIGHT side
+  //    (like Uber Driver / Google Maps) so the route stays the focus.
+  //    Mobile keeps the original bottom sheet unchanged.
+  type ViewportClass = "mobile" | "tablet" | "desktop";
+  const [viewport, setViewport] = useState<ViewportClass>(() =>
+    typeof window === "undefined"
+      ? "mobile"
+      : window.innerWidth < 768 ? "mobile" : window.innerWidth < 1024 ? "tablet" : "desktop",
+  );
+  useEffect(() => {
+    const onResize = () =>
+      setViewport(window.innerWidth < 768 ? "mobile" : window.innerWidth < 1024 ? "tablet" : "desktop");
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const isMobileViewport = viewport === "mobile";
+  // Width reserved on the right for the dashboard panel (0 on mobile).
+  const panelWidth = viewport === "mobile" ? 0 : viewport === "desktop" ? 380 : 320;
+
   // Preview ETA (straight-line estimate until the real route is fetched).
   const previewEtaMs = useMemo(() => {
     if (!selectedDest) return null;
@@ -259,7 +278,17 @@ const SafetyJourneyPage = () => {
         opacity: 0.85,
       }).addTo(layer);
       if (mapRef.current) {
-        mapRef.current.fitBounds(L.polyline(journey.routePoints as [number, number][]).getBounds(), { padding: [60, 60] });
+        // Pad the right side by the dashboard panel width so the route is
+        // centered in the VISIBLE map area, not hidden behind the panel.
+        const padTopLeft = L.point(60, 60);
+        const padBottomRight = L.point(panelWidth + 60, 60);
+        mapRef.current.fitBounds(L.polyline(journey.routePoints as [number, number][]).getBounds(), {
+          paddingTopLeft: padTopLeft,
+          paddingBottomRight: padBottomRight,
+          // Soft animation after the dashboard's slide-in settles.
+          animate: true,
+          duration: 0.45,
+        });
       }
     }
     if (journey.status === "active" && journey.destination) {
@@ -396,7 +425,13 @@ const SafetyJourneyPage = () => {
       L.polyline(route.points as [number, number][], { color, weight: 5, opacity: 0.85 }).addTo(layer);
       L.marker(route.points[route.points.length - 1]!, { icon: destIcon }).addTo(layer);
       if (mapRef.current) {
-        mapRef.current.fitBounds(L.polyline(route.points as [number, number][]).getBounds(), { padding: [50, 50] });
+        // Same right-side reservation as the active view (planning preview).
+        mapRef.current.fitBounds(L.polyline(route.points as [number, number][]).getBounds(), {
+          paddingTopLeft: L.point(50, 50),
+          paddingBottomRight: L.point(panelWidth + 50, 50),
+          animate: true,
+          duration: 0.45,
+        });
       }
     }
   }, [journey.status, selectedScored]);
@@ -1012,16 +1047,28 @@ const SafetyJourneyPage = () => {
             </motion.div>
           )}
 
-          {/* ── Active journey bottom sheet ── */}
+          {/* ── Active journey dashboard ──
+              Mobile: original bottom sheet (unchanged).
+              ≥768px: fixed right-side control panel (sticky over the map),
+              sliding in from the right (300ms ease) when the journey starts. */}
           {active && journey.destination && (
             <motion.div
               key="active"
-              initial={{ y: 80, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 80, opacity: 0 }}
-              className="absolute bottom-[5.5rem] md:bottom-8 left-0 right-0 z-30 px-4 pb-[env(safe-area-inset-bottom)]"
+              initial={isMobileViewport ? { y: 80, opacity: 0 } : { x: 60, y: "-50%", opacity: 0 }}
+              animate={isMobileViewport ? { y: 0, opacity: 1 } : { x: 0, y: "-50%", opacity: 1 }}
+              exit={isMobileViewport ? { y: 80, opacity: 0 } : { x: 60, y: "-50%", opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className={
+                isMobileViewport
+                  ? "absolute bottom-[5.5rem] left-0 right-0 z-30 px-4 pb-[env(safe-area-inset-bottom)]"
+                  : "fixed right-4 top-1/2 z-30 w-[320px] lg:w-[380px]"
+              }
             >
-              <div className="max-w-md mx-auto bg-white/95 backdrop-blur rounded-[28px] shadow-2xl border border-slate-50 p-5">
+              <div
+                className={`bg-white/95 backdrop-blur rounded-[22px] shadow-2xl border border-slate-50 ${
+                  isMobileViewport ? "max-w-md mx-auto p-5" : "p-5 max-h-[80vh] overflow-y-auto"
+                }`}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-xl bg-[#3D9970]/10 flex items-center justify-center">
@@ -1056,7 +1103,8 @@ const SafetyJourneyPage = () => {
                   </div>
                 )}
 
-                {/* ETA + guardian + AI status */}
+                {/* ETA + guardian + AI status — 3-up on both layouts (wider
+                    tiles on the side panel since it has more room) */}
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   <div className="rounded-2xl bg-[#FDF6EE] p-3 text-center">
                     <Clock className="w-4 h-4 mx-auto text-[#B7770D] mb-1" />
@@ -1101,9 +1149,9 @@ const SafetyJourneyPage = () => {
                     <button
                       key={label}
                       onClick={act}
-                      className={`flex flex-col items-center gap-1 py-2.5 rounded-2xl cursor-pointer transition-all ${label === "SOS" ? "bg-[#D4455C] text-white shadow-lg shadow-[#D4455C]/25" : "bg-[#FDF6EE] hover:bg-[#F5E4D6]"}`}
+                      className={`flex flex-col items-center gap-1 ${isMobileViewport ? "py-2.5" : "py-3"} rounded-2xl cursor-pointer transition-all ${label === "SOS" ? "bg-[#D4455C] text-white shadow-lg shadow-[#D4455C]/25" : "bg-[#FDF6EE] hover:bg-[#F5E4D6]"}`}
                     >
-                      <Icon className="w-4 h-4" style={{ color: label === "SOS" ? "white" : "#8B3A2F" }} />
+                      <Icon className={isMobileViewport ? "w-4 h-4" : "w-5 h-5"} style={{ color: label === "SOS" ? "white" : "#8B3A2F" }} />
                       <span className="text-[9px] font-extrabold" style={{ fontFamily: "Nunito,sans-serif", color: label === "SOS" ? "white" : "#8B3A2F" }}>{label}</span>
                     </button>
                   ))}

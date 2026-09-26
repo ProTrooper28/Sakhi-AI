@@ -1,6 +1,15 @@
-// Web Audio API helper for urgent, clear, and high-fidelity emergency sounds
+// Web Audio API helper for urgent, clear, and high-fidelity emergency sounds.
+//
+// The ACTIVE siren deliberately does NOT use the Web Audio graph. When the
+// microphone starts capturing (SOS auto-records evidence), mobile OSes
+// reconfigure the audio route and suspend/duck WebAudio output — an
+// oscillator chain dies no matter how often the context is resumed.
+// HTMLAudioElement playback runs through the platform media pipeline (the
+// same one that plays music while recording) and survives mic capture, so
+// the alarm loop is a self-generated WAV played on a looping <audio> element
+// with a watchdog that restarts it if the OS ever pauses it.
+
 let audioCtx: AudioContext | null = null;
-let alarmInterval: ReturnType<typeof setInterval> | null = null;
 
 // Master volume for ALL emergency sounds (0–1). Applies live to a running
 // siren — the SOS screen's volume slider is instantly audible.
@@ -17,8 +26,8 @@ let unlockListenersAttached = false;
 
 /**
  * Browsers only allow audio to start (or resume) inside a user gesture.
- * These listeners revive a suspended context on the very next tap/keypress —
- * e.g. after a page reload while SOS is active, or after OS interruptions.
+ * These listeners revive a suspended context and prime the siren element on
+ * the very next tap/keypress — e.g. after a page reload while SOS is active.
  */
 function attachUnlockListeners(): void {
   if (unlockListenersAttached || typeof window === "undefined") return;
@@ -27,6 +36,10 @@ function attachUnlockListeners(): void {
     if (audioCtx && audioCtx.state !== "running") {
       void audioCtx.resume().catch(() => {});
     }
+    // Create + silently prime the siren element so a later programmatic
+    // play() (SOS activation) is allowed without needing a fresh gesture.
+    ensureSirenElement();
+    primeSirenElement();
   };
   window.addEventListener("pointerdown", unlock);
   window.addEventListener("touchstart", unlock);
@@ -41,10 +54,9 @@ function getAudioContext(): AudioContext {
   return audioCtx;
 }
 
-// ── Police-style wail siren (one-shot bursts) ────────────────────────────────
-// The classic "wee-oo" emergency wail: a sawtooth tone swept between 550 Hz
-// and 850 Hz by a slow triangle LFO, shaped through a bandpass filter that
-// follows the sweep. Used for single alerts (Test Siren, guardian ping).
+// ── Police-style wail siren (one-shot bursts, Web Audio) ─────────────────────
+// Used for single alerts (Test Siren button, one-shot pings) — short, gesture
+// initiated, and finished long before any capture starts.
 
 const WAIL_LOW    = 550;   // Hz — bottom of the sweep
 const WAIL_HIGH   = 850;   // Hz — top of the sweep
@@ -102,146 +114,179 @@ function playPoliceWail(durationSec: number, volume: number, fadeInSec: number) 
   }
 }
 
-// ── Continuous siren engine (used while SOS is active) ──────────────────────
-// A single persistent oscillator + LFO chain that plays WITHOUT GAPS for as
-// long as the alarm loop is active. A watchdog keeps it alive:
-//   • resumes the AudioContext if the OS suspends/interrupts it (iOS does
-//     this when the microphone starts capturing, or the app is backgrounded)
-//   • re-asserts the gain level every tick (self-healing against ramps to 0)
-//   • alternates between a slow WAIL and a fast YELP every ~4 s so the siren
-//     audibly changes, like a real police siren.
+// ── Looping siren WAV (HTMLAudioElement engine) ──────────────────────────────
+// One 9.6 s WAV synthesized in JS: 4.8 s slow wail (2 × 2.4 s sweeps) then
+// 4.8 s fast yelp (8 × 0.6 s sweeps), phase-continuous at every boundary so
+// it loops seamlessly. The wail→yelp alternation is baked into the file, so
+// the siren audibly "changes" with zero runtime switching logic.
 
-const SIREN_CENTER = 700;  // Hz
-const SIREN_AMP    = 150;  // Hz (± around center)
-const WAIL_MODE_CYCLE = 2.4;   // s — slow classic wail
-const YELP_MODE_CYCLE = 0.55;  // s — fast urgent yelp
-const MODE_SWITCH_TICKS = 8;   // 8 × 500 ms = 4 s per mode
+const SIREN_SR      = 11025;              // Hz — plenty for siren harmonics
+const WAIL_SEG_SEC  = 4.8;
+const YELP_SEG_SEC  = 4.8;
+const WAIL_CYCLE_S  = 2.4;                // slow classic wail
+const YELP_CYCLE_S  = 0.6;                // fast urgent yelp
+const SIREN_CENTER  = 700;
+const WAIL_SWEEP_HZ = 150;
+const YELP_SWEEP_HZ = 200;
 
-interface SirenState {
-  ctx: AudioContext;
-  osc: OscillatorNode;
-  lfo: OscillatorNode;
-  gain: GainNode;
-  baseVolume: number;               // per-kind volume before master
-  mode: "wail" | "yelp";
-  ticks: number;
-  alternating: boolean;             // SOS alternates modes; guardian stays calm
-  key: "user" | "guardian";         // lets double-starts become no-ops
+function synthSweepSegment(durationSec: number, cycleSec: number, sweepHz: number): Float32Array {
+  const n = Math.round(durationSec * SIREN_SR);
+  const out = new Float32Array(n);
+  let phase = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / SIREN_SR;
+    const f = SIREN_CENTER + sweepHz * Math.sin((2 * Math.PI * t) / cycleSec);
+    phase += (2 * Math.PI * f) / SIREN_SR;
+    // Warm brassy siren timbre: fundamental + soft harmonics (not a harsh saw).
+    const s =
+      Math.sin(phase) +
+      0.35 * Math.sin(2 * phase) +
+      0.18 * Math.sin(3 * phase) +
+      0.08 * Math.sin(4 * phase);
+    out[i] = s * 0.62;
+  }
+  return out;
 }
 
-let siren: SirenState | null = null;
+function encodeWavDataUri(segments: Float32Array[]): string {
+  const total = segments.reduce((a, c) => a + c.length, 0);
+  const buf = new ArrayBuffer(44 + total * 2);
+  const v = new DataView(buf);
+  const ws = (o: number, s: string) => {
+    for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i));
+  };
+  ws(0, "RIFF");
+  v.setUint32(4, 36 + total * 2, true);
+  ws(8, "WAVE");
+  ws(12, "fmt ");
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);          // PCM
+  v.setUint16(22, 1, true);          // mono
+  v.setUint32(24, SIREN_SR, true);
+  v.setUint32(28, SIREN_SR * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  ws(36, "data");
+  v.setUint32(40, total * 2, true);
+  let off = 44;
+  for (const seg of segments) {
+    for (let i = 0; i < seg.length; i++) {
+      const s = Math.max(-1, Math.min(1, seg[i]));
+      v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      off += 2;
+    }
+  }
+  // Base64 in chunks to stay far below the argument-count limit.
+  const bytes = new Uint8Array(buf);
+  let bin = "";
+  const CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CH));
+  }
+  return "data:audio/wav;base64," + btoa(bin);
+}
+
+let sirenDataUri: string | null = null;
+
+function buildSirenDataUri(): string {
+  if (!sirenDataUri) {
+    sirenDataUri = encodeWavDataUri([
+      synthSweepSegment(WAIL_SEG_SEC, WAIL_CYCLE_S, WAIL_SWEEP_HZ),
+      synthSweepSegment(YELP_SEG_SEC, YELP_CYCLE_S, YELP_SWEEP_HZ),
+    ]);
+  }
+  return sirenDataUri;
+}
+
+let sirenEl: HTMLAudioElement | null = null;
 let sirenWatchdog: ReturnType<typeof setInterval> | null = null;
+let sirenBaseVolume = 1;   // per-kind base volume before master
+let alarmActive = false;
+
+function sirenTargetVolume(): number {
+  return Math.max(0, Math.min(1, sirenBaseVolume * masterVolume));
+}
 
 function applySirenVolume(): void {
-  if (!siren) return;
-  const now = siren.ctx.currentTime;
-  const target = siren.baseVolume * masterVolume;
-  const g = siren.gain.gain;
-  g.cancelScheduledValues(now);
-  if (target <= 0.001) {
-    g.setTargetAtTime(0.0001, now, 0.05);
-  } else {
-    g.setTargetAtTime(target, now, 0.08);
+  if (sirenEl) sirenEl.volume = sirenTargetVolume();
+}
+
+function ensureSirenElement(): HTMLAudioElement {
+  if (!sirenEl) {
+    sirenEl = new Audio(buildSirenDataUri());
+    sirenEl.loop = true;
+    sirenEl.preload = "auto";
+    sirenEl.setAttribute("playsinline", "");
   }
+  return sirenEl;
 }
 
-function setSirenMode(mode: "wail" | "yelp"): void {
-  if (!siren) return;
-  siren.mode = mode;
-  const cycle = mode === "wail" ? WAIL_MODE_CYCLE : YELP_MODE_CYCLE;
-  const now = siren.ctx.currentTime;
-  const f = siren.lfo.frequency;
-  f.cancelScheduledValues(now);
-  f.setValueAtTime(f.value, now);
-  f.linearRampToValueAtTime(1 / cycle, now + 0.35);
+/**
+ * Silently start (and immediately pause) the siren element inside a user
+ * gesture. This "unlocks" playback so later programmatic play() calls are
+ * allowed even when the original SOS tap is no longer in the gesture stack.
+ */
+function primeSirenElement(): void {
+  if (alarmActive || !sirenEl) return;
+  const el = sirenEl;
+  const prevVol = el.volume;
+  el.volume = 0;
+  el.play()
+    .then(() => {
+      el.pause();
+      el.currentTime = 0;
+      el.volume = prevVol;
+    })
+    .catch(() => {
+      el.volume = prevVol;
+    });
 }
 
-function buildSiren(baseVolume: number, alternating: boolean, key: SirenState["key"]): SirenState | null {
-  try {
-    const ctx = getAudioContext();
-    if (ctx.state !== "running") {
-      void ctx.resume().catch(() => {});
-    }
-    const now = ctx.currentTime;
+function startSirenEngine(baseVolume: number): void {
+  // Idempotent: AppContext and the SOS screen can both arm the same alarm.
+  if (alarmActive && sirenBaseVolume === baseVolume) return;
+  alarmActive = true;
+  sirenBaseVolume = baseVolume;
 
-    const osc = ctx.createOscillator();
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(SIREN_CENTER, now);
+  const el = ensureSirenElement();
+  el.volume = sirenTargetVolume();
+  el.play().catch(() => {
+    // Blocked until a gesture — retry on the next interaction.
+    const retry = () => {
+      window.removeEventListener("pointerdown", retry);
+      if (alarmActive) void el.play().catch(() => {});
+    };
+    window.addEventListener("pointerdown", retry);
+  });
 
-    // Triangle LFO sweeps the tone up and down (the wail).
-    const lfo = ctx.createOscillator();
-    lfo.type = "triangle";
-    lfo.frequency.setValueAtTime(1 / WAIL_MODE_CYCLE, now);
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.setValueAtTime(SIREN_AMP, now);
-    lfo.connect(lfoGain);
-    lfoGain.connect(osc.frequency);
-
-    // Bandpass follows the sweep so the tone stays tight and siren-like.
-    const bp = ctx.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.Q.setValueAtTime(3.2, now);
-    bp.frequency.setValueAtTime(SIREN_CENTER, now);
-    lfoGain.connect(bp.frequency);
-
-    const gain = ctx.createGain();
-    const vol = Math.max(baseVolume * masterVolume, 0.001);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(vol, now + 0.3);
-
-    osc.connect(bp);
-    bp.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start(now);
-    lfo.start(now);
-
-    return { ctx, osc, lfo, gain, baseVolume, mode: "wail", ticks: 0, alternating, key };
-  } catch (error) {
-    console.warn("Could not start continuous siren:", error);
-    return null;
+  if (!sirenWatchdog) {
+    sirenWatchdog = setInterval(() => {
+      if (!alarmActive || !sirenEl) return;
+      const e = sirenEl;
+      // OS route changes can pause the element — revive it.
+      if (e.paused) void e.play().catch(() => {});
+      // Keep volume in sync with the live slider.
+      const tv = sirenTargetVolume();
+      if (Math.abs(e.volume - tv) > 0.01) e.volume = tv;
+      // Also keep the shared context alive for the one-shot sounds.
+      if (audioCtx && audioCtx.state !== "running") {
+        void audioCtx.resume().catch(() => {});
+      }
+    }, 500);
   }
-}
-
-function startSirenEngine(baseVolume: number, alternating: boolean, key: SirenState["key"]): void {
-  // Idempotent: AppContext and the SOS screen can both call start for the same
-  // mode — only (re)build when the engine is not already running as that mode.
-  if (siren && siren.key === key) return;
-  if (siren) stopSirenEngine();
-  const state = buildSiren(baseVolume, alternating, key);
-  if (!state) return;
-  siren = state;
-
-  sirenWatchdog = setInterval(() => {
-    if (!siren) return;
-    // Revive the context after OS-level suspends/interruptions.
-    if (siren.ctx.state !== "running") {
-      void siren.ctx.resume().catch(() => {});
-    }
-    siren.ticks += 1;
-    // Alternate wail ↔ yelp so the sound keeps changing.
-    if (siren.alternating && siren.ticks % MODE_SWITCH_TICKS === 0) {
-      setSirenMode(siren.mode === "wail" ? "yelp" : "wail");
-    }
-    // Pin the gain at the requested level (self-healing).
-    applySirenVolume();
-  }, 500);
 }
 
 function stopSirenEngine(): void {
+  alarmActive = false;
   if (sirenWatchdog) {
     clearInterval(sirenWatchdog);
     sirenWatchdog = null;
   }
-  if (siren) {
+  if (sirenEl) {
     try {
-      const now = siren.ctx.currentTime;
-      siren.gain.gain.cancelScheduledValues(now);
-      siren.gain.gain.setTargetAtTime(0.0001, now, 0.06);
-      siren.osc.stop(now + 0.25);
-      siren.lfo.stop(now + 0.25);
-    } catch { /* already stopped */ }
-    siren = null;
+      sirenEl.pause();
+      sirenEl.currentTime = 0;
+    } catch { /* ignore */ }
   }
 }
 
@@ -259,17 +304,16 @@ export function playGuardianAlertReceivedSound() {
   playPoliceWail(WAIL_CYCLE * 0.75 + 0.25, 0.16, 0.2);
 }
 
-// 3. Start Repeating Alarm loop — a continuous, self-healing siren.
+// 3. Start Repeating Alarm loop — continuous platform-media siren.
 export function startSOSAlarmLoop(isGuardian: boolean) {
-  // Ensure any existing loop is terminated
+  // Ensure any existing loop is terminated first.
   stopSOSAlarmLoop();
-
   if (isGuardian) {
-    // Gentle, steady wail for the guardian device (no mode alternation).
-    startSirenEngine(0.2, false, "guardian");
+    // Softer, steady loop for the guardian device.
+    startSirenEngine(0.35);
   } else {
-    // Louder siren for the user that alternates wail ↔ yelp.
-    startSirenEngine(0.42, true, "user");
+    // Loud siren for the user: wail ↔ yelp alternation baked into the loop.
+    startSirenEngine(0.9);
   }
 }
 
@@ -280,11 +324,11 @@ export function stopSOSAlarmLoop() {
 
 /**
  * Force-restart the user siren from scratch (SOS screen "Restart" button).
- * Tears down and rebuilds the whole oscillator chain so a wedged audio graph
- * gets genuinely recreated instead of just toggling the gain.
+ * Recreates the audio element so a wedged playback starts genuinely fresh.
  */
 export function restartSiren(): void {
   stopSOSAlarmLoop();
+  sirenEl = null; // rebuild from a fresh element
   startSOSAlarmLoop(false);
 }
 
