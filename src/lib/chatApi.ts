@@ -89,6 +89,12 @@ export function streamMessageToApi(
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No response body");
 
+      // Detect a stream that ends with an error event before any token was
+      // delivered (e.g. every upstream retry failed) — the caller can then
+      // fall back to the non-streaming endpoint instead of showing an error.
+      let sawToken = false;
+      let streamError: string | null = null;
+
       const decoder = new TextDecoder();
       let buffer = "";
 
@@ -110,9 +116,11 @@ export function streamMessageToApi(
           try {
             const parsed = JSON.parse(data);
             if (parsed.error) {
-              throw new Error(parsed.error);
+              streamError = parsed.error;
+              continue;
             }
             if (parsed.token) {
+              sawToken = true;
               onToken(parsed.token);
             }
           } catch (e: any) {
@@ -120,6 +128,22 @@ export function streamMessageToApi(
           }
         }
       }
+      // Stream ended with an error and nothing was streamed — retry once via
+      // the non-streaming endpoint (the server may have exhausted its own
+      // upstream retries during a provider hiccup).
+      if (!sawToken) {
+        try {
+          const content = await sendMessageToApi(messages, context);
+          if (content) {
+            onToken(content);
+            onDone();
+            return;
+          }
+        } catch {
+          /* fall through to the original error below */
+        }
+      }
+      if (streamError) throw new Error(streamError);
       onDone();
     } catch (err: any) {
       if (err.name === "AbortError") return;

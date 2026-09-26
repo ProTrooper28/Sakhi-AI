@@ -206,45 +206,49 @@ You can answer any general question — dates, math, science, history, geography
                     groqRes.on("data", (c: any) => (errData += c));
                     groqRes.on("end", async () => {
                       console.error("[/api/chat] AI stream error:", groqRes.statusCode, errData);
-                      // Gemini streaming occasionally 503s under load — retry
-                      // once via the non-streaming endpoint and emit the full
-                      // reply as a single token so the chat still works.
+                      // Gemini 503s intermittently under load. Retry the
+                      // non-streaming endpoint with backoff before giving up —
+                      // the reply is then emitted as a single token so the
+                      // chat still works end-to-end.
                       if (useGemini) {
-                        await new Promise((r) => setTimeout(r, 700));
-                        try {
+                        const delays = [500, 1500, 3000];
+                        for (const delay of delays) {
+                          await new Promise((r) => setTimeout(r, delay));
+                          try {
                           const retryBody = await new Promise<string>((resolve, reject) => {
-                            const retryReq = nodeHttps.default.request(
-                              "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
-                              {
-                                method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                  "x-goog-api-key": apiKey,
+                              const retryReq = nodeHttps.default.request(
+                                "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+                                {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    "x-goog-api-key": apiKey,
+                                  },
                                 },
-                              },
-                              (retryRes: any) => {
-                                let d = "";
-                                retryRes.on("data", (c: any) => (d += c));
-                                retryRes.on("end", () => resolve(d));
-                                retryRes.on("error", reject);
-                              },
-                            );
-                            retryReq.on("error", reject);
-                            retryReq.write(payload);
-                            retryReq.end();
-                          });
-                          const retryParsed = JSON.parse(retryBody);
-                          const text = (retryParsed.candidates?.[0]?.content?.parts ?? [])
-                            .map((p: { text?: string }) => p.text || "")
-                            .join("");
-                          if (text) {
-                            res.write(`data: ${JSON.stringify({ token: text })}\n\n`);
-                            res.write("data: [DONE]\n\n");
-                            res.end();
-                            return;
+                                (retryRes: any) => {
+                                  let d = "";
+                                  retryRes.on("data", (c: any) => (d += c));
+                                  retryRes.on("end", () => resolve(d));
+                                  retryRes.on("error", reject);
+                                },
+                              );
+                              retryReq.on("error", reject);
+                              retryReq.write(payload);
+                              retryReq.end();
+                            });
+                            const retryParsed = JSON.parse(retryBody);
+                            const text = (retryParsed.candidates?.[0]?.content?.parts ?? [])
+                              .map((p: { text?: string }) => p.text || "")
+                              .join("");
+                            if (text) {
+                              res.write(`data: ${JSON.stringify({ token: text })}\n\n`);
+                              res.write("data: [DONE]\n\n");
+                              res.end();
+                              return;
+                            }
+                          } catch (retryErr: any) {
+                            console.error("[/api/chat] Gemini stream fallback failed:", retryErr?.message || retryErr);
                           }
-                        } catch (retryErr: any) {
-                          console.error("[/api/chat] Gemini stream fallback failed:", retryErr?.message || retryErr);
                         }
                       }
                       res.write(`data: ${JSON.stringify({ error: "API error" })}\n\n`);
