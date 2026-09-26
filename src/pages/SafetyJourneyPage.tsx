@@ -21,7 +21,10 @@ import {
   shareLocation,
   formatTime,
   setSharingEnabled,
+  etaLabel,
+  distanceLabel,
   type Destination,
+  type RouteOption,
 } from "@/pages/location/helpers";
 import {
   TRAVEL_MODES,
@@ -43,6 +46,12 @@ import {
   generateInsights,
   GPS_LOSS_ALERT_SEC,
   type JourneyAlert,
+  rankRoutes,
+  fetchEmergencyServices,
+  mergeCommunityReports,
+  RISK_META,
+  type ScoredRoute,
+  type RouteSafetyContext,
 } from "@/lib/safety";
 import { upsertLiveLocation, sendSafeCheckIn, sendJourneyNotification, upsertActiveJourney } from "@/lib/safety";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -144,6 +153,9 @@ type SafetyPrompt = {
   askedAt: number;
 };
 
+/** Geo context for the AI Safety Score (zones + reports + emergency services). */
+type SafetyDataContext = Pick<RouteSafetyContext, "zones" | "reports" | "services">;
+
 // ─── Main page ───────────────────────────────────────────────────────────────
 const SafetyJourneyPage = () => {
   const navigate = useNavigate();
@@ -169,6 +181,14 @@ const SafetyJourneyPage = () => {
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
   const [starting, setStarting] = useState(false);
+
+  // ── AI Safety Score ──
+  const [origin, setOrigin] = useState<{ lat: number; lng: number } | null>(null);
+  const [routeOptions, setRouteOptions] = useState<RouteOption[]>([]);
+  const [safetyData, setSafetyData] = useState<SafetyDataContext | null>(null);
+  const [scoringRoutes, setScoringRoutes] = useState(false);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const [whyRouteId, setWhyRouteId] = useState<string | null>(null);
 
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -279,10 +299,114 @@ const SafetyJourneyPage = () => {
   const pickDestination = (d: Destination) => {
     suppressSearchRef.current = true;
     setSelectedDest(d);
+    setOrigin({ lat: currentPos[0], lng: currentPos[1] });
     setDestinations([]);
     setSearchQuery(d.label.split(",").slice(0, 2).join(","));
     setSearched(false);
   };
+
+  // ── AI Safety Score — fetch route options + safety context once a
+  //    destination is picked. The origin is frozen at pick time so GPS
+  //    jitter doesn't re-fetch routes every few seconds. ──
+  useEffect(() => {
+    if (!selectedDest || !origin) {
+      setRouteOptions([]);
+      setSafetyData(null);
+      setSelectedRouteId(null);
+      setScoringRoutes(false);
+      return;
+    }
+    let cancelled = false;
+    setScoringRoutes(true);
+    void (async () => {
+      const to = { lat: selectedDest.lat, lng: selectedDest.lng };
+      const zones = safetyZonesFromGeoJson(buildSafetyGeoJson(origin));
+      const [reports, services, options] = await Promise.all([
+        Promise.resolve(mergeCommunityReports(origin)),
+        fetchEmergencyServices(origin),
+        fetchRouteOptions(origin, to, zones),
+      ]);
+      if (cancelled) return;
+      const straightDist = haversineMeters(origin.lat, origin.lng, to.lat, to.lng);
+      const finalOptions: RouteOption[] =
+        options.length > 0
+          ? options
+          : [
+              {
+                id: "fastest" as const,
+                label: "Fastest Route",
+                points: [
+                  [origin.lat, origin.lng],
+                  [to.lat, to.lng],
+                ] as [number, number][],
+                durationSec: straightDist / 8,
+                distanceM: straightDist,
+                safety: "moderate" as const,
+                safetyScore: 50,
+              },
+            ];
+      setSafetyData({ zones, reports, services });
+      setRouteOptions(finalOptions);
+      setScoringRoutes(false);
+    })();
+    return () => {
+      cancelled = true;
+      setScoringRoutes(false);
+    };
+  }, [selectedDest, origin]);
+
+  // ── AI Safety Score — weighted scoring & ranking (re-runs on mode/ETA) ──
+  const scoredRoutes = useMemo<ScoredRoute[]>(() => {
+    if (!safetyData || routeOptions.length === 0) return [];
+    const ctx: RouteSafetyContext = {
+      ...safetyData,
+      startedAtMs: etaOverrideMs ?? Date.now(),
+      mode,
+    };
+    return rankRoutes(routeOptions, ctx);
+  }, [routeOptions, safetyData, mode, etaOverrideMs]);
+
+  const selectedScored = useMemo<ScoredRoute | null>(
+    () => scoredRoutes.find((r) => r.route.id === selectedRouteId) ?? scoredRoutes[0] ?? null,
+    [scoredRoutes, selectedRouteId],
+  );
+
+  const whyRoute = useMemo<ScoredRoute | null>(
+    () => scoredRoutes.find((r) => r.route.id === whyRouteId) ?? null,
+    [scoredRoutes, whyRouteId],
+  );
+
+  // Default the selection to the AI-recommended (safest) route.
+  useEffect(() => {
+    if (scoredRoutes.length === 0) return;
+    if (!selectedRouteId || !scoredRoutes.some((r) => r.route.id === selectedRouteId)) {
+      setSelectedRouteId(scoredRoutes[0]!.route.id);
+    }
+  }, [scoredRoutes, selectedRouteId]);
+
+  // Planning preview — draw the selected scored route (color = risk level).
+  useEffect(() => {
+    if (journey.status !== "planning") return;
+    const layer = routeLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    const route = selectedScored?.route;
+    if (route && route.points.length > 1 && selectedScored) {
+      const color = RISK_META[selectedScored.riskLevel].color;
+      L.polyline(route.points as [number, number][], { color, weight: 5, opacity: 0.85 }).addTo(layer);
+      L.marker(route.points[route.points.length - 1]!, { icon: destIcon }).addTo(layer);
+      if (mapRef.current) {
+        mapRef.current.fitBounds(L.polyline(route.points as [number, number][]).getBounds(), { padding: [50, 50] });
+      }
+    }
+  }, [journey.status, selectedScored]);
+
+  const fastestScored = scoredRoutes.find((r) => r.isFastest) ?? null;
+  const recommendedScored = scoredRoutes[0] ?? null;
+  const saferHint =
+    recommendedScored && fastestScored && recommendedScored.route.id !== fastestScored.route.id
+      ? `Safer route available (+${recommendedScored.timeDeltaMinVsFastest} min${recommendedScored.timeDeltaMinVsFastest === 1 ? "" : "s"})`
+      : null;
 
   // ── Start the journey ──
   const handleStart = useCallback(async () => {
@@ -294,13 +418,11 @@ const SafetyJourneyPage = () => {
     setStarting(true);
     try {
       if (monitoring.shareLiveLocation) setSharingEnabled(true);
-      const zones = safetyZonesFromGeoJson(buildSafetyGeoJson({ lat: currentPos[0], lng: currentPos[1] }));
-      const options = await fetchRouteOptions(
-        { lat: currentPos[0], lng: currentPos[1] },
-        { lat: selectedDest.lat, lng: selectedDest.lng },
-        zones,
-      );
-      const route = options[0] ?? {
+      // Use the AI-scored route the user picked (defaults to the recommended
+      // safest route); fall back to a straight-line estimate if scoring
+      // hasn't finished (e.g. offline).
+      const chosenScored = selectedScored ?? scoredRoutes[0] ?? null;
+      const route = chosenScored?.route ?? {
         id: "fastest" as const,
         label: "Fastest Route",
         points: [[currentPos[0], currentPos[1]], [selectedDest.lat, selectedDest.lng]] as [number, number][],
@@ -350,11 +472,14 @@ const SafetyJourneyPage = () => {
           journeyData: { mode, rideDetails: ride, monitoring },
         });
       }
-      toast({ title: "Journey Started", description: `${MODE_LABEL[mode]} · AI monitoring is active.` });
+      toast({
+        title: "Journey Started",
+        description: `${MODE_LABEL[mode]} · AI Safety Score ${chosenScored?.score ?? route.safetyScore}/100 · AI monitoring active.`,
+      });
     } finally {
       setStarting(false);
     }
-  }, [selectedDest, mode, currentPos, guardianConnected, locationState.address, ride, monitoring, trustedContactId, etaOverrideMs, starting]);
+  }, [selectedDest, mode, currentPos, guardianConnected, locationState.address, ride, monitoring, trustedContactId, etaOverrideMs, starting, selectedScored, scoredRoutes]);
 
   // ── Live monitoring ticker (every GPS fix + 10s safety tick) ──
   // ── Notify guardian of route deviation via Supabase safety_events ──
@@ -487,6 +612,8 @@ const SafetyJourneyPage = () => {
     clearJourney();
     setJourney(emptyJourney());
     setSelectedDest(null);
+    setOrigin(null);
+    setWhyRouteId(null);
     setSearchQuery("");
     setRide({});
     setEtaOverride("");
@@ -612,6 +739,68 @@ const SafetyJourneyPage = () => {
                     <span className="text-[11px] font-extrabold text-[#8B3A2F] truncate" style={{ fontFamily: "Nunito,sans-serif" }}>
                       {selectedDest.label}
                     </span>
+                  </div>
+                )}
+
+                {/* ── AI Safety Score — route options ── */}
+                {selectedDest && scoringRoutes && (
+                  <div className="mb-3 flex items-center gap-2.5 rounded-2xl border border-[#F5E4D6] bg-white px-4 py-3">
+                    <div className="w-4 h-4 border-2 border-[#D4455C] border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    <p className="text-[11px] font-bold text-[#9E7A6A]" style={{ fontFamily: "Nunito,sans-serif" }}>
+                      Sakhi AI is scoring nearby routes…
+                    </p>
+                  </div>
+                )}
+
+                {selectedDest && !scoringRoutes && scoredRoutes.length > 0 && (
+                  <div className="mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[#9E7A6A]">AI Safety Score</p>
+                      {saferHint && (
+                        <span className="px-2 py-1 rounded-full bg-[#FFF3C7] text-[9px] font-black text-[#B7770D]">
+                          {saferHint}
+                        </span>
+                      )}
+                    </div>
+
+                    {saferHint && recommendedScored && fastestScored && (
+                      <div className="grid grid-cols-2 gap-1.5 mb-2 p-1 rounded-2xl bg-[#FDF6EE] border border-[#F5E4D6]">
+                        <button
+                          onClick={() => setSelectedRouteId(recommendedScored.route.id)}
+                          className={`py-2 rounded-xl text-[10px] font-black cursor-pointer transition-all ${
+                            selectedScored?.route.id === recommendedScored.route.id
+                              ? "bg-[#3D9970] text-white shadow-md shadow-[#3D9970]/20"
+                              : "text-[#8B3A2F]"
+                          }`}
+                          style={{ fontFamily: "Nunito,sans-serif" }}
+                        >
+                          🛡 Safest Route (Recommended)
+                        </button>
+                        <button
+                          onClick={() => setSelectedRouteId(fastestScored.route.id)}
+                          className={`py-2 rounded-xl text-[10px] font-black cursor-pointer transition-all ${
+                            selectedScored?.route.id === fastestScored.route.id
+                              ? "bg-[#D4455C] text-white shadow-md shadow-[#D4455C]/20"
+                              : "text-[#8B3A2F]"
+                          }`}
+                          style={{ fontFamily: "Nunito,sans-serif" }}
+                        >
+                          ⚡ Fastest Route
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      {scoredRoutes.map((sr) => (
+                        <RouteScoreCard
+                          key={sr.route.id}
+                          sr={sr}
+                          selected={selectedScored?.route.id === sr.route.id}
+                          onSelect={() => setSelectedRouteId(sr.route.id)}
+                          onWhy={() => setWhyRouteId(sr.route.id)}
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -966,6 +1155,97 @@ const SafetyJourneyPage = () => {
           )}
         </AnimatePresence>
 
+        {/* ── Why this route? — AI Safety Score explanation sheet ── */}
+        <AnimatePresence>
+          {whyRoute && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-40 bg-slate-950/40 backdrop-blur-sm flex items-end md:items-center justify-center p-4"
+              onClick={() => setWhyRouteId(null)}
+            >
+              <motion.div
+                initial={{ y: 60, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 60, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-md bg-white rounded-[28px] shadow-2xl p-6 max-h-[82vh] overflow-y-auto"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)" }}>
+                      <Sparkles className="w-4 h-4 text-white" />
+                    </div>
+                    <h3 className="text-lg font-black text-[#3D2315]" style={{ fontFamily: "Nunito,sans-serif" }}>Why this route?</h3>
+                  </div>
+                  <span
+                    className="px-2.5 py-1 rounded-full text-[9px] font-black text-white"
+                    style={{ background: RISK_META[whyRoute.riskLevel].color, fontFamily: "Nunito,sans-serif" }}
+                  >
+                    {RISK_META[whyRoute.riskLevel].dot} {RISK_META[whyRoute.riskLevel].label}
+                  </span>
+                </div>
+
+                <div className="rounded-2xl p-4 mb-3" style={{ background: RISK_META[whyRoute.riskLevel].bg }}>
+                  <div className="flex items-end gap-2">
+                    <p className="text-3xl font-black leading-none" style={{ color: RISK_META[whyRoute.riskLevel].color, fontFamily: "Nunito,sans-serif" }}>
+                      {whyRoute.score}
+                    </p>
+                    <p className="text-[11px] font-bold text-[#9E7A6A] mb-0.5">/ 100 AI Safety Score</p>
+                  </div>
+                  <p className="text-[11px] font-bold text-[#9E7A6A] mt-1">
+                    {etaLabel(whyRoute.route.durationSec)} · {distanceLabel(whyRoute.route.distanceM)} · {whyRoute.route.label}
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-2xl bg-[#FDF6EE] border border-[#F5E4D6] mb-3">
+                  <Sparkles className="w-3.5 h-3.5 text-[#D4455C] mt-0.5 flex-shrink-0" />
+                  <p className="text-[11px] font-bold text-[#8B3A2F] leading-relaxed" style={{ fontFamily: "Nunito,sans-serif" }}>
+                    {whyRoute.explanation}
+                  </p>
+                </div>
+
+                {whyRoute.reasons.length > 0 && (
+                  <div className="space-y-1.5 mb-3">
+                    {whyRoute.reasons.map((r, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#3D9970] mt-0.5 flex-shrink-0" />
+                        <p className="text-[11px] font-bold text-[#2E7D56]" style={{ fontFamily: "Nunito,sans-serif" }}>{r}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {whyRoute.warnings.length > 0 && (
+                  <div className="space-y-1.5 mb-3">
+                    {whyRoute.warnings.map((w, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <AlertTriangle className="w-3.5 h-3.5 text-[#B7770D] mt-0.5 flex-shrink-0" />
+                        <p className="text-[11px] font-bold text-[#B7770D]" style={{ fontFamily: "Nunito,sans-serif" }}>{w}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="pt-3 border-t border-[#F5E4D6]">
+                  <p className="text-[9px] font-semibold text-[#9E7A6A] text-center">
+                    This recommendation is generated using Sakhi AI Safety Analysis.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setWhyRouteId(null)}
+                  className="w-full mt-3 py-3 rounded-2xl text-white text-xs font-black cursor-pointer"
+                  style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)", fontFamily: "Nunito,sans-serif" }}
+                >
+                  Got it
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ── Unified safety prompt: "Everything okay?" ── */}
         <AnimatePresence>
           {prompt && (
@@ -1118,5 +1398,85 @@ const Chip = ({ label, dark }: { label: string; dark?: boolean }) => (
     {label}
   </span>
 );
+
+// ── AI Safety Score route card (Google-Maps-style) ─────────────────────────
+const RouteScoreCard = ({
+  sr,
+  selected,
+  onSelect,
+  onWhy,
+}: {
+  sr: ScoredRoute;
+  selected: boolean;
+  onSelect: () => void;
+  onWhy: () => void;
+}) => {
+  const meta = RISK_META[sr.riskLevel];
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onSelect();
+      }}
+      className="w-full text-left rounded-2xl border-2 bg-white px-4 py-3 cursor-pointer transition-all hover:shadow-md"
+      style={{
+        borderColor: selected ? meta.color : "#F5E4D6",
+        boxShadow: selected ? `0 4px 16px ${meta.bg}` : undefined,
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[12px] font-black text-[#3D2315]" style={{ fontFamily: "Nunito,sans-serif" }}>
+              {sr.route.label}
+            </span>
+            {sr.recommended && (
+              <span
+                className="px-2 py-0.5 rounded-full text-[8px] font-black text-white"
+                style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)", fontFamily: "Nunito,sans-serif" }}
+              >
+                AI Recommended
+              </span>
+            )}
+            {sr.isFastest && !sr.recommended && (
+              <span className="px-2 py-0.5 rounded-full text-[8px] font-black bg-[#FFF3C7] text-[#B7770D]">⚡ Fastest</span>
+            )}
+            {selected && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" style={{ color: meta.color }} />}
+          </div>
+          <p className="text-[11px] font-bold text-[#9E7A6A] mt-0.5">
+            {etaLabel(sr.route.durationSec)} · {distanceLabel(sr.route.distanceM)}
+          </p>
+          {sr.warnings.length > 0 && (
+            <p className="text-[10px] font-bold text-[#B7770D] mt-1">⚠ {sr.warnings[0]}</p>
+          )}
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className="text-[9px] font-black uppercase tracking-wider" style={{ color: meta.color }}>
+            {meta.dot} AI Safety Score
+          </p>
+          <p className="text-xl font-black leading-tight" style={{ color: meta.color, fontFamily: "Nunito,sans-serif" }}>
+            {sr.score}
+            <span className="text-[10px] font-bold text-[#9E7A6A]">/100</span>
+          </p>
+          <p className="text-[9px] font-black" style={{ color: meta.color }}>
+            {meta.label}
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onWhy();
+        }}
+        className="mt-2 text-[10px] font-black text-[#B8324A] underline underline-offset-2 cursor-pointer"
+        style={{ fontFamily: "Nunito,sans-serif" }}
+      >
+        Why this route?
+      </button>
+    </div>
+  );
+};
 
 export default SafetyJourneyPage;
