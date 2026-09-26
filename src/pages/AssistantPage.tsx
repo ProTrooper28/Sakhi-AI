@@ -230,6 +230,13 @@ const QUICK_ACTIONS = [
 const EMERGENCY_RE =
   /\b(help me|save me|help|sos|danger|kidnap|attacked?|attacking|stalking|stalked|follow(ed|ing)? me|someone (is )?following|molest(ation|ed|ing)?|harass(ment|ed|ing)?|rape|assault|scared|i'?m scared|terrified|emergency|bachao|बचाओ|मदद|पीछा)\b/i;
 
+/**
+ * ACTIVE-DANGER phrases → SOS fires INSTANTLY on send, no confirmation and
+ * no follow-up questions. Broader EMERGENCY_RE only escalates the UI.
+ */
+const ACTIVE_DANGER_RE =
+  /\b(help me|save me|sos|kidnap\w*|attack(ed|ing|s)?\b|attacker|someone (is )?(following|chasing|after) me|(is )?(following|stalking|chasing) me|stalk(ed|er|ing) me|molest(ing|ed) me|he is touching|touching me|grabbed|assault(ed|ing) me|rape[d]? me|in danger|bachao|बचाओ|मुझे बचाओ|पीछा (कर|कर रहा)|मेरा पीछा)\b/i;
+
 const EMERGENCY_ACTIONS = [
   { label: "📞 Call 112", action: "call-112" },
   { label: "🚨 Trigger SOS", action: "sos" },
@@ -544,7 +551,15 @@ export default function AssistantPage() {
 
     const rec = recommendForText(text);
     const emergencyDetected = EMERGENCY_RE.test(text);
+    const activeDanger = ACTIVE_DANGER_RE.test(text);
     setMode(rec.escalate || emergencyDetected ? "emergency" : "normal");
+
+    // ACTIVE DANGER → trigger SOS immediately, zero confirmation, zero
+    // follow-up questions. The AI reply then supports an already-running
+    // emergency instead of asking "would you like me to…".
+    if (activeDanger && !sosState.active) {
+      triggerSOS();
+    }
 
     // Attach live app state so the AI is situationally aware.
     const userContext = buildUserContext({
@@ -596,8 +611,10 @@ export default function AssistantPage() {
         );
         streamingIdRef.current = null;
         setIsProcessing(false);
-        if (rec.intent === "panic") triggerSOS();
-        else if (rec.intent === "recovery") cancelSOS();
+        // Fallback: if the deterministic classifier saw panic but the instant
+        // trigger didn't fire (e.g. SOS already active), make sure it runs.
+        if (rec.intent === "panic" && !sosState.active && !activeDanger) triggerSOS();
+        else if (rec.intent === "recovery" && !activeDanger) cancelSOS();
       },
       // onError
       (err) => {

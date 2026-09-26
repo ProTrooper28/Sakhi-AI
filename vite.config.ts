@@ -126,18 +126,27 @@ You are an expert on women's safety in India. You know about:
 - How to file an FIR, what evidence to collect, legal recourse options
 - Mental health resources and support organizations
 
-## Health & Wellness Knowledge
-You can answer general questions about:
-- Women's health basics (menstrual health, pregnancy, nutrition, fitness)
-- Mental health (anxiety, stress, depression awareness)
-- Self-care and wellness tips
-- General knowledge, current events, and everyday questions
+## Women's Health & Wellness Knowledge
+You are knowledgeable about women's health and answer in a supportive, clear, medically-accurate (general education) way:
+- Menstrual health: cycle phases and typical length (21-35 days), what is normal vs. worth checking, period pain relief (heat, hydration, gentle movement, OTC pain relief per label), tracking patterns, PMS
+- Common concerns: irregular or missed periods (stress, weight changes, thyroid, PCOS/PCOD), PCOS/PCOD basics (symptoms, lifestyle support, why a doctor must confirm), endometriosis awareness, heavy or very painful periods
+- Infections & hygiene: UTI symptoms and prevention, yeast infection basics, menstrual hygiene
+- Pregnancy basics: early signs, general do's and don'ts, urgent warning signs (severe pain, heavy bleeding, fainting)
+- Nutrition: iron and anemia awareness (very common among Indian women), calcium, vitamin D, protein, hydration
+- Mental health: anxiety, panic attacks (grounding: 5-4-3-2-1, slow breathing), stress, sleep, when to seek professional help; free counseling in India: Tele-MANAS 14416, iCall 9152987821
+- Fitness and self-care basics
+
+## Health Rules
+- NEVER diagnose. Give general education and always recommend consulting a gynecologist/doctor for diagnosis, medication, or persistent symptoms.
+- Red flags (heavy bleeding, fainting, severe abdominal pain, high fever, chest pain) → advise urgent care NOW (call 108 for an ambulance).
+- You also answer general knowledge, current events, and everyday questions — be helpful and accurate.
 
 ## General Knowledge
 You can answer any general question — dates, math, science, history, geography, culture, technology, etc. Be helpful and accurate.
 
 ## Important Rules
 - If the user describes feeling unsafe or mentions harassment/assault, immediately suggest triggering SOS and alerting guardians. Show empathy and provide actionable guidance.
+- DANGER AUTO-PROTOCOL: when the user describes an active threat (someone following them, stalking, an attacker, abduction attempt, or says help/save me/SOS), the app has ALREADY triggered the emergency SOS automatically — do NOT ask for confirmation, do NOT ask "would you like me to...", and do NOT ask follow-up questions before helping. Open with one short reassuring line acknowledging the SOS is active, then give immediate, concrete, 1-2-3 actions (get to a crowded well-lit place, call 112, share live location).
 - Never diagnose medical conditions — always suggest consulting a doctor.
 - For legal questions, provide general guidance but always recommend consulting a lawyer.
 - Do NOT include action button labels in your response text.
@@ -177,6 +186,66 @@ You can answer any general question — dates, math, science, history, geography
                   },
             );
             const nodeHttps = await import("node:https");
+
+            // ── Gemini model fallback chain (free-tier quota management) ──
+            // The primary model has a small daily free quota (~20 req/day).
+            // On 429 RESOURCE_EXHAUSTED the request retries on the next model
+            // in the chain so the chat keeps working the same day.
+            const GEMINI_MODELS = [
+              "gemini-3.8-flash",      // newest — primary
+              "gemini-3.5-flash",      // newer generation fallback
+              "gemini-3.5-flash-lite", // lightweight fallback, separate quota
+              "gemini-3.1-flash-lite", // last resort
+            ];
+            let preferredModel = GEMINI_MODELS[0];
+            const callGeminiNonStreaming = async (apiKeyX: string, payloadBase: object): Promise<string> => {
+              const models = [preferredModel, ...GEMINI_MODELS.filter((m) => m !== preferredModel)];
+              let lastErr: any = null;
+              for (const model of models) {
+                try {
+                  const respBody = await new Promise<string>((resolve, reject) => {
+                    const gReq = nodeHttps.default.request(
+                      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "x-goog-api-key": apiKeyX,
+                        },
+                      },
+                      (gRes: any) => {
+                        let d = "";
+                        gRes.on("data", (c: any) => (d += c));
+                        gRes.on("end", () => resolve(d));
+                        gRes.on("error", reject);
+                      },
+                    );
+                    gReq.on("error", reject);
+                    gReq.write(JSON.stringify(payloadBase));
+                    gReq.end();
+                  });
+                  const parsedResp = JSON.parse(respBody);
+                  if (parsedResp.error) {
+                    const e = new Error(parsedResp.error.message || "Gemini error") as any;
+                    e.code = parsedResp.error.code;
+                    throw e;
+                  }
+                  const text = (parsedResp.candidates?.[0]?.content?.parts ?? [])
+                    .map((p: { text?: string }) => p.text || "")
+                    .join("");
+                  if (text.trim()) {
+                    preferredModel = model; // remember the working model
+                    return text;
+                  }
+                } catch (err: any) {
+                  lastErr = err;
+                  // 429 quota / 404 unavailable → try next model; others fail fast.
+                  if (err?.code !== 429 && err?.code !== 404) throw err;
+                }
+              }
+              throw lastErr ?? new Error("All Gemini models are unavailable");
+            };
+
             if (stream) {
               // ── SSE streaming mode ──
               res.writeHead(200, {
@@ -215,31 +284,8 @@ You can answer any general question — dates, math, science, history, geography
                         for (const delay of delays) {
                           await new Promise((r) => setTimeout(r, delay));
                           try {
-                          const retryBody = await new Promise<string>((resolve, reject) => {
-                              const retryReq = nodeHttps.default.request(
-                                "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
-                                {
-                                  method: "POST",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                    "x-goog-api-key": apiKey,
-                                  },
-                                },
-                                (retryRes: any) => {
-                                  let d = "";
-                                  retryRes.on("data", (c: any) => (d += c));
-                                  retryRes.on("end", () => resolve(d));
-                                  retryRes.on("error", reject);
-                                },
-                              );
-                              retryReq.on("error", reject);
-                              retryReq.write(payload);
-                              retryReq.end();
-                            });
-                            const retryParsed = JSON.parse(retryBody);
-                            const text = (retryParsed.candidates?.[0]?.content?.parts ?? [])
-                              .map((p: { text?: string }) => p.text || "")
-                              .join("");
+                            const geminiPayload = typeof payload === "string" ? JSON.parse(payload) : payload;
+                            const text = await callGeminiNonStreaming(apiKey, geminiPayload);
                             if (text) {
                               res.write(`data: ${JSON.stringify({ token: text })}\n\n`);
                               res.write("data: [DONE]\n\n");
@@ -298,18 +344,21 @@ You can answer any general question — dates, math, science, history, geography
               groqReq.end();
             } else {
               // ── Non-streaming mode (fallback) ──
+              if (useGemini) {
+                // Gemini: model fallback chain handles 429/404 automatically.
+                const geminiPayload = typeof payload === "string" ? JSON.parse(payload) : payload;
+                const content = await callGeminiNonStreaming(apiKey, geminiPayload);
+                res.writeHead(200, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ content }));
+              } else {
               const groqBody = await new Promise<string>((resolve, reject) => {
                 const groqReq = nodeHttps.default.request(
-                  useGemini
-                    ? "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
-                    : "https://api.groq.com/openai/v1/chat/completions",
+                  "https://api.groq.com/openai/v1/chat/completions",
                   {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
-                      ...(useGemini
-                        ? { "x-goog-api-key": apiKey }
-                        : { Authorization: "Bearer " + apiKey }),
+                      Authorization: "Bearer " + apiKey,
                     },
                   },
                   (groqRes: any) => {
@@ -328,11 +377,10 @@ You can answer any general question — dates, math, science, history, geography
                 console.error("[/api/chat] Groq error:", parsed.error.message || parsed.error);
                 throw new Error(parsed.error.message || "Groq API error");
               }
-              const content = useGemini
-                ? (parsed.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text || "").join("")
-                : parsed.choices?.[0]?.message?.content ?? "";
+              const content = parsed.choices?.[0]?.message?.content ?? "";
               res.writeHead(200, { "Content-Type": "application/json" });
               res.end(JSON.stringify({ content }));
+              }
             }
           } catch (err: any) {
             console.error("[/api/chat] Error:", err.message || err);
