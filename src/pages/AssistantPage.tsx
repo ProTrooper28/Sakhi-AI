@@ -34,6 +34,7 @@ import { readTriggerConfig } from "@/lib/safety";
 import { readSafeCheckinState, checkinContextSummary } from "@/lib/safety";
 import { readBatterySettings, batteryContextSummary } from "@/lib/safety";
 import { useDeviceBattery } from "@/hooks/useDeviceBattery";
+import { useFakeCall } from "@/components/safety/FakeCallOverlay";
 
 // ── Types ──
 
@@ -248,6 +249,19 @@ const BATTERY_ACTIONS = [
   { label: "🔌 Nearby Charging", action: "nearby-safe" },
 ];
 
+// Fake Call quick actions — preventive escape (no guardian alert, no SOS).
+const FAKE_CALL_ACTIONS = [
+  { label: "📞 Start Fake Call", action: "fake-call" },
+  { label: "🚶 Start Safety Journey", action: "start-journey" },
+  { label: "👥 Notify Guardian", action: "notify-guardian" },
+  { label: "🚨 Trigger SOS", action: "sos" },
+];
+
+// Phrases that suggest discomfort without an active emergency → the AI
+// suggests the Fake Call as the polite exit before things escalate.
+const UNCOMFORTABLE_RE =
+  /\b(uncomfortable|bother(ing|ed)? me|bothering|not feel(ing)? safe|don'?t feel safe|creep(y|ing)|weird o|stranger|leave me alone|unsafe feeling|feel uneasy|uneasy)\b/i;
+
 const EMERGENCY_ACTIONS = [
   { label: "📞 Call 112", action: "call-112" },
   { label: "🚨 Trigger SOS", action: "sos" },
@@ -348,6 +362,7 @@ export default function AssistantPage() {
 
   // ── Battery-Aware Safety — live battery for context-aware AI replies ──
   const { level: batteryLevel, charging: batteryCharging } = useDeviceBattery();
+  const { openFakeCall } = useFakeCall();
 
   // Messages for current conversation
   const [messages, setMessages] = useState<Message[]>([
@@ -537,6 +552,9 @@ export default function AssistantPage() {
         if (coords) void shareLocation(coords.lat, coords.lng, locationState.address);
         navigate("/guardians");
         break;
+      case "fake-call":
+        openFakeCall();
+        break;
       default:
         break;
     }
@@ -654,6 +672,8 @@ export default function AssistantPage() {
           batteryLevel != null &&
           batteryLevel < 10 &&
           userContext.journeyStatus === "active";
+        // Fake Call: discomfort without active danger → polite-exit actions.
+        const uncomfortable = UNCOMFORTABLE_RE.test(text) && !ACTIVE_DANGER_RE.test(text);
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === streamingId
@@ -667,7 +687,9 @@ export default function AssistantPage() {
                     ? EMERGENCY_ACTIONS
                     : batteryUrgent
                       ? BATTERY_ACTIONS
-                      : rec.actions.map((a) => ({ label: a.label, action: a.id }))),
+                      : uncomfortable
+                        ? FAKE_CALL_ACTIONS
+                        : rec.actions.map((a) => ({ label: a.label, action: a.id }))),
                   timestamp: Date.now(),
                 }
               : msg,

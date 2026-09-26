@@ -27,6 +27,15 @@ import {
   BATTERY_THRESHOLD_OPTIONS,
   type BatterySafetySettings,
 } from "@/lib/safety";
+import {
+  readFakeCallSettings,
+  writeFakeCallSettings,
+  FAKE_CALLERS,
+  FAKE_CALL_DELAYS,
+  FAKE_CALL_AUDIOS,
+  DEFAULT_FAKE_CALL_SETTINGS,
+  type FakeCallSettings,
+} from "@/lib/safety";
 
 const TRIGGER_ICONS: Record<TriggerMethodId, typeof Radio> = {
   "voice-phrase": Volume2,
@@ -184,6 +193,145 @@ function SafeCheckinSettingsSection() {
           <span
             className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
               settings.autoNotifyGuardian ? "translate-x-5.5" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Fake Call section — default caller, delay, audio, ringtone and vibration.
+ * Writes via writeFakeCallSettings; the FakeCallOverlay reads them live.
+ */
+function FakeCallSettingsSection() {
+  const [settings, setSettings] = useState<FakeCallSettings>(() => readFakeCallSettings());
+
+  const update = (patch: Partial<FakeCallSettings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      writeFakeCallSettings(next);
+      return next;
+    });
+  };
+
+  return (
+    <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="p-2.5 rounded-2xl bg-[#3D9970]/10 text-[#3D9970]">
+          <Shield className="w-5 h-5" />
+        </div>
+        <div>
+          <h2 className="font-extrabold text-base text-[#3D2315] font-heading">Fake Call</h2>
+          <p className="text-[10px] font-bold text-[#3D9970] uppercase">Preventive exit strategy</p>
+        </div>
+      </div>
+      <p className="text-[#9E7A6A] text-xs mt-2 leading-relaxed">
+        Defaults for the realistic incoming call. Nothing is ever sent to anyone — no guardian alert, no SOS.
+      </p>
+
+      {/* Default caller */}
+      <div className="mt-4">
+        <p className="text-[#3D2315] text-sm font-bold mb-2">Default Caller</p>
+        <div className="grid grid-cols-3 gap-2">
+          {FAKE_CALLERS.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => update({ defaultCallerId: c.id })}
+              className={`py-2.5 rounded-xl text-xs font-black transition-colors cursor-pointer ${
+                settings.defaultCallerId === c.id
+                  ? "bg-[#D4455C] text-white"
+                  : "bg-[#FDF6EE] text-[#9E7A6A] hover:bg-[#FBDDD0]/60"
+              }`}
+            >
+              {c.emoji} {c.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      {settings.defaultCallerId === "custom" && (
+        <input
+          value={settings.customCallerName}
+          onChange={(e) => update({ customCallerName: e.target.value })}
+          placeholder="Custom caller name"
+          maxLength={24}
+          className="w-full mt-2 bg-[#FDF6EE] border border-[#F5E4D6] rounded-2xl px-3.5 py-2.5 text-xs font-bold text-[#3D2315] outline-none focus:border-[#F2956A]/50 placeholder:text-[#C9B7A8]"
+        />
+      )}
+
+      {/* Default delay */}
+      <div className="mt-5 pt-4 border-t border-[#F5E4D6]">
+        <p className="text-[#3D2315] text-sm font-bold mb-2">Default Delay</p>
+        <div className="grid grid-cols-5 gap-1.5">
+          {FAKE_CALL_DELAYS.map((d) => (
+            <button
+              key={d.value}
+              onClick={() => update({ defaultDelaySec: d.value })}
+              className={`py-2.5 rounded-xl text-[10px] font-black transition-colors cursor-pointer ${
+                settings.defaultDelaySec === d.value
+                  ? "bg-[#D4455C] text-white"
+                  : "bg-[#FDF6EE] text-[#9E7A6A] hover:bg-[#FBDDD0]/60"
+              }`}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Default audio */}
+      <div className="mt-5 pt-4 border-t border-[#F5E4D6]">
+        <p className="text-[#3D2315] text-sm font-bold mb-2">Default Audio</p>
+        <div className="space-y-2">
+          {FAKE_CALL_AUDIOS.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => update({ defaultAudioId: a.id })}
+              className={`w-full text-left px-3.5 py-2.5 rounded-2xl border-2 transition-colors cursor-pointer ${
+                settings.defaultAudioId === a.id ? "border-[#F2956A] bg-[#FFF6F2]" : "border-[#F5E4D6] bg-white hover:bg-[#FDF6EE]"
+              }`}
+            >
+              <p className="text-xs font-black text-[#3D2315]" style={{ fontFamily: "Nunito,sans-serif" }}>{a.label}</p>
+              {a.line && <p className="text-[10px] font-bold text-[#9E7A6A] mt-0.5">"{a.line}"</p>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Ringtone + vibration */}
+      <div className="flex items-start justify-between gap-4 mt-5 pt-4 border-t border-[#F5E4D6]">
+        <div className="flex-1 min-w-0">
+          <p className="text-[#3D2315] text-sm font-bold">Ringtone</p>
+          <p className="text-[#9E7A6A] text-xs mt-0.5 leading-relaxed">Play a soft ringtone on the incoming call</p>
+        </div>
+        <button
+          onClick={() => update({ ringtone: !settings.ringtone })}
+          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-0.5 cursor-pointer ${
+            settings.ringtone ? "bg-[#3D9970]" : "bg-[#F5E4D6]"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+              settings.ringtone ? "translate-x-5.5" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+      <div className="flex items-start justify-between gap-4 mt-4">
+        <div className="flex-1 min-w-0">
+          <p className="text-[#3D2315] text-sm font-bold">Vibration</p>
+          <p className="text-[#9E7A6A] text-xs mt-0.5 leading-relaxed">Vibrate while the call rings</p>
+        </div>
+        <button
+          onClick={() => update({ vibration: !settings.vibration })}
+          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 mt-0.5 cursor-pointer ${
+            settings.vibration ? "bg-[#3D9970]" : "bg-[#F5E4D6]"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
+              settings.vibration ? "translate-x-5.5" : "translate-x-0.5"
             }`}
           />
         </button>
@@ -723,6 +871,9 @@ export default function SecuritySettingsPage() {
 
               {/* ── Battery Safety (low-battery journey warnings) ── */}
               <BatterySafetySettingsSection />
+
+              {/* ── Fake Call (defaults for the escape call) ── */}
+              <FakeCallSettingsSection />
 
               {/* ── Silent Safety Triggers (Feature 4) ── */}
               <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">

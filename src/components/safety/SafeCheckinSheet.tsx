@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Shield, CheckCircle2, Siren, MessageSquareWarning, Share2, Zap, Users2, Phone } from "lucide-react";
+import { Shield, CheckCircle2, Siren, MessageSquareWarning, Share2, Zap, Users2, Phone, PhoneCall } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import {
   type SafeCheckinState,
@@ -32,6 +32,7 @@ export type SafeCheckinSheetProps = {
   onTriggerSOS: () => void;
   onShareLocation: () => void;
   onOpenEvidenceLocker: () => void;
+  onFakeCall: () => void;
   onContinueJourney: () => void;
   onEndJourney: () => void;
   onDismiss: () => void;
@@ -48,6 +49,7 @@ const SafeCheckinSheet = ({
   onTriggerSOS,
   onShareLocation,
   onOpenEvidenceLocker,
+  onFakeCall,
   onContinueJourney,
   onEndJourney,
   onDismiss,
@@ -226,6 +228,13 @@ const SafeCheckinSheet = ({
                 style={{ fontFamily: "Nunito,sans-serif" }}
               >
                 <Phone className="w-4 h-4" /> 📞 Call Emergency Services
+              </button>
+              <button
+                onClick={onFakeCall}
+                className="w-full py-3.5 rounded-2xl bg-[#3D9970]/10 text-[#2E7D56] text-xs font-black cursor-pointer flex items-center justify-center gap-2"
+                style={{ fontFamily: "Nunito,sans-serif" }}
+              >
+                <PhoneCall className="w-4 h-4" /> 📞 Fake Call (exit politely)
               </button>
               <button
                 onClick={onOpenEvidenceLocker}

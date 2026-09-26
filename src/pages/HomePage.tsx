@@ -1,9 +1,10 @@
-import { ChevronRight, Phone, Sparkles, Shield, ShieldCheck, AlertOctagon, AlertTriangle, MapPin, Settings, Zap, Navigation2, Users2, Info, HeartHandshake } from "lucide-react";
+import { ChevronRight, Phone, PhoneCall, Sparkles, Shield, ShieldCheck, AlertOctagon, AlertTriangle, MapPin, Settings, Zap, Navigation2, Users2, Info, HeartHandshake } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
+import { useFakeCall } from "@/components/safety/FakeCallOverlay";
 import { useAuth } from "@/context/AuthContext";
 import { mergeCommunityReports, COMMUNITY_CATEGORY_META, SOURCE_META } from "@/lib/safety";
 import { generateInsights } from "@/lib/safety";
@@ -412,6 +413,7 @@ const InsightsStrip = () => {
 const HomePage = () => {
   const navigate = useNavigate();
   const { triggerSOS, sosState, locationState } = useApp();
+  const { openFakeCall } = useFakeCall();
   const { displayName, initials } = useAuth();
   const firstName = displayName.split(/\s+/)[0] || "Preeti";
   const greeting = getDynamicGreeting(firstName);
@@ -663,6 +665,30 @@ const HomePage = () => {
                 </motion.button>
               </div>
             </div>
+          </motion.div>
+
+          {/* ── Fake Call — preventive exit strategy (Quick Safety Hub) ── */}
+          <motion.div {...fadeUp(0.2)} className="mb-5">
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={openFakeCall}
+              className="w-full rounded-[16px] p-4 flex items-center gap-4 text-left cursor-pointer"
+              style={{ background: "var(--sakhi-white)", border: "1px solid var(--sakhi-border)" }}
+            >
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(61,153,112,0.1)" }}>
+                <PhoneCall className="w-6 h-6" style={{ color: "#3D9970" }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 15, color: "var(--sakhi-text)" }}>
+                  Fake Call
+                </p>
+                <p style={{ fontFamily: "var(--font-sans)", fontWeight: 400, fontSize: 11.5, color: "var(--sakhi-text-secondary)", marginTop: 2 }}>
+                  Get a realistic call to politely step away — totally private
+                </p>
+              </div>
+              <ChevronRight className="w-5 h-5 flex-shrink-0" style={{ color: "var(--sakhi-text-muted)" }} />
+            </motion.button>
           </motion.div>
 
           {/* ── Safety feature strip ── */}

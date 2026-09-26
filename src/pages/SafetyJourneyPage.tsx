@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 import {
   MapPin, Navigation2, ShieldCheck, Sparkles, Phone, Search, CheckCircle2,
   AlertTriangle, ChevronLeft, ChevronDown, Clock, Footprints, Car, Bike, Bus, UserCheck,
-  Share2, Zap, Shield, Users2, Check, HelpCircle, Loader2, BatteryLow,
+  Share2, Zap, Shield, Users2, Check, HelpCircle, Loader2, BatteryLow, PhoneCall,
 } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import { useApp } from "@/context/AppContext";
@@ -80,6 +80,7 @@ import {
 import { upsertLiveLocation, sendSafeCheckIn, sendJourneyNotification, upsertActiveJourney } from "@/lib/safety";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import SafeCheckinSheet from "@/components/safety/SafeCheckinSheet";
+import { useFakeCall } from "@/components/safety/FakeCallOverlay";
 import { useDeviceBattery } from "@/hooks/useDeviceBattery";
 import { googleMapsUrl } from "@/pages/location/helpers";
 
@@ -188,6 +189,7 @@ const SafetyJourneyPage = () => {
   const navigate = useNavigate();
   const { locationState, triggerSOS, requestLocation } = useApp();
   const { user, guest, displayName } = useAuth();
+  const { openFakeCall } = useFakeCall();
 
   const [journey, setJourney] = useState<Journey>(() => readJourney());
   const [searchQuery, setSearchQuery] = useState("");
@@ -988,6 +990,7 @@ const SafetyJourneyPage = () => {
                 void shareLocation(locationState.coords?.lat ?? currentPos[0], locationState.coords?.lng ?? currentPos[1], locationState.address)
               }
               onOpenEvidenceLocker={() => navigate("/evidence-locker")}
+              onFakeCall={openFakeCall}
               onContinueJourney={continueJourneyFromCheckin}
               onEndJourney={endJourneyFromCheckin}
               onDismiss={() => setCheckinSheet(null)}
@@ -1166,6 +1169,17 @@ const SafetyJourneyPage = () => {
                     <p className="text-[11px] font-bold text-[#9E7A6A]">Just pick a destination and mode — everything else is optional.</p>
                   </div>
                 </div>
+
+                {/* Fake Call — preventive exit strategy, one tap away */}
+                <button
+                  onClick={openFakeCall}
+                  className="w-full mb-3 px-3.5 py-2.5 rounded-2xl bg-[#3D9970]/10 flex items-center gap-2.5 text-left cursor-pointer"
+                >
+                  <PhoneCall className="w-4 h-4 text-[#2E7D56] flex-shrink-0" />
+                  <span className="text-[11px] font-bold text-[#2E7D56] leading-snug" style={{ fontFamily: "Nunito,sans-serif" }}>
+                    Feeling uncomfortable? Get a realistic call to politely step away — <span className="font-black">📞 Fake Call</span>
+                  </span>
+                </button>
 
                 {/* Destination (primary) */}
                 <div className="relative mb-3">

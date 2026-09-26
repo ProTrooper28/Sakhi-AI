@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { AppProvider, useApp } from "@/context/AppContext";
 import { EmergencyActivationProvider } from "@/components/emergency/EmergencyActivationProvider";
+import { FakeCallProvider } from "@/components/safety/FakeCallOverlay";
 import { VoiceSOSIndicator } from "@/components/emergency/VoiceSOSIndicator";
 import { ShakeCountdown } from "@/components/emergency/ShakeCountdown";
 import { canAccess, roleHomePath } from "@/lib/auth-types";
@@ -122,9 +123,11 @@ const EmergencyShell = ({ children }: { children: ReactNode }) => {
   const { triggerSOS } = useApp();
   return (
     <EmergencyActivationProvider triggerSOS={triggerSOS}>
-      <VoiceSOSIndicator />
-      <ShakeCountdown />
-      {children}
+      <FakeCallProvider>
+        <VoiceSOSIndicator />
+        <ShakeCountdown />
+        {children}
+      </FakeCallProvider>
     </EmergencyActivationProvider>
   );
 };

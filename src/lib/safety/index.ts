@@ -10,6 +10,7 @@
  *   safetyScore     — AI Safety Score: weighted route scoring + explanations
  *   safeCheckin     — AI Safe Check-in: missed-ETA monitoring + escalation
  *   batterySafety   — Battery-Aware Safety: low-battery warnings + guardian alert
+ *   fakeCall        — Fake Call: realistic incoming call escape strategy
  *   safetyTriggers  — modular silent trigger registry + executor
  *   postIncident    — guided recovery checklist
  *   communitySafety — community safety map data foundation
@@ -21,6 +22,7 @@ export * from "./aiRecommendations";
 export * from "./safetyScore";
 export * from "./safeCheckin";
 export * from "./batterySafety";
+export * from "./fakeCall";
 export * from "./safetyTriggers";
 export * from "./postIncident";
 export * from "./communitySafety";
