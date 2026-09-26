@@ -11,6 +11,7 @@
  *   safeCheckin     — AI Safe Check-in: missed-ETA monitoring + escalation
  *   batterySafety   — Battery-Aware Safety: low-battery warnings + guardian alert
  *   fakeCall        — Fake Call: realistic incoming call escape strategy
+ *   safetyCoach     — AI Safety Coach: proactive context-aware guidance
  *   safetyTriggers  — modular silent trigger registry + executor
  *   postIncident    — guided recovery checklist
  *   communitySafety — community safety map data foundation
@@ -23,6 +24,7 @@ export * from "./safetyScore";
 export * from "./safeCheckin";
 export * from "./batterySafety";
 export * from "./fakeCall";
+export * from "./safetyCoach";
 export * from "./safetyTriggers";
 export * from "./postIncident";
 export * from "./communitySafety";

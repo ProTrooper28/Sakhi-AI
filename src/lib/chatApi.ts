@@ -34,6 +34,8 @@ export interface ChatUserContext {
   batteryCharging?: boolean;
   /** Battery status line, e.g. "battery critically low (7%) during an active Safety Journey". */
   batteryStatus?: string;
+  /** AI Safety Coach: one-line situation hint for proactive, context-aware replies. */
+  coachHint?: string;
   voiceEnabled?: boolean;
   shakeEnabled?: boolean;
   guardianLinked?: boolean;

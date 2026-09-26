@@ -25,6 +25,7 @@ import {
   Copy,
   Check,
   ChevronDown,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { recommendForText } from "@/lib/safety";
@@ -33,8 +34,18 @@ import { streamMessageToApi, type ChatApiMessage, type ChatUserContext } from "@
 import { readTriggerConfig } from "@/lib/safety";
 import { readSafeCheckinState, checkinContextSummary } from "@/lib/safety";
 import { readBatterySettings, batteryContextSummary } from "@/lib/safety";
+import {
+  readCoachSettings,
+  coachScenarioFor,
+  coachContextSuggestion,
+  coachHintForContext,
+  coachTipForSlot,
+  COACH_TIP_INTERVAL_MIN,
+  type CoachScenario,
+} from "@/lib/safety";
 import { useDeviceBattery } from "@/hooks/useDeviceBattery";
 import { useFakeCall } from "@/components/safety/FakeCallOverlay";
+import { useEmergencyActivation } from "@/components/emergency/EmergencyActivationProvider";
 
 // ── Types ──
 
@@ -52,6 +63,28 @@ type Message = {
 };
 
 type ChatMode = "normal" | "emergency";
+
+/**
+ * Coach tip with rotation — re-renders when the slot changes so the card
+ * quietly refreshes its advice on the frequency interval.
+ */
+function CoachTip({
+  slotBase,
+  tipForSlot,
+}: {
+  slotBase: number;
+  tipForSlot: (slot: number) => string;
+}) {
+  const [slot, setSlot] = useState(() => Math.floor(Date.now() / (slotBase * 60_000)));
+  useEffect(() => {
+    const id = setInterval(
+      () => setSlot(Math.floor(Date.now() / (slotBase * 60_000))),
+      30_000,
+    );
+    return () => clearInterval(id);
+  }, [slotBase]);
+  return <p className="text-[12px] font-semibold" style={{ color: "#7A5C3A" }}>{tipForSlot(slot)}</p>;
+}
 
 // ── Conversation persistence ──
 
@@ -324,7 +357,7 @@ function buildUserContext(opts: {
       if (summary) batteryStatus = summary;
     }
   }
-  return {
+  const userContext: ChatUserContext = {
     userName: opts.displayName || undefined,
     sosActive: opts.sosActive,
     journeyStatus: (journey.status as ChatUserContext["journeyStatus"]) ?? "none",
@@ -343,6 +376,12 @@ function buildUserContext(opts: {
       weekday: "short", hour: "2-digit", minute: "2-digit",
     }),
   };
+  // ── AI Safety Coach hint — the LLM reads the live situation from this ──
+  if (readCoachSettings().enabled) {
+    const hint = coachHintForContext(userContext);
+    if (hint) userContext.coachHint = hint;
+  }
+  return userContext;
 }
 
 // ── Main Component ──
@@ -378,6 +417,11 @@ export default function AssistantPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
   const streamingIdRef = useRef<string | null>(null);
+  const { voiceToggle } = useEmergencyActivation();
+
+  // ── AI Safety Coach state ──
+  const [coachSettings] = useState(() => readCoachSettings());
+  const [tipDismissed, setTipDismissed] = useState(false);
 
   // Check-in timer
   const [checkinActive, setCheckinActive] = useState(false);
@@ -555,6 +599,17 @@ export default function AssistantPage() {
       case "fake-call":
         openFakeCall();
         break;
+      // ── AI Safety Coach actions ──
+      case "enable-voice":
+        // Toggle the mic listening state; the indicator shows the result.
+        voiceToggle();
+        break;
+      case "enable-shake":
+        navigate("/settings");
+        break;
+      case "open-guardian":
+        navigate("/guardians");
+        break;
       default:
         break;
     }
@@ -632,6 +687,21 @@ export default function AssistantPage() {
       triggerSOS();
     }
 
+    // ── AI Safety Coach — travel-scenario coaching (never on emergencies) ──
+    let coachScenario: CoachScenario | null = null;
+    if (coachSettings.enabled && !emergencyDetected && !activeDanger) {
+      const ctxForCoach = buildUserContext({
+        displayName,
+        user,
+        guest,
+        sosActive: sosState.active,
+        locationLabel: locationState.address,
+        batteryLevel,
+        batteryCharging,
+      });
+      coachScenario = coachScenarioFor(text, ctxForCoach);
+    }
+
     // Attach live app state so the AI is situationally aware.
     const userContext = buildUserContext({
       displayName,
@@ -687,9 +757,11 @@ export default function AssistantPage() {
                     ? EMERGENCY_ACTIONS
                     : batteryUrgent
                       ? BATTERY_ACTIONS
-                      : uncomfortable
-                        ? FAKE_CALL_ACTIONS
-                        : rec.actions.map((a) => ({ label: a.label, action: a.id }))),
+                      : coachScenario
+                        ? coachScenario.actions
+                        : uncomfortable
+                          ? FAKE_CALL_ACTIONS
+                          : rec.actions.map((a) => ({ label: a.label, action: a.id }))),
                   timestamp: Date.now(),
                 }
               : msg,
@@ -1112,6 +1184,39 @@ export default function AssistantPage() {
             </motion.button>
           )}
         </AnimatePresence>
+
+        {/* ── AI Safety Coach proactive tip (one at a time, dismissible) ── */}
+        {!isEmergency && coachSettings.enabled && !tipDismissed && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="shrink-0 max-w-[780px] mx-auto px-4 md:px-6 pt-2"
+          >
+            <div
+              className="flex items-start gap-2.5 rounded-2xl px-3.5 py-2.5"
+              style={{ background: "rgba(243,156,18,0.08)", border: "1px solid rgba(243,156,18,0.2)" }}
+            >
+              <Sparkle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: "#B7770D" }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#B7770D" }}>
+                  Safety Coach
+                </p>
+                <CoachTip
+                  slotBase={coachSettings.frequency === "high" ? 5 : coachSettings.frequency === "low" ? 30 : 12}
+                  tipForSlot={coachTipForSlot}
+                />
+              </div>
+              <button
+                onClick={() => setTipDismissed(true)}
+                className="p-1 rounded-full flex-shrink-0 cursor-pointer"
+                aria-label="Dismiss safety tip"
+                style={{ color: "#9E7A6A" }}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
 
         {/* ── Input Area ── */}
         <div
