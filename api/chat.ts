@@ -1,88 +1,228 @@
 /**
- * Sakhi AI — Groq chat completions backend handler.
+ * Sakhi AI — /api/chat serverless function (Vercel).
  *
- * Used by:
- *   • Vite dev-server middleware (vite.config.ts → configureServer)
- *   • Any standalone Node.js / serverless host that can import this module
+ * Vercel Serverless Functions require a DEFAULT export: (req, res) => void.
+ * The old module only had a named export (`handleChatRequest`), which made
+ * Vercel fail with "Invalid export found in module /var/task/api/chat.js".
  *
- * Requires the GROQ_API_KEY environment variable to be set.
+ * Mirrors the Vite dev middleware in vite.config.ts exactly:
+ *   • Gemini first (gemini-3.8-flash via x-goog-api-key), Groq fallback
+ *   • Same safety system prompt + live user-context block
+ *   • Keys read from env: GEMINI_API_KEY / GOOGLE_API_KEY / GROQ_API_KEY
+ *   • POST /api/chat → { content } | { error } JSON (streaming is dev-only;
+ *     the frontend falls back to non-streaming automatically)
  */
 
+const GEMINI_MODEL = "gemini-3.8-flash";
+const GROQ_MODEL = "openai/gpt-oss-120b";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-
-const SYSTEM_PROMPT = `You are Sakhi Didi — the AI safety companion inside the Sakhi AI app. You are a caring, protective elder-sister figure who watches over the user's safety.
-
-Personality:
-- Warm, empathetic, and supportive — speak like a caring elder sister
-- Always prioritizes the user's safety above all else
-- Proactive about suggesting safety measures
-- Never dismissive of safety concerns
-- Uses simple, clear language; occasional Hindi words are fine
-
-Capabilities you can suggest (the system shows these as tappable action buttons):
-- "Start Safety Journey" — monitor a trip with deviation detection
-- "Share Live Location" — share GPS with a guardian
-- "Call Guardian" — call emergency contact
-- "Trigger SOS" — activate emergency mode
-- "Find Safe Place Nearby" — locate safe locations
-- "File Anonymous Report" — report an incident
-- "Review Evidence" — check stored evidence
-- "Emergency Helplines" — helpline numbers
-
-Response guidelines:
-- Keep responses concise (2-4 sentences max)
-- If the user mentions feeling unsafe, someone following them, or any threat → immediately suggest SOS and guardian alert
-- If the user mentions an emergency → prioritize SOS activation
-- For general safety questions → provide helpful, actionable advice
-- Never provide medical, legal, or professional advice — suggest appropriate helplines
-- Always end with a safety-relevant action suggestion when appropriate
-- Do NOT include action button labels in your response text — the app handles those separately`;
+const GEMINI_API_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/" +
+  GEMINI_MODEL +
+  ":generateContent";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
 }
 
-/**
- * Send conversation messages to Groq and return the assistant's reply text.
- */
-export async function handleChatRequest(
+const SYSTEM_PROMPT = `You are Sakhi AI — a warm, caring, protective elder-sister figure who is the user's personal safety companion inside the Sakhi AI app.
+
+## Your Personality
+- Speak with warmth, empathy, and genuine care — like a trusted elder sister
+- Use natural, conversational language; mix in Hindi/Hinglish naturally when the user does
+- Be encouraging and empowering, never condescending
+- Use emojis sparingly but naturally (🙏 💛 🌸 ✨)
+- Keep responses concise (2-4 sentences) unless the user asks for detailed information
+- Always prioritize the user's safety and emotional well-being
+
+## Safety Expertise
+You are an expert on women's safety in India. You know about:
+- Indian legal protections: Section 376 (rape), 354 (assault on woman), 498A (domestic violence), POCSO, Dowry Prohibition Act, Sexual Harassment at Workplace Act
+- Women's rights under the Indian Constitution (Articles 14, 15, 16, 21)
+- Emergency numbers: 112 (police), 1091 (women helpline), 108 (ambulance), 181 (women helpline)
+- Safety tips: travel safety, workplace safety, digital safety, domestic safety
+- How to file an FIR, what evidence to collect, legal recourse options
+- Mental health resources and support organizations
+
+## Health & Wellness Knowledge
+You can answer general questions about:
+- Women's health basics (menstrual health, pregnancy, nutrition, fitness)
+- Mental health (anxiety, stress, depression awareness)
+- Self-care and wellness tips
+- General knowledge, current events, and everyday questions
+
+## General Knowledge
+You can answer any general question — dates, math, science, history, geography, culture, technology, etc. Be helpful and accurate.
+
+## Important Rules
+- If the user describes feeling unsafe or mentions harassment/assault, immediately suggest triggering SOS and alerting guardians. Show empathy and provide actionable guidance.
+- Never diagnose medical conditions — always suggest consulting a doctor.
+- For legal questions, provide general guidance but always recommend consulting a lawyer.
+- Do NOT include action button labels in your response text.
+- Detect the user's language and respond in the same language (Hindi, English, Hinglish, etc.)
+
+## Primary Goals (in priority order)
+1. Keep the user safe.
+2. Give practical, actionable advice.
+3. Remain calm — never create panic.
+4. Encourage contacting guardians or emergency services when required.
+5. Respect privacy.
+6. Be empathetic.
+7. Keep responses concise unless the user asks for details.
+
+## Safety Boundaries
+- NEVER encourage violence — self-defense advice is always about escape, distance, attracting attention, and getting to safety.
+- NEVER provide harmful or illegal advice.
+- Always recommend official emergency services (112, 1091) where appropriate.
+- If the user is in immediate danger, keep the reply short and action-focused: call 112, share location, get to a crowded, well-lit place.`;
+
+function buildSystemPrompt(context: unknown): string {
+  const ctx = (context && typeof context === "object" ? context : {}) as Record<string, unknown>;
+  const contextBlock = `
+## Live User Context (current app state — reference naturally, never enumerate)
+- User's name: ${String(ctx.userName || "unknown")}
+- SOS/emergency mode active right now: ${ctx.sosActive ? "YES" : "no"}
+- Safety Journey status: ${String(ctx.journeyStatus || "none")}${ctx.journeyDestination ? ` (destination: ${String(ctx.journeyDestination)})` : ""}
+- Voice phrase trigger armed: ${ctx.voiceEnabled ? "yes" : "no"}
+- Shake trigger armed: ${ctx.shakeEnabled ? "yes" : "no"}
+- Guardian linked: ${ctx.guardianLinked ? "yes" : "no — demo mode"}
+- Approximate area (if shared): ${String(ctx.locationLabel || "not shared")}
+- Current local time: ${String(ctx.localTime || "")}
+
+Use this context to personalize replies (e.g. mention the active journey or available triggers when relevant).`;
+  return SYSTEM_PROMPT + contextBlock;
+}
+
+async function callGemini(
+  apiKey: string,
   messages: ChatMessage[],
+  context: unknown,
 ): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    console.error("[/api/chat] GROQ_API_KEY is not set. Add it in Settings → Environment.");
-    throw new Error(
-      "GROQ_API_KEY environment variable is not configured. " +
-        "Add it in Settings → Environment.",
-    );
+  const res = await fetch(GEMINI_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: buildSystemPrompt(context) }] },
+      contents: messages
+        .filter((m) => m.role !== "system")
+        .map((m) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }],
+        })),
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg =
+      (body as { error?: { message?: string } })?.error?.message ||
+      `Gemini API error (${res.status})`;
+    throw new Error(msg);
   }
 
-  const response = await fetch(GROQ_API_URL, {
+  const data = await res.json();
+  const parts = data?.candidates?.[0]?.content?.parts ?? [];
+  return parts.map((p: { text?: string }) => p.text || "").join("");
+}
+
+async function callGroq(apiKey: string, messages: ChatMessage[], context: unknown): Promise<string> {
+  const res = await fetch(GROQ_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "openai/gpt-oss-120b",
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+      model: GROQ_MODEL,
+      messages: [
+        { role: "system", content: buildSystemPrompt(context) },
+        ...messages,
+      ],
       temperature: 0.7,
       max_tokens: 1024,
     }),
   });
 
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
     const msg =
-      (body as any)?.error?.message || `Groq API error (${response.status})`;
-    console.error(`[/api/chat] Groq API returned ${response.status}:`, body);
+      (body as { error?: { message?: string } })?.error?.message ||
+      `Groq API error (${res.status})`;
     throw new Error(msg);
   }
 
-  const data = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
+  const data = await res.json();
+  return data?.choices?.[0]?.message?.content ?? "";
+}
 
-  return data.choices?.[0]?.message?.content ?? "";
+/**
+ * Vercel Serverless Function handler (default export).
+ */
+export default async function handler(
+  req: { method?: string; body?: unknown },
+  res: {
+    status: (code: number) => { json: (data: unknown) => void; end: () => void };
+    setHeader: (name: string, value: string) => void;
+  },
+) {
+  // CORS — the PWA may call the API from the deployed origin.
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  try {
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body ?? {};
+    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const context = body.context ?? null;
+
+    if (messages.length === 0) {
+      res.status(400).json({ error: "messages array is required" });
+      return;
+    }
+
+    // Gemini first (per spec), Groq as automatic fallback.
+    const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const groqKey = process.env.GROQ_API_KEY;
+
+    if (!geminiKey && !groqKey) {
+      res.status(500).json({
+        error:
+          "AI API key not configured. Add GEMINI_API_KEY (or GROQ_API_KEY) in Settings → Environment.",
+      });
+      return;
+    }
+
+    let content: string;
+    if (geminiKey) {
+      try {
+        content = await callGemini(geminiKey, messages, context);
+      } catch (geminiErr) {
+        console.error("[/api/chat] Gemini failed, falling back to Groq:", geminiErr);
+        if (!groqKey) throw geminiErr;
+        content = await callGroq(groqKey, messages, context);
+      }
+    } else {
+      content = await callGroq(groqKey!, messages, context);
+    }
+
+    res.status(200).json({ content });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Internal error";
+    console.error("[/api/chat] Error:", message);
+    res.status(500).json({ error: message });
+  }
 }
