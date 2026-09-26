@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Lock, Unlock, Shield, Calendar, MapPin, Eye, Download, Trash2, ShieldCheck, MoreVertical, Search, Filter, Grid, List as ListIcon, FileVideo, FileAudio, FileText, Clock, X, ChevronRight } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
+import EvidenceIntegrity from "@/components/EvidenceIntegrity";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useApp } from "@/context/AppContext";
@@ -266,6 +267,7 @@ const EvidenceLockerPage = () => {
                          <MapPin className="w-3.5 h-3.5" />
                          <span className="text-[12px] font-bold">{item.location}</span>
                       </div>
+                      <EvidenceIntegrity seed={`${item.id}-${item.name}`} timestamp={`${item.date} · ${item.time}`} className="mb-4" />
                       <div className="flex gap-3">
                          <motion.button
                            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
@@ -344,8 +346,11 @@ const EvidenceLockerPage = () => {
                      )}
                    </div>
 
-                   {/* Metadata & Actions Footer */}
-                   <div className="p-4 md:p-5 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
+                  {/* Security & Integrity (demo) */}
+                  <EvidenceIntegrity seed={`${selectedItem.id}-${selectedItem.name}`} timestamp={`${selectedItem.date} · ${selectedItem.time}`} variant="dark" className="px-5 py-3 border-b border-slate-800" />
+
+                  {/* Metadata & Actions Footer */}
+                  <div className="p-4 md:p-5 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
                      <div className="flex gap-4">
                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{selectedItem.size}</span>
                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest hidden md:inline">{selectedItem.date}</span>

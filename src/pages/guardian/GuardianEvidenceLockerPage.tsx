@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Lock, Unlock, Calendar, MapPin, Eye, Download, Trash2, ShieldCheck, MoreVertical, Search, Filter, Grid, List as ListIcon, FileVideo, FileAudio, FileText, Clock, X } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
+import EvidenceIntegrity from "@/components/EvidenceIntegrity";
 import { motion, AnimatePresence } from "framer-motion";
 import { useApp } from "@/context/AppContext";
 import { fetchEvidenceItems, type EvidenceRecord } from "@/lib/safety";
@@ -300,6 +301,7 @@ const GuardianEvidenceLockerPage = () => {
                       <MapPin className="w-3.5 h-3.5" />
                       <span className="text-[12px] font-bold">{item.location}</span>
                     </div>
+                    <EvidenceIntegrity seed={`${item.id}-${item.name}`} timestamp={`${item.date} · ${item.time}`} className="mb-4" />
                     <div className="flex gap-3">
                       <motion.button
                         whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
@@ -377,6 +379,9 @@ const GuardianEvidenceLockerPage = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Security & Integrity (demo) */}
+                  <EvidenceIntegrity seed={`${selectedItem.id}-${selectedItem.name}`} timestamp={`${selectedItem.date} · ${selectedItem.time}`} variant="dark" className="px-5 py-3 border-b border-slate-800" />
 
                   {/* Metadata & Actions Footer */}
                   <div className="p-4 md:p-5 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
