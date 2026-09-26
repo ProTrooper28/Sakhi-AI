@@ -113,7 +113,7 @@ async function callGemini(
           role: m.role === "assistant" ? "model" : "user",
           parts: [{ text: m.content }],
         })),
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+      generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
     }),
   });
 
@@ -128,6 +128,34 @@ async function callGemini(
   const data = await res.json();
   const parts = data?.candidates?.[0]?.content?.parts ?? [];
   return parts.map((p: { text?: string }) => p.text || "").join("");
+}
+
+/**
+ * Gemini 3.x intermittently returns 503 ("high demand") and thinking models
+ * can emit empty text when the token budget is exhausted. Retry transient
+ * failures with backoff; treat empty replies as retryable too.
+ */
+async function callGeminiWithRetry(
+  apiKey: string,
+  messages: ChatMessage[],
+  context: unknown,
+): Promise<string> {
+  const delays = [0, 800, 2000];
+  let lastErr: unknown = new Error("Gemini request failed");
+  for (const delay of delays) {
+    if (delay) await new Promise((r) => setTimeout(r, delay));
+    try {
+      const text = await callGemini(apiKey, messages, context);
+      if (text.trim()) return text;
+      lastErr = new Error("Gemini returned an empty response");
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : "";
+      // Only retry transient upstream failures — surface real errors at once.
+      if (!/503|429|500|overload|high demand|unavailable|empty/i.test(msg)) throw err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Gemini request failed");
 }
 
 async function callGroq(apiKey: string, messages: ChatMessage[], context: unknown): Promise<string> {
@@ -209,7 +237,7 @@ export default async function handler(
     let content: string;
     if (geminiKey) {
       try {
-        content = await callGemini(geminiKey, messages, context);
+        content = await callGeminiWithRetry(geminiKey, messages, context);
       } catch (geminiErr) {
         console.error("[/api/chat] Gemini failed, falling back to Groq:", geminiErr);
         if (!groqKey) throw geminiErr;
@@ -217,6 +245,11 @@ export default async function handler(
       }
     } else {
       content = await callGroq(groqKey!, messages, context);
+    }
+
+    if (!content || !content.trim()) {
+      res.status(502).json({ error: "The assistant returned an empty reply. Please try again." });
+      return;
     }
 
     res.status(200).json({ content });

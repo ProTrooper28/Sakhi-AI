@@ -86,6 +86,21 @@ export function streamMessageToApi(
         );
       }
 
+      // The server may not support SSE (e.g. a plain JSON serverless
+      // function). Detect a JSON content-type and handle it as one full
+      // response instead of failing silently with zero tokens.
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        const content: string = data.content ?? "";
+        if (content) {
+          onToken(content);
+        }
+        onDone();
+        return;
+      }
+
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No response body");
 
@@ -128,8 +143,8 @@ export function streamMessageToApi(
           }
         }
       }
-      // Stream ended with an error and nothing was streamed — retry once via
-      // the non-streaming endpoint (the server may have exhausted its own
+      // Stream ended without delivering anything — retry once via the
+      // non-streaming endpoint (the server may have exhausted its own
       // upstream retries during a provider hiccup).
       if (!sawToken) {
         try {
@@ -139,9 +154,16 @@ export function streamMessageToApi(
             onDone();
             return;
           }
-        } catch {
-          /* fall through to the original error below */
+        } catch (fallbackErr: any) {
+          throw fallbackErr instanceof Error
+            ? fallbackErr
+            : streamError
+              ? new Error(streamError)
+              : new Error("Empty response from the assistant");
         }
+        throw streamError
+          ? new Error(streamError)
+          : new Error("Empty response from the assistant");
       }
       if (streamError) throw new Error(streamError);
       onDone();
