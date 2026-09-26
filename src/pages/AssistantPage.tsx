@@ -34,6 +34,7 @@ import { streamMessageToApi, type ChatApiMessage, type ChatUserContext } from "@
 import { readTriggerConfig } from "@/lib/safety";
 import { readSafeCheckinState, checkinContextSummary } from "@/lib/safety";
 import { readBatterySettings, batteryContextSummary } from "@/lib/safety";
+import HelpDialog from "@/components/safety/HelpDialog";
 import {
   readCoachSettings,
   coachScenarioFor,
@@ -252,6 +253,15 @@ function CopyButton({ text }: { text: string }) {
 }
 
 // ── Quick action categories ──
+
+// First-open suggested prompts (spec) — the exact phrases new users should try.
+const STARTER_PROMPTS = [
+  "I'm travelling alone.",
+  "I don't feel safe.",
+  "How do I report cyber crime?",
+  "Start a Safety Journey",
+  "What are my legal rights?",
+];
 
 const QUICK_ACTIONS = [
   { label: "Travel Safety", icon: Navigation, color: "#2563EB", bg: "rgba(37,99,235,0.08)", prompt: "How do I stay safe while travelling at night?" },
@@ -869,6 +879,7 @@ export default function AssistantPage() {
             </div>
 
             <div className="flex items-center gap-2">
+              <HelpDialog topic="assistant" />
               {checkinActive && (
                 <motion.div
                   initial={{ scale: 0.8, opacity: 0 }}
@@ -1116,6 +1127,26 @@ export default function AssistantPage() {
                                 }}
                               >
                                 {btn.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* First-open starter prompts — try-me phrases for new users */}
+                        {msg.id === "init" && messages.length === 1 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2.5">
+                            {STARTER_PROMPTS.map((p) => (
+                              <button
+                                key={p}
+                                onClick={() => dispatch(p)}
+                                className="px-3 py-1.5 rounded-full text-[11px] font-semibold cursor-pointer transition-all hover:scale-105"
+                                style={{
+                                  background: "var(--sakhi-cream)",
+                                  color: "var(--sakhi-text)",
+                                  border: "1px dashed var(--sakhi-border)",
+                                }}
+                              >
+                                {p}
                               </button>
                             ))}
                           </div>

@@ -80,6 +80,7 @@ import {
 import { upsertLiveLocation, sendSafeCheckIn, sendJourneyNotification, upsertActiveJourney } from "@/lib/safety";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import SafeCheckinSheet from "@/components/safety/SafeCheckinSheet";
+import HelpDialog from "@/components/safety/HelpDialog";
 import { useFakeCall } from "@/components/safety/FakeCallOverlay";
 import { useDeviceBattery } from "@/hooks/useDeviceBattery";
 import { googleMapsUrl } from "@/pages/location/helpers";
@@ -1021,6 +1022,7 @@ const SafetyJourneyPage = () => {
             <span className="text-xs font-extrabold text-[#3D2315]" style={{ fontFamily: "Nunito,sans-serif" }}>
               {active ? "Safety Journey Active" : completed ? "Journey Complete" : "Safety Journey"}
             </span>
+            <HelpDialog topic="journey" />
           </motion.div>
           <div className="w-10" />
         </div>

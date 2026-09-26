@@ -15,6 +15,9 @@ import {
   type TriggerMethodId,
 } from "@/lib/safety";
 import { useEmergencyActivation } from "@/components/emergency/EmergencyActivationProvider";
+import AppTour from "@/components/safety/AppTour";
+import { FEATURES } from "@/lib/featureRegistry";
+import { Compass, HelpCircle, ChevronDown } from "lucide-react";
 import {
   readSafeCheckinSettings,
   writeSafeCheckinSettings,
@@ -576,6 +579,19 @@ function EmergencyActivationSection() {
         Trigger SOS hands-free with voice phrases or shake gestures. Both invoke the exact same
         emergency workflow as the SOS button — no duplicate logic.
       </p>
+      <div className="mt-3 rounded-2xl px-4 py-3" style={{ background: "#FFF9F0", border: "1px dashed rgba(217,119,6,0.3)" }}>
+        <p className="text-[11px] font-black text-[#B7770D] mb-1" style={{ fontFamily: "Nunito,sans-serif" }}>How to set up Voice SOS</p>
+        <p className="text-[11px] font-semibold text-[#9E7A6A] leading-relaxed">
+          1. Enable Voice SOS below and grant microphone permission when asked.
+          2. Say <span className="font-black text-[#B7770D]">"Help"</span>, <span className="font-black text-[#B7770D]">"Save Me"</span> or{' '}
+          <span className="font-black text-[#B7770D]">"Bachao"</span> out loud — Sakhi triggers SOS instantly.
+        </p>
+        <p className="text-[11px] font-black text-[#B7770D] mb-1 mt-2" style={{ fontFamily: "Nunito,sans-serif" }}>How to set up Shake SOS</p>
+        <p className="text-[11px] font-semibold text-[#9E7A6A] leading-relaxed">
+          1. Enable Shake SOS below and pick a sensitivity you're comfortable with.
+          2. Shake your phone firmly to activate emergency mode — a short countdown lets you cancel.
+        </p>
+      </div>
 
       {/* ── Voice SOS ── */}
       <div className="mt-5 pt-4 border-t border-[#F5E4D6]">
@@ -820,6 +836,86 @@ function EmergencyActivationSection() {
   );
 }
 
+/**
+ * Features list — every capability with icon, description, live status and a
+ * Quick Configure jump. Generated from the shared feature registry so the
+ * list can never drift from what actually exists.
+ */
+function FeaturesSection() {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  return (
+    <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="p-2.5 rounded-2xl bg-[#7A2B73]/10 text-[#7A2B73]">
+          <Compass className="w-5 h-5" />
+        </div>
+        <div>
+          <h2 className="font-extrabold text-base text-[#3D2315] font-heading">Features</h2>
+          <p className="text-[10px] font-bold text-[#7A2B73] uppercase">{FEATURES.length} capabilities</p>
+        </div>
+      </div>
+      <p className="text-[#9E7A6A] text-xs mt-2 leading-relaxed">
+        Everything Sakhi can do, with what it does and where to configure it.
+      </p>
+
+      <div className="mt-4 space-y-2">
+        {FEATURES.map((f) => {
+          const status = f.status();
+          const expanded = expandedId === f.id;
+          return (
+            <div key={f.id} className="rounded-2xl border border-[#F5E4D6] bg-[#FDFBF8] overflow-hidden">
+              <button
+                onClick={() => setExpandedId(expanded ? null : f.id)}
+                className="w-full flex items-center gap-3 px-3.5 py-3 text-left cursor-pointer"
+              >
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(212,69,92,0.08)" }}>
+                  <f.icon className="w-4.5 h-4.5" style={{ color: "#D4455C" }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-[13px] font-black text-[#3D2315] truncate" style={{ fontFamily: "Nunito,sans-serif" }}>{f.name}</p>
+                    <span
+                      className="px-1.5 py-0.5 rounded-full text-[8.5px] font-black flex-shrink-0"
+                      style={{
+                        background: status.enabled ? "rgba(61,153,112,0.12)" : "rgba(158,122,106,0.12)",
+                        color: status.enabled ? "#2E7D56" : "#9E7A6A",
+                      }}
+                    >
+                      {status.text}
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-semibold text-[#9E7A6A] truncate">{f.description}</p>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-[#C9B7A8] transition-transform flex-shrink-0 ${expanded ? "rotate-180" : ""}`} />
+              </button>
+              {expanded && (
+                <div className="px-3.5 pb-3 flex gap-2">
+                  <button
+                    onClick={() => navigate(f.path)}
+                    className="flex-1 py-2.5 rounded-xl text-[11px] font-black text-white cursor-pointer"
+                    style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)", fontFamily: "Nunito,sans-serif" }}
+                  >
+                    Open
+                  </button>
+                  <button
+                    onClick={() => navigate(f.configurePath)}
+                    className="flex-1 py-2.5 rounded-xl text-[11px] font-black cursor-pointer"
+                    style={{ color: "#8B3A2F", background: "#FDF6EE", fontFamily: "Nunito,sans-serif" }}
+                  >
+                    Quick Configure
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function SecuritySettingsPage() {
   const navigate = useNavigate();
   const { triggerSOS } = useApp();
@@ -856,6 +952,7 @@ export default function SecuritySettingsPage() {
   const [newPin, setNewPin] = useState("");
   const [confirmDanger, setConfirmDanger] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -971,6 +1068,31 @@ export default function SecuritySettingsPage() {
 
               {/* ── AI Safety Coach (proactive guidance) ── */}
               <SafetyCoachSettingsSection />
+
+              {/* ── Features list + App Tour ── */}
+              <FeaturesSection />
+
+              <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2.5 rounded-2xl bg-[#F2956A]/15 text-[#F2956A]">
+                    <Compass className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="font-extrabold text-base text-[#3D2315] font-heading">Take App Tour</h2>
+                    <p className="text-[10px] font-bold text-[#F2956A] uppercase">Walkthrough</p>
+                  </div>
+                </div>
+                <p className="text-[#9E7A6A] text-xs leading-relaxed">
+                  A short guided tour of every feature — what it does, its status, and a one-tap visit.
+                </p>
+                <button
+                  onClick={() => setTourOpen(true)}
+                  className="w-full mt-4 py-3 rounded-xl text-xs font-bold text-white cursor-pointer"
+                  style={{ background: "linear-gradient(135deg,#F2956A,#D4455C)" }}
+                >
+                  Start Tour
+                </button>
+              </div>
 
               {/* ── Silent Safety Triggers (Feature 4) ── */}
               <div className="bg-white rounded-[28px] border border-[#F9C5B0]/20 shadow-sm p-6">
@@ -1179,6 +1301,9 @@ export default function SecuritySettingsPage() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* App Tour dialog */}
+          <AppTour open={tourOpen} onClose={() => setTourOpen(false)} />
         </motion.div>
       </div>
     </AppLayout>

@@ -467,7 +467,7 @@ const MyReportsPage = () => {
                   No Reports Found
                 </h3>
                 <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 13, color: "#9E7A6A" }}>
-                  {search || filter !== "All" ? "Try adjusting your filters or search." : "You haven't submitted any anonymous reports yet."}
+                  {search || filter !== "All" ? "Try adjusting your filters or search." : "You haven't submitted any anonymous reports yet. Reports are 100% anonymous — file one from the Report screen to help other women stay safe."}
                 </p>
               </motion.div>
             ) : (

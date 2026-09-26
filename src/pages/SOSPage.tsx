@@ -18,6 +18,7 @@ import {
 } from "@/lib/audio";
 import { vibrateActivated, vibrateResolved } from "@/lib/haptics";
 import { getDeviceBattery, isSharingEnabled, shareLocation } from "@/pages/location/helpers";
+import HelpDialog from "@/components/safety/HelpDialog";
 import { useEmergencyActivation } from "@/components/emergency/EmergencyActivationProvider";
 
 const FONT = "Nunito,sans-serif";
@@ -596,7 +597,10 @@ const SOSPage = () => {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h1 style={{ fontFamily: FONT, fontWeight: 900, fontSize: 22, color: "#3D2315" }}>Emergency SOS</h1>
+                <div className="flex items-center gap-2">
+                  <h1 style={{ fontFamily: FONT, fontWeight: 900, fontSize: 22, color: "#3D2315" }}>Emergency SOS</h1>
+                  <HelpDialog topic="sos" />
+                </div>
                 <p style={{ fontFamily: FONT, fontWeight: 500, fontSize: 13, color: "#9E7A6A" }}>Sakhi is always ready to help</p>
               </div>
             </div>

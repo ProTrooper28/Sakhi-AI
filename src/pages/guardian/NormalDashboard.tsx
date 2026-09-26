@@ -28,6 +28,7 @@ import type { LiveLocation, SafetyEvent, ActiveJourney } from "@/lib/safety";
 import { fetchActiveJourneys, subscribeActiveJourneys } from "@/lib/safety";
 import { journeyEventFromLabel, checkinStepsFromJourneyData } from "@/lib/safety";
 import { batteryEventFromLabel, batteryGauge } from "@/lib/safety";
+import HelpDialog from "@/components/safety/HelpDialog";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { AVATAR_COLORS, initialsOf, timeAgo } from "./helpers";
 import { CalmFamilyMap } from "./maps";
@@ -297,13 +298,16 @@ export const NormalDashboard = ({
         transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
         className="guardian-gradient-calm relative overflow-hidden rounded-[28px] p-5"
         style={{ boxShadow: "0 10px 34px rgba(122,43,115,0.08)", border: "1px solid rgba(122,43,115,0.08)" }}
-      >
-        <div className="relative">
+      >        <div className="relative">
+
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 22, color: "#3D2315", lineHeight: 1.15 }}>
-                {greeting}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 style={{ fontFamily: "Nunito,sans-serif", fontWeight: 900, fontSize: 22, color: "#3D2315", lineHeight: 1.15 }}>
+                  {greeting}
+                </h2>
+                <HelpDialog topic="guardian" />
+              </div>
               <p style={{ fontFamily: "Nunito,sans-serif", fontWeight: 600, fontSize: 12, color: "#9E7A6A", marginTop: 4, lineHeight: 1.5 }}>
                 {accepted.length > 0
                   ? `Watching over ${accepted.length} family ${accepted.length === 1 ? "member" : "members"} — everyone is safe.`

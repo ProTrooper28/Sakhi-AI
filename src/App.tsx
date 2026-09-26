@@ -38,6 +38,7 @@ import UserLiveLocationPage from "./pages/location/UserLiveLocationPage";
 import GuardianTrackingPage from "./pages/location/GuardianTrackingPage";
 import SecuritySettingsPage from "./pages/SecuritySettingsPage";
 import SafetyJourneyPage from "./pages/SafetyJourneyPage";
+import OnboardingPage, { ONBOARDING_DONE_KEY } from "./pages/OnboardingPage";
 import PostIncidentPage from "./pages/PostIncidentPage";
 import NotFound from "./pages/NotFound";
 
@@ -111,6 +112,10 @@ const Protected = ({ children }: { children: ReactNode }) => {
     );
   }
   if (!user && !guest) return <Navigate to="/" replace />;
+  // First signed-in visit (never for guests) → the onboarding flow once.
+  if (user && !guest && !localStorage.getItem(ONBOARDING_DONE_KEY)) {
+    return <Navigate to="/onboarding" replace />;
+  }
   return <>{children}</>;
 };
 
@@ -343,6 +348,15 @@ const App = () => (
                 element={
                   <Protected>
                     <SecuritySettingsPage />
+                  </Protected>
+                }
+              />
+              {/* First-run onboarding — five short slides after sign-in */}
+              <Route
+                path="/onboarding"
+                element={
+                  <Protected>
+                    <OnboardingPage />
                   </Protected>
                 }
               />

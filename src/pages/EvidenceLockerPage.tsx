@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { Lock, Unlock, Shield, Calendar, MapPin, Eye, Download, Trash2, ShieldCheck, MoreVertical, Search, Filter, Grid, List as ListIcon, FileVideo, FileAudio, FileText, Clock, X, ChevronRight } from "lucide-react";
+import { Lock, Unlock, Shield, Calendar, MapPin, Eye, Download, Trash2, ShieldCheck, MoreVertical, Search, Filter, Grid, List as ListIcon, FileVideo, FileAudio, FileText, Clock, X, ChevronRight, Archive } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
 import EvidenceIntegrity from "@/components/EvidenceIntegrity";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useApp } from "@/context/AppContext";
+import HelpDialog from "@/components/safety/HelpDialog";
+
 const EvidenceLockerPage = () => {
   const { evidenceLocker, sosState } = useApp();
   const [isLocked, setIsLocked] = useState(true);
@@ -153,7 +155,10 @@ const EvidenceLockerPage = () => {
                <div className="w-8 h-8 bg-slate-900 rounded-xl flex items-center justify-center text-white">
                   <ShieldCheck className="w-4 h-4" />
                </div>
-               <h1 className="text-2xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "Manrope, sans-serif" }}>Evidence Locker</h1>
+               <div className="flex items-center gap-2">
+                 <h1 className="text-2xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "Manrope, sans-serif" }}>Evidence Locker</h1>
+                 <HelpDialog topic="evidence" />
+               </div>
             </div>
             <p className="text-slate-400 font-bold text-[13px] uppercase tracking-widest ml-11">4 Total Files Secured</p>
           </div>
@@ -196,6 +201,21 @@ const EvidenceLockerPage = () => {
                  <Filter className="w-4 h-4" /> {filterActive ? "Filtered" : "Filter"}
               </button>
            </div>
+
+           {/* Empty state — explain what the locker is for when nothing matches */}
+           {filteredList(allEvidence).length === 0 && (
+             <div className="text-center py-16">
+               <div className="w-16 h-16 mx-auto mb-4 rounded-3xl bg-slate-50 flex items-center justify-center">
+                 <Archive className="w-8 h-8 text-slate-300" />
+               </div>
+               <h3 className="text-lg font-black text-slate-900" style={{ fontFamily: "Manrope, sans-serif" }}>No evidence yet</h3>
+               <p className="text-sm font-bold text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
+                 {searchQuery
+                   ? "Nothing matches your search — try a different name or location."
+                   : "Photos, videos and audio collected during emergencies will appear here automatically. Everything stays PIN-protected."}
+               </p>
+             </div>
+           )}
 
            {/* Grid Layout */}
            <div className={`grid gap-6 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid-cols-1"}`}>

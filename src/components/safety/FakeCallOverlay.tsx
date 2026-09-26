@@ -19,6 +19,7 @@ import {
   type FakeCallRequest,
 } from "@/lib/safety/fakeCall";
 import { startFakeRingtone, stopFakeRingtone, startFakeVibration, stopFakeVibration, playFakeConversation, stopFakeConversation } from "@/lib/safety/fakeCallAudio";
+import HelpDialog from "@/components/safety/HelpDialog";
 
 /**
  * Fake Call — provider + UI (bottom sheet config, full-screen incoming call).
@@ -183,6 +184,7 @@ export const FakeCallProvider = ({ children }: { children: ReactNode }) => {
                     Fake Call
                   </h3>
                 </div>
+                <HelpDialog topic="fake-call" />
                 <button onClick={() => setSheetOpen(false)} className="p-2 rounded-full hover:bg-[#FDF6EE] cursor-pointer" aria-label="Close">
                   <X className="w-4 h-4 text-[#9E7A6A]" />
                 </button>
