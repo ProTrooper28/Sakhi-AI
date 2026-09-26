@@ -65,8 +65,8 @@ export default defineConfig(({ mode }) => ({
                     if (eqIdx === -1) continue;
                     const key = trimmed.slice(0, eqIdx).trim();
                     const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, "");
-                    if (key === "GROQ_API_KEY" && !process.env.GROQ_API_KEY) {
-                      process.env.GROQ_API_KEY = val;
+                    if ((key === "GROQ_API_KEY" || key === "GEMINI_API_KEY" || key === "GOOGLE_API_KEY") && !process.env[key]) {
+                      process.env[key] = val;
                     }
                   }
                 }
@@ -83,12 +83,30 @@ export default defineConfig(({ mode }) => ({
           let body = "";
           for await (const chunk of req) body += chunk;
           try {
-            const { messages, stream } = JSON.parse(body);
-            const apiKey = process.env.GROQ_API_KEY;
+            const { messages, stream, context } = JSON.parse(body);
+            // Gemini first (per spec), Groq as automatic drop-in fallback.
+            // Keys stay server-side only — never exposed to the browser.
+            const useGemini = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+            const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GROQ_API_KEY;
             if (!apiKey) {
-              console.error("[/api/chat] GROQ_API_KEY is not set.");
-              throw new Error("GROQ_API_KEY not configured. Add it in Settings \u2192 Environment.");
+              console.error("[/api/chat] No AI key set (GEMINI_API_KEY / GOOGLE_API_KEY / GROQ_API_KEY).");
+              throw new Error("AI API key not configured. Add GEMINI_API_KEY in Settings \u2192 Environment.");
             }
+            // Live app context injected by the client (journey, SOS, triggers,
+            // guardian link) so the assistant is situationally aware.
+            const contextBlock = context && typeof context === "object"
+              ? `\n\n## Live User Context (current app state — reference naturally, never enumerate)
+- User's name: ${String(context.userName || "unknown")}
+- SOS/emergency mode active right now: ${context.sosActive ? "YES" : "no"}
+- Safety Journey status: ${context.journeyStatus || "none"}${context.journeyDestination ? ` (destination: ${context.journeyDestination})` : ""}
+- Voice phrase trigger armed: ${context.voiceEnabled ? "yes" : "no"}
+- Shake trigger armed: ${context.shakeEnabled ? "yes" : "no"}
+- Guardian linked: ${context.guardianLinked ? "yes" : "no — demo mode"}
+- Approximate area (if shared): ${context.locationLabel || "not shared"}
+- Current local time: ${String(context.localTime || "")}
+
+Use this context to personalize replies (e.g. mention the active journey or available triggers when relevant).`
+              : "";
             const systemPrompt = `You are Sakhi AI — a warm, caring, protective elder-sister figure who is the user's personal safety companion inside the Sakhi AI app.
 
 ## Your Personality
@@ -123,13 +141,41 @@ You can answer any general question — dates, math, science, history, geography
 - Never diagnose medical conditions — always suggest consulting a doctor.
 - For legal questions, provide general guidance but always recommend consulting a lawyer.
 - Do NOT include action button labels in your response text.
-- Detect the user's language and respond in the same language (Hindi, English, Hinglish, etc.)`;            const payload = JSON.stringify({
-              model: "openai/gpt-oss-120b",
-              messages: [{ role: "system", content: systemPrompt }, ...messages],
-              temperature: 0.7,
-              max_tokens: 1024,
-              stream: !!stream,
-            });
+- Detect the user's language and respond in the same language (Hindi, English, Hinglish, etc.)
+
+## Primary Goals (in priority order)
+1. Keep the user safe.
+2. Give practical, actionable advice.
+3. Remain calm — never create panic.
+4. Encourage contacting guardians or emergency services when required.
+5. Respect privacy.
+6. Be empathetic.
+7. Keep responses concise unless the user asks for details.
+
+## Safety Boundaries
+- NEVER encourage violence — self-defense advice is always about escape, distance, attracting attention, and getting to safety.
+- NEVER provide harmful or illegal advice.
+- Always recommend official emergency services (112, 1091) where appropriate.
+- If the user is in immediate danger, keep the reply short and action-focused: call 112, share location, get to a crowded, well-lit place.${contextBlock}`;
+            const payload = JSON.stringify(
+              useGemini
+                ? {
+                    // Gemini generateContent format.
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    contents: (Array.isArray(messages) ? messages : []).map((m: { role: string; content: string }) => ({
+                      role: m.role === "assistant" ? "model" : "user",
+                      parts: [{ text: m.content }],
+                    })),
+                    generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+                  }
+                : {
+                    model: "openai/gpt-oss-120b",
+                    messages: [{ role: "system", content: systemPrompt }, ...messages],
+                    temperature: 0.7,
+                    max_tokens: 1024,
+                    stream: !!stream,
+                  },
+            );
             const nodeHttps = await import("node:https");
             if (stream) {
               // ── SSE streaming mode ──
@@ -140,20 +186,67 @@ You can answer any general question — dates, math, science, history, geography
                 "X-Accel-Buffering": "no",
               });
               const groqReq = nodeHttps.default.request(
-                "https://api.groq.com/openai/v1/chat/completions",
+                useGemini
+                  ? "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse"
+                  : "https://api.groq.com/openai/v1/chat/completions",
                 {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
-                    Authorization: "Bearer " + apiKey,
+                    // Gemini authenticates via x-goog-api-key only — sending an
+                    // Authorization Bearer header makes Google try OAuth2 and fail.
+                    ...(useGemini
+                      ? { "x-goog-api-key": apiKey }
+                      : { Authorization: "Bearer " + apiKey }),
                   },
                 },
                 (groqRes: any) => {
                   if (groqRes.statusCode !== 200) {
                     let errData = "";
                     groqRes.on("data", (c: any) => (errData += c));
-                    groqRes.on("end", () => {
-                      console.error("[/api/chat] Groq stream error:", groqRes.statusCode, errData);
+                    groqRes.on("end", async () => {
+                      console.error("[/api/chat] AI stream error:", groqRes.statusCode, errData);
+                      // Gemini streaming occasionally 503s under load — retry
+                      // once via the non-streaming endpoint and emit the full
+                      // reply as a single token so the chat still works.
+                      if (useGemini) {
+                        await new Promise((r) => setTimeout(r, 700));
+                        try {
+                          const retryBody = await new Promise<string>((resolve, reject) => {
+                            const retryReq = nodeHttps.default.request(
+                              "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+                              {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  "x-goog-api-key": apiKey,
+                                },
+                              },
+                              (retryRes: any) => {
+                                let d = "";
+                                retryRes.on("data", (c: any) => (d += c));
+                                retryRes.on("end", () => resolve(d));
+                                retryRes.on("error", reject);
+                              },
+                            );
+                            retryReq.on("error", reject);
+                            retryReq.write(payload);
+                            retryReq.end();
+                          });
+                          const retryParsed = JSON.parse(retryBody);
+                          const text = (retryParsed.candidates?.[0]?.content?.parts ?? [])
+                            .map((p: { text?: string }) => p.text || "")
+                            .join("");
+                          if (text) {
+                            res.write(`data: ${JSON.stringify({ token: text })}\n\n`);
+                            res.write("data: [DONE]\n\n");
+                            res.end();
+                            return;
+                          }
+                        } catch (retryErr: any) {
+                          console.error("[/api/chat] Gemini stream fallback failed:", retryErr?.message || retryErr);
+                        }
+                      }
                       res.write(`data: ${JSON.stringify({ error: "API error" })}\n\n`);
                       res.write("data: [DONE]\n\n");
                       res.end();
@@ -169,7 +262,12 @@ You can answer any general question — dates, math, science, history, geography
                       } else {
                         try {
                           const parsed = JSON.parse(data);
-                          const token = parsed.choices?.[0]?.delta?.content ?? "";
+                          // Gemini SSE (candidates[0].content.parts[].text) and
+                          // Groq/OpenAI (choices[0].delta.content) both handled.
+                          const token =
+                            parsed.choices?.[0]?.delta?.content ??
+                            (parsed.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text || "").join("") ??
+                            "";
                           if (token) {
                             res.write(`data: ${JSON.stringify({ token })}\n\n`);
                           }
@@ -198,12 +296,16 @@ You can answer any general question — dates, math, science, history, geography
               // ── Non-streaming mode (fallback) ──
               const groqBody = await new Promise<string>((resolve, reject) => {
                 const groqReq = nodeHttps.default.request(
-                  "https://api.groq.com/openai/v1/chat/completions",
+                  useGemini
+                    ? "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
+                    : "https://api.groq.com/openai/v1/chat/completions",
                   {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
-                      Authorization: "Bearer " + apiKey,
+                      ...(useGemini
+                        ? { "x-goog-api-key": apiKey }
+                        : { Authorization: "Bearer " + apiKey }),
                     },
                   },
                   (groqRes: any) => {
@@ -222,7 +324,9 @@ You can answer any general question — dates, math, science, history, geography
                 console.error("[/api/chat] Groq error:", parsed.error.message || parsed.error);
                 throw new Error(parsed.error.message || "Groq API error");
               }
-              const content = parsed.choices?.[0]?.message?.content ?? "";
+              const content = useGemini
+                ? (parsed.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text || "").join("")
+                : parsed.choices?.[0]?.message?.content ?? "";
               res.writeHead(200, { "Content-Type": "application/json" });
               res.end(JSON.stringify({ content }));
             }

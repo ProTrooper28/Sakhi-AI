@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import AppLayout from "@/components/AppLayout";
 import {
   Mic,
@@ -28,7 +29,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { recommendForText } from "@/lib/safety";
 import { shareLocation } from "@/pages/location/helpers";
-import { streamMessageToApi, type ChatApiMessage } from "@/lib/chatApi";
+import { streamMessageToApi, type ChatApiMessage, type ChatUserContext } from "@/lib/chatApi";
+import { readTriggerConfig } from "@/lib/safety";
 
 // ── Types ──
 
@@ -41,6 +43,8 @@ type Message = {
   timestamp: number;
   isError?: boolean;
   isSystem?: boolean;
+  /** When set, renders an urgent emergency action card above the text. */
+  emergency?: boolean;
 };
 
 type ChatMode = "normal" | "emergency";
@@ -213,19 +217,73 @@ function CopyButton({ text }: { text: string }) {
 // ── Quick action categories ──
 
 const QUICK_ACTIONS = [
-  { label: "Safety Tips", icon: Shield, color: "#0D9488", bg: "rgba(13,148,136,0.08)", prompt: "Give me some essential safety tips for women" },
-  { label: "Know Your Rights", icon: FileText, color: "#7C3AED", bg: "rgba(124,58,237,0.08)", prompt: "What are my legal rights as a woman in India?" },
-  { label: "Emergency SOS", icon: AlertTriangle, color: "var(--sakhi-red)", bg: "var(--sakhi-red-light)", action: "sos" },
-  { label: "Health Basics", icon: Heart, color: "#EC4899", bg: "rgba(236,72,153,0.08)", prompt: "Tell me about basic women's health and wellness tips" },
-  { label: "Safe Routes", icon: Navigation, color: "#2563EB", bg: "rgba(37,99,235,0.08)", action: "location" },
-  { label: "Helplines", icon: Phone, color: "#D97706", bg: "rgba(217,119,6,0.08)", prompt: "List all important emergency helpline numbers in India" },
+  { label: "Travel Safety", icon: Navigation, color: "#2563EB", bg: "rgba(37,99,235,0.08)", prompt: "How do I stay safe while travelling at night?" },
+  { label: "Cyber Safety", icon: Globe, color: "#7C3AED", bg: "rgba(124,58,237,0.08)", prompt: "How can I stay safe from cyber fraud and social media hacking?" },
+  { label: "Legal Rights", icon: FileText, color: "#0D9488", bg: "rgba(13,148,136,0.08)", prompt: "What are my legal rights as a woman in India?" },
+  { label: "Emergency", icon: AlertTriangle, color: "var(--sakhi-red)", bg: "var(--sakhi-red-light)", prompt: "What should I do in an emergency? Which numbers should I call?" },
+  { label: "Self Defence", icon: Shield, color: "#D97706", bg: "rgba(217,119,6,0.08)", prompt: "Give me practical self-defense tips to escape an attacker" },
+  { label: "Mental Health", icon: Heart, color: "#EC4899", bg: "rgba(236,72,153,0.08)", prompt: "I'm feeling anxious and overwhelmed. How can I calm down and get support?" },
 ];
+
+// ── Emergency intent detection + emergency action card ──
+
+const EMERGENCY_RE =
+  /\b(help me|save me|help|sos|danger|kidnap|attacked?|attacking|stalking|stalked|follow(ed|ing)? me|someone (is )?following|molest(ation|ed|ing)?|harass(ment|ed|ing)?|rape|assault|scared|i'?m scared|terrified|emergency|bachao|बचाओ|मदद|पीछा)\b/i;
+
+const EMERGENCY_ACTIONS = [
+  { label: "📞 Call 112", action: "call-112" },
+  { label: "🚨 Trigger SOS", action: "sos" },
+  { label: "📍 Share Live Location", action: "share-location" },
+  { label: "👥 Call Guardian", action: "call-guardian" },
+  { label: "📂 Evidence Locker", action: "review-evidence" },
+];
+
+// ── Live user context for the AI (situation awareness) ──
+
+const readJourneySnapshot = (): { status: string; destination: string } => {
+  try {
+    const raw = localStorage.getItem("sakhi_journey");
+    if (!raw) return { status: "none", destination: "" };
+    const j = JSON.parse(raw);
+    return {
+      status: j?.status || "none",
+      destination: j?.destination?.label ? String(j.destination.label).split(",").slice(0, 2).join(",") : "",
+    };
+  } catch {
+    return { status: "none", destination: "" };
+  }
+};
+
+function buildUserContext(opts: {
+  displayName?: string | null;
+  user?: unknown;
+  guest?: boolean;
+  sosActive: boolean;
+  locationLabel: string | null;
+}): ChatUserContext {
+  const journey = readJourneySnapshot();
+  const triggers = readTriggerConfig();
+  return {
+    userName: opts.displayName || undefined,
+    sosActive: opts.sosActive,
+    journeyStatus: (journey.status as ChatUserContext["journeyStatus"]) ?? "none",
+    journeyDestination: journey.destination || undefined,
+    voiceEnabled: !!triggers["voice-phrase"],
+    shakeEnabled: !!triggers["gesture"],
+    guardianLinked: !!(opts.user && !opts.guest),
+    locationLabel: opts.locationLabel || undefined,
+    localTime: new Date().toLocaleString([], {
+      weekday: "short", hour: "2-digit", minute: "2-digit",
+    }),
+  };
+}
 
 // ── Main Component ──
 
 export default function AssistantPage() {
   const navigate = useNavigate();
   const { triggerSOS, cancelSOS, sosState, locationState } = useApp();
+  const { user, guest, displayName } = useAuth();
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<ChatMode>("normal");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -381,6 +439,9 @@ export default function AssistantPage() {
   const dispatchAction = (action: string) => {
     const coords = locationState.coords;
     switch (action) {
+      case "call-112":
+        window.location.href = "tel:112";
+        break;
       case "start-journey":
       case "share_path":
         navigate("/journey");
@@ -482,7 +543,17 @@ export default function AssistantPage() {
     setIsProcessing(true);
 
     const rec = recommendForText(text);
-    setMode(rec.escalate ? "emergency" : "normal");
+    const emergencyDetected = EMERGENCY_RE.test(text);
+    setMode(rec.escalate || emergencyDetected ? "emergency" : "normal");
+
+    // Attach live app state so the AI is situationally aware.
+    const userContext = buildUserContext({
+      displayName,
+      user,
+      guest,
+      sosActive: sosState.active,
+      locationLabel: locationState.address,
+    });
 
     const conversationHistory: ChatApiMessage[] = [...messages, userMsg]
       .filter((m) => !m.isStreaming && !m.isError && !m.isSystem)
@@ -493,6 +564,7 @@ export default function AssistantPage() {
 
     abortRef.current = streamMessageToApi(
       conversationHistory,
+      userContext,
       // onToken
       (token) => {
         setMessages((prev) =>
@@ -511,7 +583,12 @@ export default function AssistantPage() {
               ? {
                   ...msg,
                   isStreaming: false,
-                  suggestions: rec.actions.map((a) => ({ label: a.label, action: a.id })),
+                  // Emergency intent → dedicated action card (Call 112, SOS,
+                  // Share location, Guardian, Evidence Locker).
+                  emergency: emergencyDetected || rec.escalate,
+                  suggestions: (emergencyDetected || rec.escalate
+                    ? EMERGENCY_ACTIONS
+                    : rec.actions.map((a) => ({ label: a.label, action: a.id }))),
                   timestamp: Date.now(),
                 }
               : msg,
@@ -541,7 +618,7 @@ export default function AssistantPage() {
         setIsProcessing(false);
       },
     );
-  }, [isProcessing, messages, triggerSOS, cancelSOS]);
+  }, [isProcessing, messages, triggerSOS, cancelSOS, displayName, user, guest, sosState.active, locationState.address]);
 
   // ── Retry last failed message ──
 
@@ -802,6 +879,26 @@ export default function AssistantPage() {
                             boxShadow: isEmergency ? "none" : "0 1px 3px rgba(0,0,0,0.03)",
                           }}
                         >
+                          {/* Emergency action card */}
+                          {msg.emergency && !msg.isStreaming && (
+                            <div
+                              className="mb-3 rounded-xl p-3"
+                              style={{
+                                background: "rgba(220,38,38,0.10)",
+                                border: "1px solid rgba(220,38,38,0.30)",
+                              }}
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                <ShieldAlert className="w-4 h-4" style={{ color: "#FCA5A5" }} />
+                                <span className="text-xs font-black uppercase tracking-wider" style={{ color: "#FCA5A5" }}>
+                                  Emergency Assistance
+                                </span>
+                              </div>
+                              <p className="text-[12px] font-medium" style={{ color: isEmergency ? "#D4D4D4" : "#7F1D1D" }}>
+                                If you are in immediate danger, use one of these now — help is one tap away.
+                              </p>
+                            </div>
+                          )}
                           {msg.isStreaming && msg.content === "" ? (
                             <div className="flex items-center gap-1.5">
                               {[0, 1, 2].map((i) => (
@@ -930,9 +1027,7 @@ export default function AssistantPage() {
                   <button
                     key={item.label}
                     onClick={() => {
-                      if (item.action) {
-                        dispatchAction(item.action);
-                      } else if (item.prompt) {
+                      if (item.prompt) {
                         dispatch(item.prompt);
                       }
                     }}

@@ -1,10 +1,10 @@
 /**
  * Sakhi AI — Frontend client for the /api/chat backend endpoint.
  *
- * Supports both streaming (SSE) and non-streaming modes.
- * The API key is NEVER exposed to the browser; all Groq calls happen
- * server-side through the Vite dev middleware (dev) or a production
- * serverless function.
+ * Supports streaming (SSE) and non-streaming modes. The backend picks the
+ * provider (Gemini first, Groq fallback) — the API key is NEVER exposed to
+ * the browser; all AI calls happen server-side (Vite dev middleware in dev,
+ * a serverless function in production).
  */
 
 export interface ChatApiMessage {
@@ -13,16 +13,34 @@ export interface ChatApiMessage {
 }
 
 /**
+ * Snapshot of live app state attached to every request so the AI is
+ * situationally aware (active journey, SOS mode, armed triggers, guardian
+ * link) without the user repeating themselves.
+ */
+export interface ChatUserContext {
+  userName?: string;
+  sosActive?: boolean;
+  journeyStatus?: "active" | "planning" | "completed" | "none";
+  journeyDestination?: string;
+  voiceEnabled?: boolean;
+  shakeEnabled?: boolean;
+  guardianLinked?: boolean;
+  locationLabel?: string;
+  localTime?: string;
+}
+
+/**
  * Send the conversation history to the backend and return the full AI reply.
  * Non-streaming fallback — throws on network or server errors.
  */
 export async function sendMessageToApi(
   messages: ChatApiMessage[],
+  context?: ChatUserContext,
 ): Promise<string> {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, stream: false }),
+    body: JSON.stringify({ messages, stream: false, context }),
   });
 
   if (!response.ok) {
@@ -44,6 +62,7 @@ export async function sendMessageToApi(
  */
 export function streamMessageToApi(
   messages: ChatApiMessage[],
+  context: ChatUserContext | undefined,
   onToken: (token: string) => void,
   onDone: () => void,
   onError: (error: Error) => void,
@@ -55,7 +74,7 @@ export function streamMessageToApi(
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, stream: true }),
+        body: JSON.stringify({ messages, stream: true, context }),
         signal: controller.signal,
       });
 
